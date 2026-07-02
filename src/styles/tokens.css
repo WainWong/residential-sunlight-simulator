@@ -1,0 +1,16 @@
+:root {
+  color-scheme: light;
+  --ink-950: #17212b;
+  --ink-800: #2d3943;
+  --ink-600: #5f696f;
+  --paper-100: #f8f5ed;
+  --paper-200: #eee9dc;
+  --sun-500: #e7a52d;
+  --sun-300: #f3c96d;
+  --line: rgb(23 33 43 / 14%);
+  --radius-sm: 8px;
+  --radius-md: 14px;
+  --shadow-soft: 0 20px 50px rgb(23 33 43 / 12%);
+  --font-display: "Aptos Display", "Microsoft YaHei UI", sans-serif;
+  --font-body: "Aptos", "Microsoft YaHei UI", sans-serif;
+}
