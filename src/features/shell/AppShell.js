@@ -26,12 +26,17 @@ function createHeader() {
       createElement('button', {
         className: 'button button--ghost button--import',
         text: '导入',
-        attributes: { type: 'button' }
+        attributes: { type: 'button', 'data-action': 'import-project' }
+      }),
+      createElement('button', {
+        className: 'button button--ghost button--screenshot',
+        text: '截图',
+        attributes: { type: 'button', 'aria-label': '导出截图', 'data-action': 'export-screenshot' }
       }),
       createElement('button', {
         className: 'button button--primary',
         text: '保存项目',
-        attributes: { type: 'button', 'data-primary-control': '' }
+        attributes: { type: 'button', 'data-action': 'save-project', 'data-primary-control': '' }
       })
     )
   );
@@ -79,5 +84,7 @@ export function createAppShell() {
     navigation
   );
 }
+
+
 
 

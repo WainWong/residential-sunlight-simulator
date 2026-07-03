@@ -1,0 +1,32 @@
+﻿.toast {
+  position: fixed;
+  z-index: 200;
+  right: 18px;
+  bottom: 18px;
+  max-width: min(420px, calc(100vw - 36px));
+  padding: 12px 15px;
+  border: 1px solid rgb(255 255 255 / 16%);
+  border-radius: 11px;
+  background: var(--ink-950);
+  box-shadow: 0 18px 50px rgb(0 0 0 / 25%);
+  color: white;
+  font-size: 12px;
+}
+
+.toast--success {
+  background: #285a41;
+}
+
+.toast--error {
+  background: #842f2a;
+}
+
+@media (max-width: 767px) {
+  .toast {
+    right: 12px;
+    bottom: calc(76px + env(safe-area-inset-bottom));
+    left: 12px;
+    max-width: none;
+  }
+}
+
