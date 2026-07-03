@@ -1,4 +1,4 @@
-import { createElement } from '../../ui/createElement.js';
+﻿import { createElement } from '../../ui/createElement.js';
 import { createInspector, createProjectTree } from './DesktopShell.js';
 import { createMobileControls } from './MobileShell.js';
 
@@ -21,7 +21,7 @@ function createHeader() {
       'div',
       { className: 'header-actions' },
       createElement('button', {
-        className: 'button button--ghost',
+        className: 'button button--ghost button--import',
         text: '导入',
         attributes: { type: 'button' }
       }),
@@ -99,3 +99,4 @@ export function createAppShell() {
     navigation
   );
 }
+
