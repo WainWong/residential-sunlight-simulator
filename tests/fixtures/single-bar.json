@@ -1,0 +1,40 @@
+{
+  "schemaVersion": 1,
+  "id": "fixture-single-bar",
+  "name": "深圳板楼示例",
+  "location": {
+    "cityId": "shenzhen",
+    "latitude": 22.5431,
+    "longitude": 114.0579,
+    "timeZone": "Asia/Shanghai"
+  },
+  "buildings": [
+    {
+      "id": "building-a",
+      "revision": 1,
+      "name": "住宅 A",
+      "template": "bar",
+      "position": { "x": 0, "z": 0 },
+      "rotation": 0,
+      "params": {
+        "length": 60,
+        "depth": 18,
+        "floors": 33,
+        "floorHeight": 3
+      },
+      "observationAreas": [],
+      "openings": []
+    }
+  ],
+  "simulation": {
+    "date": "2026-12-21",
+    "time": "09:30",
+    "activeAreaId": null,
+    "sampleHeight": 0
+  },
+  "view": {
+    "camera": null,
+    "activePanel": "buildings",
+    "wizardComplete": true
+  }
+}

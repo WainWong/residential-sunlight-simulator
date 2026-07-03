@@ -1,0 +1,42 @@
+{
+  "schemaVersion": 1,
+  "id": "fixture-courtyard",
+  "name": "回字形中庭示例",
+  "location": {
+    "cityId": "shanghai",
+    "latitude": 31.2304,
+    "longitude": 121.4737,
+    "timeZone": "Asia/Shanghai"
+  },
+  "buildings": [
+    {
+      "id": "building-courtyard",
+      "revision": 1,
+      "name": "中庭住宅",
+      "template": "courtyard",
+      "position": { "x": 0, "z": 0 },
+      "rotation": 15,
+      "params": {
+        "length": 64,
+        "depth": 46,
+        "courtyardLength": 32,
+        "courtyardDepth": 18,
+        "floors": 18,
+        "floorHeight": 3
+      },
+      "observationAreas": [],
+      "openings": []
+    }
+  ],
+  "simulation": {
+    "date": "2026-06-21",
+    "time": "10:00",
+    "activeAreaId": null,
+    "sampleHeight": 0
+  },
+  "view": {
+    "camera": null,
+    "activePanel": "buildings",
+    "wizardComplete": true
+  }
+}

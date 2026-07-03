@@ -1,0 +1,37 @@
+.webgl-fallback {
+  position: absolute;
+  z-index: 4;
+  inset: 0;
+  display: grid;
+  align-content: center;
+  justify-items: center;
+  padding: 30px;
+  background: linear-gradient(180deg, #d9e7eb, #eee8d9);
+  text-align: center;
+}
+
+.webgl-fallback__mark {
+  display: grid;
+  width: 58px;
+  height: 58px;
+  place-items: center;
+  border: 1px solid var(--line);
+  border-radius: 50%;
+  background: white;
+  color: #9a6410;
+  font-size: 13px;
+  font-weight: 800;
+}
+
+.webgl-fallback h2 {
+  margin: 18px 0 0;
+  font-size: clamp(24px, 4vw, 38px);
+  letter-spacing: -0.05em;
+}
+
+.webgl-fallback p {
+  max-width: 520px;
+  margin: 10px 0 0;
+  color: var(--ink-600);
+  line-height: 1.7;
+}
