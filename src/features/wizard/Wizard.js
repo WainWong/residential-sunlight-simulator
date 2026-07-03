@@ -1,6 +1,8 @@
-import { createDefaultProject } from '../../domain/project/defaultProject.js';
+﻿import { createDefaultProject } from '../../domain/project/defaultProject.js';
 import { createBuildingEditor } from '../buildings/BuildingEditor.js';
 import { createLocationEditor } from '../location/LocationEditor.js';
+import { createObservationAreaEditor } from '../areas/ObservationAreaEditor.js';
+import { createOpeningEditor } from '../openings/OpeningEditor.js';
 import { createElement } from '../../ui/createElement.js';
 
 const STEP_LABELS = ['地点', '建筑', '观察区', '采光界面', '模拟'];
@@ -48,6 +50,10 @@ export function createWizard({ onClose, onProjectChange }) {
         project.buildings = buildings;
         onProjectChange(project);
       }));
+    } else if (step === 2 && project.buildings.length) {
+      content.replaceChildren(createObservationAreaEditor(project, onProjectChange));
+    } else if (step === 3 && project.buildings.length) {
+      content.replaceChildren(createOpeningEditor(project, onProjectChange));
     } else {
       content.replaceChildren(
         createElement(
@@ -55,7 +61,7 @@ export function createWizard({ onClose, onProjectChange }) {
           { className: 'wizard-section wizard-placeholder' },
           createElement('p', { className: 'wizard-kicker', text: `STEP ${step + 1}` }),
           createElement('h2', { className: 'wizard-heading', text: STEP_LABELS[step] }),
-          createElement('p', { className: 'wizard-copy', text: '这一步将在接下来的编辑任务中接入真实场景。' })
+          createElement('p', { className: 'wizard-copy', text: '完成前面的设置后，即可进入太阳模拟。' })
         )
       );
     }
@@ -114,3 +120,4 @@ export function createWizard({ onClose, onProjectChange }) {
 
   return createElement('div', { className: 'wizard-backdrop' }, dialog);
 }
+
