@@ -1,4 +1,4 @@
-﻿import { createElement } from '../../ui/createElement.js';
+import { createElement } from '../../ui/createElement.js';
 import { createProjectTree } from './DesktopShell.js';
 import { createResultsPanel } from '../results/ResultsPanel.js';
 import { createSimulationController } from '../results/createSimulationController.js';
@@ -60,7 +60,12 @@ function createViewport() {
       'div',
       { className: 'viewport__empty' },
       createElement('strong', { text: '场景已准备好' }),
-      createElement('span', { text: '添加建筑后即可开始模拟' })
+      createElement('span', { text: '添加建筑后即可开始模拟' }),
+      createElement('button', {
+        className: 'button button--primary viewport__example',
+        text: '打开示例项目',
+        attributes: { type: 'button', 'data-action': 'open-example', 'data-primary-control': '' }
+      })
     )
   );
 }
@@ -84,7 +89,3 @@ export function createAppShell() {
     navigation
   );
 }
-
-
-
-

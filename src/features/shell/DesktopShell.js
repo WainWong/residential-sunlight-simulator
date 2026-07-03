@@ -1,9 +1,10 @@
 import { createElement } from '../../ui/createElement.js';
 
-function treeRow(label, className = '') {
+function treeRow(label, className = '', testId = null) {
   return createElement('button', {
     className: `tree-row ${className}`,
     text: label,
+    testId,
     attributes: { type: 'button' }
   });
 }
@@ -19,7 +20,7 @@ export function createProjectTree() {
       { className: 'tree-list' },
       treeRow('▾ 住宅 A', 'is-active'),
       treeRow('　▾ 第 9 层'),
-      treeRow('　　● 客厅观察区', 'is-accent'),
+      treeRow('　　● 暂无观察区', 'is-accent', 'active-area-name'),
       treeRow('▸ 遮挡建筑 B')
     ),
     createElement('button', {

@@ -1,8 +1,8 @@
-﻿import { createDefaultProject } from './domain/project/defaultProject.js';
+import { createDefaultProject } from './domain/project/defaultProject.js';
 import { createWebGLFallback, supportsWebGL } from './features/compatibility/WebGLFallback.js';
 import { downloadProject } from './features/project/exportProject.js';
 import { exportScreenshot } from './features/project/exportScreenshot.js';
-import { readProjectFile } from './features/project/importProject.js';
+import { parseProject, readProjectFile } from './features/project/importProject.js';
 import { loadDraft, saveDraft } from './features/project/localDraft.js';
 import { createAppShell } from './features/shell/AppShell.js';
 import { createWizard } from './features/wizard/Wizard.js';
@@ -20,14 +20,23 @@ export function mountApp(root) {
 
   const canvas = shell.querySelector('#scene-canvas');
   let sceneController = null;
-  const sceneReady = supportsWebGL()
+  const webglAvailable = supportsWebGL();
+  const sceneReady = webglAvailable
     ? import('./scene/createSceneController.js').then(({ createSceneController }) => {
         sceneController = createSceneController(canvas);
         sceneController.updateProject(currentProject);
         return sceneController;
       })
     : Promise.resolve(null);
-  if (!supportsWebGL()) canvas.parentElement.append(createWebGLFallback());
+  if (!webglAvailable) canvas.parentElement.append(createWebGLFallback());
+
+  function renderProjectSummary(project) {
+    const allAreas = project.buildings.flatMap(building => building.observationAreas ?? []);
+    const activeArea = allAreas.find(area => area.id === project.simulation.activeAreaId) ?? allAreas[0];
+    const areaLabel = shell.querySelector('[data-testid="active-area-name"]');
+    if (areaLabel) areaLabel.textContent = `　　● ${activeArea?.name ?? '暂无观察区'}`;
+  }
+  renderProjectSummary(currentProject);
 
   function queueDraft(project) {
     currentProject = structuredClone(project);
@@ -36,11 +45,23 @@ export function mountApp(root) {
     shell.dataset.projectBuildings = String(currentProject.buildings.length);
     if (sceneController) sceneController.updateProject(currentProject);
     else sceneReady.then(controller => controller?.updateProject(currentProject));
+    renderProjectSummary(currentProject);
     if (!draftNoticeShown) {
       draftNoticeShown = true;
       showToast('编辑内容会作为本机草稿保存，不会上传。');
     }
   }
+
+  shell.querySelector('[data-action="open-example"]')?.addEventListener('click', async () => {
+    try {
+      const response = await fetch('/examples/shenzhen-winter-solstice.sunlight.json');
+      if (!response.ok) throw new Error('示例项目加载失败');
+      queueDraft(parseProject(await response.text()));
+      showToast('深圳冬至示例已打开。', 'success');
+    } catch (error) {
+      showToast(error.message, 'error');
+    }
+  });
 
   const newProject = createElement('button', {
     className: 'button button--ghost',
@@ -98,4 +119,3 @@ if (typeof document !== 'undefined') {
   const root = document.querySelector('#app');
   if (root) mountApp(root);
 }
-
