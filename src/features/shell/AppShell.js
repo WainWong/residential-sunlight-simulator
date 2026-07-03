@@ -1,5 +1,8 @@
 ﻿import { createElement } from '../../ui/createElement.js';
-import { createInspector, createProjectTree } from './DesktopShell.js';
+import { createProjectTree } from './DesktopShell.js';
+import { createResultsPanel } from '../results/ResultsPanel.js';
+import { createSimulationController } from '../results/createSimulationController.js';
+import { createTimeline as createInteractiveTimeline } from '../timeline/Timeline.js';
 import { createMobileControls } from './MobileShell.js';
 
 function createHeader() {
@@ -57,31 +60,8 @@ function createViewport() {
   );
 }
 
-function createTimeline() {
-  return createElement(
-    'section',
-    { className: 'timeline' },
-    createElement('button', {
-      className: 'timeline__play',
-      text: '▶',
-      attributes: { type: 'button', 'aria-label': '播放一天', 'data-primary-control': '' }
-    }),
-    createElement(
-      'div',
-      { className: 'timeline__track-wrap' },
-      createElement(
-        'div',
-        { className: 'timeline__labels' },
-        createElement('span', { text: '06:58' }),
-        createElement('strong', { text: '09:30' }),
-        createElement('span', { text: '17:44' })
-      ),
-      createElement('div', { className: 'timeline__track' })
-    )
-  );
-}
-
 export function createAppShell() {
+  const controller = createSimulationController();
   const { sheet, navigation } = createMobileControls();
   return createElement(
     'div',
@@ -92,11 +72,12 @@ export function createAppShell() {
       { className: 'workspace' },
       createProjectTree(),
       createViewport(),
-      createInspector(),
+      createResultsPanel(controller),
       sheet
     ),
-    createTimeline(),
+    createInteractiveTimeline(controller),
     navigation
   );
 }
+
 
