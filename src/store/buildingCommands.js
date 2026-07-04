@@ -1,10 +1,15 @@
 import { normalizeRotation } from '../domain/buildings/editorCoordinates.js';
 
-export const BUILDING_DEFAULTS = {
-  bar: { length: 60, depth: 18 },
-  lShape: { length: 60, depth: 40, wingLength: 18, wingDepth: 16 },
-  courtyard: { length: 60, depth: 40, courtyardLength: 30, courtyardDepth: 16 }
-};
+export const BUILDING_DEFAULTS = Object.freeze({
+  bar: Object.freeze({ length: 60, depth: 18 }),
+  lShape: Object.freeze({ length: 60, depth: 40, wingLength: 18, wingDepth: 16 }),
+  courtyard: Object.freeze({
+    length: 60,
+    depth: 40,
+    courtyardLength: 30,
+    courtyardDepth: 16
+  })
+});
 
 function nextBuildingName(buildings) {
   return `住宅 ${buildings.length + 1}`;
@@ -50,7 +55,7 @@ export function createAddBuildingCommand(overrides = {}) {
   };
 }
 
-export function createUpdateBuildingCommand(buildingId, patch) {
+export function createUpdateBuildingCommand(buildingId, patch = {}) {
   return {
     label: '修改建筑',
     apply(state) {
@@ -59,15 +64,26 @@ export function createUpdateBuildingCommand(buildingId, patch) {
         ...state,
         buildings: state.buildings.map(building => {
           if (building.id !== buildingId) return building;
+          const template = patch.template ?? building.template;
+          const templateChanged = template !== building.template;
+          const params = templateChanged
+            ? {
+                ...BUILDING_DEFAULTS[template],
+                floors: building.params.floors,
+                floorHeight: building.params.floorHeight,
+                ...patch.params
+              }
+            : { ...building.params, ...patch.params };
           return {
             ...building,
-            ...patch,
-            revision: (building.revision ?? 0) + 1,
+            revision: Number.isFinite(building.revision) ? building.revision + 1 : 1,
+            name: patch.name ?? building.name,
+            template,
             position: { ...building.position, ...patch.position },
             rotation: patch.rotation == null
               ? building.rotation
               : normalizeRotation(patch.rotation),
-            params: { ...building.params, ...patch.params }
+            params
           };
         })
       };
@@ -100,8 +116,12 @@ export function createFinishBuildingCommand(buildingId) {
         view: {
           ...state.view,
           selectedBuildingId: buildingId,
-          editingBuildingId: null,
-          addingBuildingId: null
+          editingBuildingId: state.view.editingBuildingId === buildingId
+            ? null
+            : state.view.editingBuildingId,
+          addingBuildingId: state.view.addingBuildingId === buildingId
+            ? null
+            : state.view.addingBuildingId
         }
       };
     }
@@ -118,8 +138,12 @@ export function createCancelAddedBuildingCommand(buildingId) {
         buildings: state.buildings.filter(building => building.id !== buildingId),
         view: {
           ...state.view,
-          selectedBuildingId: null,
-          editingBuildingId: null,
+          selectedBuildingId: state.view.selectedBuildingId === buildingId
+            ? null
+            : state.view.selectedBuildingId,
+          editingBuildingId: state.view.editingBuildingId === buildingId
+            ? null
+            : state.view.editingBuildingId,
           addingBuildingId: null
         }
       };

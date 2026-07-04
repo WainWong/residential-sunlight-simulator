@@ -46,6 +46,8 @@ describe('building commands', () => {
         courtyardDepth: 16
       }
     });
+    expect(Object.isFrozen(BUILDING_DEFAULTS)).toBe(true);
+    expect(Object.values(BUILDING_DEFAULTS).every(Object.isFrozen)).toBe(true);
   });
 
   it('adds persisted building drafts at the origin with sequential Chinese names', () => {
@@ -210,4 +212,123 @@ describe('building commands', () => {
       addingBuildingId: null
     });
   });
+
+  it.each([
+    ['lShape', {
+      length: 72,
+      depth: 40,
+      wingLength: 18,
+      wingDepth: 16,
+      floors: 21,
+      floorHeight: 3.2
+    }],
+    ['courtyard', {
+      length: 72,
+      depth: 40,
+      courtyardLength: 30,
+      courtyardDepth: 16,
+      floors: 21,
+      floorHeight: 3.2
+    }]
+  ])('seeds defaults when changing a bar building to %s', (template, expectedParams) => {
+    const project = createAddBuildingCommand({
+      id: 'building-a',
+      params: { floors: 21, floorHeight: 3.2 }
+    }).apply(createDefaultProject());
+
+    const next = createUpdateBuildingCommand('building-a', {
+      template,
+      params: { length: 72 }
+    }).apply(project);
+
+    expect(next.buildings[0]).toMatchObject({ template, params: expectedParams });
+    expect(next.buildings[0].params).toEqual(expectedParams);
+  });
+
+  it('only applies editable fields and clones nested patch values', () => {
+    const project = createAddBuildingCommand({ id: 'building-a' }).apply(createDefaultProject());
+    const position = { x: 8 };
+    const params = { depth: 24 };
+    const next = createUpdateBuildingCommand('building-a', {
+      id: 'building-b',
+      revision: 99,
+      openings: [{ id: 'opening-a' }],
+      observationAreas: [{ id: 'area-a' }],
+      unexpected: true,
+      name: 'South Building',
+      position,
+      params
+    }).apply(project);
+    const updated = next.buildings[0];
+
+    expect(updated).toMatchObject({
+      id: 'building-a',
+      revision: 2,
+      name: 'South Building',
+      position: { x: 8, z: 0 },
+      params: { length: 60, depth: 24 }
+    });
+    expect(updated).not.toHaveProperty('unexpected');
+    expect(updated.openings).toEqual([]);
+    expect(updated.observationAreas).toEqual([]);
+    expect(updated.position).not.toBe(position);
+    expect(updated.params).not.toBe(params);
+  });
+
+  it('resets a malformed revision to one when updating', () => {
+    const project = createAddBuildingCommand({ id: 'building-a' }).apply(createDefaultProject());
+    project.buildings[0].revision = 'invalid';
+
+    const next = createUpdateBuildingCommand('building-a', { name: 'South Building' }).apply(project);
+
+    expect(next.buildings[0].revision).toBe(1);
+  });
+
+  it('keeps only the most recently added building as the active draft', () => {
+    let project = createAddBuildingCommand({ id: 'building-a' }).apply(createDefaultProject());
+    project = createAddBuildingCommand({ id: 'building-b' }).apply(project);
+
+    expect(project.buildings.map(building => building.id)).toEqual(['building-a', 'building-b']);
+    expect(project.view).toMatchObject({
+      selectedBuildingId: 'building-b',
+      editingBuildingId: 'building-b',
+      addingBuildingId: 'building-b'
+    });
+  });
+
+  it('finishes only matching editing and adding ids', () => {
+    let project = createAddBuildingCommand({ id: 'building-a' }).apply(createDefaultProject());
+    project = createAddBuildingCommand({ id: 'building-b' }).apply(project);
+
+    const next = createFinishBuildingCommand('building-a').apply(project);
+
+    expect(next.view).toMatchObject({
+      selectedBuildingId: 'building-a',
+      editingBuildingId: 'building-b',
+      addingBuildingId: 'building-b'
+    });
+  });
+
+  it('preserves unrelated selection and editing when cancelling a draft', () => {
+    let project = createAddBuildingCommand({ id: 'building-a' }).apply(createDefaultProject());
+    project = createAddBuildingCommand({ id: 'building-b' }).apply(project);
+    project = {
+      ...project,
+      view: {
+        ...project.view,
+        selectedBuildingId: 'building-a',
+        editingBuildingId: 'building-a'
+      }
+    };
+
+    const next = createCancelAddedBuildingCommand('building-b').apply(project);
+
+    expect(next.buildings.map(building => building.id)).toEqual(['building-a']);
+    expect(next.view).toMatchObject({
+      selectedBuildingId: 'building-a',
+      editingBuildingId: 'building-a',
+      addingBuildingId: null
+    });
+  });
+
 });
