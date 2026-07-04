@@ -10,6 +10,15 @@ export const BUILDING_DEFAULTS = Object.freeze({
     courtyardDepth: 16
   })
 });
+const TEMPLATE_PARAM_FIELDS = new Set(
+  Object.values(BUILDING_DEFAULTS).flatMap(defaults => Object.keys(defaults))
+);
+
+function withoutTemplateParams(params) {
+  return Object.fromEntries(
+    Object.entries(params).filter(([key]) => !TEMPLATE_PARAM_FIELDS.has(key))
+  );
+}
 
 function nextBuildingName(buildings) {
   return `住宅 ${buildings.length + 1}`;
@@ -59,6 +68,7 @@ export function createUpdateBuildingCommand(buildingId, patch = {}) {
   return {
     label: '修改建筑',
     apply(state) {
+      if (patch.template != null && !Object.hasOwn(BUILDING_DEFAULTS, patch.template)) return state;
       if (!findBuilding(state, buildingId)) return state;
       return {
         ...state,
@@ -68,9 +78,8 @@ export function createUpdateBuildingCommand(buildingId, patch = {}) {
           const templateChanged = template !== building.template;
           const params = templateChanged
             ? {
+                ...withoutTemplateParams(building.params),
                 ...BUILDING_DEFAULTS[template],
-                floors: building.params.floors,
-                floorHeight: building.params.floorHeight,
                 ...patch.params
               }
             : { ...building.params, ...patch.params };
@@ -111,6 +120,7 @@ export function createFinishBuildingCommand(buildingId) {
   return {
     label: '完成建筑',
     apply(state) {
+      if (state.view.editingBuildingId !== buildingId) return state;
       return {
         ...state,
         view: {

@@ -220,7 +220,8 @@ describe('building commands', () => {
       wingLength: 18,
       wingDepth: 16,
       floors: 21,
-      floorHeight: 3.2
+      floorHeight: 3.2,
+      firstFloorHeight: 4.2
     }],
     ['courtyard', {
       length: 72,
@@ -228,12 +229,13 @@ describe('building commands', () => {
       courtyardLength: 30,
       courtyardDepth: 16,
       floors: 21,
-      floorHeight: 3.2
+      floorHeight: 3.2,
+      firstFloorHeight: 4.2
     }]
   ])('seeds defaults when changing a bar building to %s', (template, expectedParams) => {
     const project = createAddBuildingCommand({
       id: 'building-a',
-      params: { floors: 21, floorHeight: 3.2 }
+      params: { floors: 21, floorHeight: 3.2, firstFloorHeight: 4.2 }
     }).apply(createDefaultProject());
 
     const next = createUpdateBuildingCommand('building-a', {
@@ -243,6 +245,41 @@ describe('building commands', () => {
 
     expect(next.buildings[0]).toMatchObject({ template, params: expectedParams });
     expect(next.buildings[0].params).toEqual(expectedParams);
+  });
+
+  it('preserves shared params and removes geometry from the previous template', () => {
+    const project = createAddBuildingCommand({
+      id: 'building-a',
+      template: 'lShape',
+      params: {
+        wingLength: 22,
+        wingDepth: 20,
+        firstFloorHeight: 4.8,
+        facade: 'warm'
+      }
+    }).apply(createDefaultProject());
+
+    const next = createUpdateBuildingCommand('building-a', {
+      template: 'courtyard'
+    }).apply(project);
+
+    expect(next.buildings[0].params).toEqual({
+      length: 60,
+      depth: 40,
+      courtyardLength: 30,
+      courtyardDepth: 16,
+      floors: 33,
+      floorHeight: 3,
+      firstFloorHeight: 4.8,
+      facade: 'warm'
+    });
+  });
+
+  it('does nothing when changing to an unsupported template', () => {
+    const project = createAddBuildingCommand({ id: 'building-a' }).apply(createDefaultProject());
+
+    expect(createUpdateBuildingCommand('building-a', { template: 'tower' }).apply(project))
+      .toBe(project);
   });
 
   it('only applies editable fields and clones nested patch values', () => {
@@ -296,17 +333,13 @@ describe('building commands', () => {
     });
   });
 
-  it('finishes only matching editing and adding ids', () => {
+  it('does nothing when finishing a building that is not being edited', () => {
     let project = createAddBuildingCommand({ id: 'building-a' }).apply(createDefaultProject());
     project = createAddBuildingCommand({ id: 'building-b' }).apply(project);
 
     const next = createFinishBuildingCommand('building-a').apply(project);
 
-    expect(next.view).toMatchObject({
-      selectedBuildingId: 'building-a',
-      editingBuildingId: 'building-b',
-      addingBuildingId: 'building-b'
-    });
+    expect(next).toBe(project);
   });
 
   it('preserves unrelated selection and editing when cancelling a draft', () => {
