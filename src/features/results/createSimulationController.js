@@ -12,22 +12,17 @@ export function minuteToTime(minute) {
   return `${String(Math.floor(normalized / 60)).padStart(2, '0')}:${String(normalized % 60).padStart(2, '0')}`;
 }
 
-export function createSimulationController(initial = {}) {
+export function createSimulationController(store) {
   const listeners = new Set();
-  let input = {
-    location: initial.location ?? {
-      cityId: 'shenzhen',
-      name: '深圳',
-      latitude: 22.5431,
-      longitude: 114.0579,
-      timeZone: 'Asia/Shanghai'
-    },
-    date: initial.date ?? '2026-12-21',
-    time: initial.time ?? '09:30'
-  };
   let state;
 
   function calculate() {
+    const project = store.getState();
+    const input = {
+      location: project.location,
+      date: project.simulation.date,
+      time: project.simulation.time
+    };
     const minute = timeToMinute(input.time);
     const solar = getSolarPosition({
       ...input.location,
@@ -48,12 +43,14 @@ export function createSimulationController(initial = {}) {
     };
   }
 
-  function publish() {
+  function update() {
     calculate();
     for (const listener of listeners) listener(state);
   }
 
   calculate();
+  const unsubscribeStore = store.subscribe(update);
+
   return {
     getState: () => state,
     subscribe(listener) {
@@ -61,16 +58,35 @@ export function createSimulationController(initial = {}) {
       return () => listeners.delete(listener);
     },
     setTime(time) {
-      input = { ...input, time };
-      publish();
+      store.execute({
+        label: '修改模拟时间',
+        apply: project => ({
+          ...project,
+          simulation: { ...project.simulation, time }
+        })
+      });
     },
     setDate(date) {
-      input = { ...input, date };
-      publish();
+      store.execute({
+        label: '修改模拟日期',
+        apply: project => ({
+          ...project,
+          simulation: { ...project.simulation, date }
+        })
+      });
     },
     setLocation(location) {
-      input = { ...input, location: { ...location } };
-      publish();
+      store.execute({
+        label: '修改项目位置',
+        apply: project => ({
+          ...project,
+          location: structuredClone(location)
+        })
+      });
+    },
+    dispose() {
+      unsubscribeStore();
+      listeners.clear();
     }
   };
 }
