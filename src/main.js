@@ -71,8 +71,17 @@ export function mountApp(root) {
     : Promise.resolve(null);
   if (!webglAvailable) canvas.parentElement.append(createWebGLFallback());
 
+  let prevEditingId = store.getState().view.editingBuildingId;
   store.subscribe(project => {
-    scheduleSave(project);
+    const currentEditingId = project.view.editingBuildingId;
+    if (!currentEditingId && prevEditingId) {
+      clearTimeout(saveTimer);
+      saveTimer = null;
+      try { saveDraft(project); } catch { /* handled in scheduleSave */ }
+    } else {
+      scheduleSave(project);
+    }
+    prevEditingId = currentEditingId;
     shell.dataset.projectBuildings = String(project.buildings.length);
     const emptyHint = shell.querySelector('.viewport__empty');
     if (emptyHint) emptyHint.hidden = project.buildings.length > 0;

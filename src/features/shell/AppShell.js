@@ -103,12 +103,23 @@ export function createAppShell({
   store.subscribe(updateInspector);
   updateInspector(store.getState());
 
+  let prevEditingId = store.getState().view.editingBuildingId;
+  store.subscribe(project => {
+    const currentEditingId = project.view.editingBuildingId;
+    if (currentEditingId && !prevEditingId) {
+      appShell.dataset.mobilePanel = 'editor';
+    } else if (!currentEditingId && prevEditingId) {
+      appShell.dataset.mobilePanel = 'buildings';
+    }
+    prevEditingId = currentEditingId;
+  });
+
   const header = createHeader({ onClearSandbox });
   header.querySelector('[data-action="clear-sandbox"]').addEventListener('click', onClearSandbox);
 
-  return createElement(
+  const appShell = createElement(
     'div',
-    { className: 'app-shell' },
+    { className: 'app-shell', attributes: { 'data-mobile-panel': 'buildings' } },
     header,
     createElement(
       'div',
@@ -121,4 +132,5 @@ export function createAppShell({
     createTimeline(simulationController),
     navigation
   );
+  return appShell;
 }

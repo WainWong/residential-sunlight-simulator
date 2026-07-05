@@ -140,13 +140,13 @@ export function createBuildingInspector({ store, confirmDelete = () => true }) {
           label: 'X 坐标（东为正）',
           field: 'x',
           value: editorPosition.x,
-          onValid: x => updateBuilding(building.id, { position: { ...building.position, x } })
+          onValid: x => updateBuilding(building.id, { position: { x } })
         }),
         numberField({
           label: 'Y 坐标（北为正）',
           field: 'y',
           value: editorPosition.y,
-          onValid: y => updateBuilding(building.id, { position: { ...building.position, z: y } })
+          onValid: y => updateBuilding(building.id, { position: { z: y } })
         })
       ),
       numberField({

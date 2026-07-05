@@ -1,9 +1,9 @@
-﻿import { expect, test } from '@playwright/test';
+import { expect, test } from '@playwright/test';
 
 test('all visible primary mobile controls meet the touch target', async ({ page }) => {
   test.skip(test.info().project.name !== 'mobile');
   await page.goto('/');
-  await expect(page.getByRole('button', { name: '新建项目' })).toBeVisible();
+  await expect(page.getByRole('button', { name: '添加建筑' })).toBeVisible();
   const controls = page.locator('[data-primary-control]').filter({ visible: true });
   const count = await controls.count();
 
@@ -30,13 +30,7 @@ test('shows a useful fallback when WebGL is unavailable', async ({ page }) => {
 
 test('syncs a newly created building into the scene', async ({ page }) => {
   await page.goto('/');
-  await page.getByRole('button', { name: '新建项目' }).click();
-  await page.getByLabel('城市', { exact: true }).fill('深圳');
-  await page.getByRole('option', { name: '深圳' }).click();
-  await page.getByRole('button', { name: '下一步' }).click();
-  await page.getByRole('button', { name: '一字型' }).click();
-  await page.getByRole('button', { name: '添加建筑', exact: true }).click();
+  await page.getByRole('button', { name: '添加建筑' }).click();
 
   await expect(page.getByLabel('三维采光场景')).toHaveAttribute('data-building-count', '1');
 });
-
