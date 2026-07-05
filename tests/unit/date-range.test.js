@@ -29,3 +29,23 @@ describe('annual date range', () => {
     expect(() => dayIndexToDate('2026-13-01', 0)).toThrow('无效的 ISO 日期');
   });
 });
+
+import { vi } from 'vitest';
+import { createPlayback } from '../../src/features/timeline/usePlayback.js';
+
+it('stops an active playback when requested', () => {
+  vi.useFakeTimers();
+  let value = 0;
+  const playback = createPlayback({
+    read: () => value,
+    write: next => { value = next; },
+    min: 0,
+    max: 4,
+    intervalMs: 100
+  });
+  playback.toggle();
+  playback.stop();
+  vi.advanceTimersByTime(300);
+  expect(value).toBe(0);
+  vi.useRealTimers();
+});

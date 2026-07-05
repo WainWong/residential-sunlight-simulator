@@ -194,40 +194,6 @@
   line-height: 1.65;
 }
 
-.timeline {
-  z-index: 8;
-  display: grid;
-  min-height: 76px;
-  grid-template-columns: auto minmax(0, 1fr);
-  align-items: center;
-  gap: 16px;
-  padding: 12px 22px;
-  border-top: 1px solid var(--line);
-  background: rgb(255 255 255 / 92%);
-}
-
-.timeline__track-wrap {
-  min-width: 0;
-}
-
-.timeline__labels {
-  display: flex;
-  justify-content: space-between;
-  margin-bottom: 8px;
-  color: var(--ink-600);
-  font-size: 10px;
-}
-
-.timeline__labels strong {
-  color: var(--ink-950);
-}
-
-.timeline__track {
-  height: 8px;
-  border-radius: 99px;
-  background: linear-gradient(90deg, #c8c6bf 0 19%, var(--sun-500) 19% 71%, #5a6570 71%);
-}
-
 .mobile-sheet,
 .mobile-nav {
   display: none;
