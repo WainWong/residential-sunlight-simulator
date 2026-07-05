@@ -1,3 +1,4 @@
+import { createSelectBuildingCommand } from '../../store/buildingCommands.js';
 import { createElement } from '../../ui/createElement.js';
 
 function treeRow(label, className = '', testId = null) {
@@ -9,48 +10,47 @@ function treeRow(label, className = '', testId = null) {
   });
 }
 
-export function createProjectTree() {
-  return createElement(
+export function createProjectTree({ store, onAdd }) {
+  const list = createElement('div', { className: 'tree-list' });
+  const add = createElement('button', {
+    className: 'button button--primary panel__action',
+    text: '＋ 添加建筑',
+    attributes: { type: 'button', 'data-action': 'add-building', 'data-primary-control': '' }
+  });
+  add.addEventListener('click', onAdd);
+
+  const element = createElement(
     'aside',
     { className: 'project-tree panel', testId: 'project-tree' },
     createElement('div', { className: 'panel__label', text: '场景结构' }),
-    createElement('h2', { className: 'panel__title', text: '项目对象' }),
-    createElement(
-      'div',
-      { className: 'tree-list' },
-      treeRow('▾ 住宅 A', 'is-active'),
-      treeRow('　▾ 第 9 层'),
-      treeRow('　　● 暂无观察区', 'is-accent', 'active-area-name'),
-      treeRow('▸ 遮挡建筑 B')
-    ),
-    createElement('button', {
-      className: 'button button--secondary panel__action',
-      text: '＋ 添加建筑',
-      attributes: { type: 'button', 'data-primary-control': '' }
-    })
+    createElement('h2', { className: 'panel__title', text: '场景对象' }),
+    add,
+    list
   );
-}
 
-export function createInspector() {
-  return createElement(
-    'aside',
-    { className: 'inspector panel', testId: 'inspector' },
-    createElement('div', { className: 'panel__label', text: '当前分析' }),
-    createElement('div', { className: 'status-pill status-pill--positive', text: '有直射' }),
-    createElement('h2', { className: 'result-duration', text: '5 小时 26 分' }),
-    createElement(
-      'dl',
-      { className: 'metric-list' },
-      createElement('dt', { text: '太阳高度角' }),
-      createElement('dd', { text: '18.6°' }),
-      createElement('dt', { text: '太阳方位角' }),
-      createElement('dd', { text: '136.2°' }),
-      createElement('dt', { text: '直射时段' }),
-      createElement('dd', { text: '09:12–14:38' })
-    ),
-    createElement('p', {
-      className: 'disclaimer',
-      text: '结果仅供购房参考，不能替代专业日照合规报告。'
-    })
-  );
+  function render(project) {
+    if (project.buildings.length === 0) {
+      list.replaceChildren(createElement('p', {
+        className: 'tree-empty',
+        text: '暂无建筑。添加后可在这里选择和编辑。'
+      }));
+      return;
+    }
+    list.replaceChildren(...project.buildings.map(building => {
+      const selected = building.id === project.view.selectedBuildingId;
+      const row = treeRow(
+        `▾ ${building.name}`,
+        selected ? 'is-active' : '',
+        `building-tree-${building.id}`
+      );
+      row.addEventListener('click', () => {
+        store.execute(createSelectBuildingCommand(building.id, { editing: true }));
+      });
+      return row;
+    }));
+  }
+
+  store.subscribe(render);
+  render(store.getState());
+  return element;
 }

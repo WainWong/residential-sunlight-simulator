@@ -1,5 +1,9 @@
 import { describe, expect, it } from 'vitest';
 import {
+  parseBuildingNumber,
+  validateBuildingField
+} from '../../src/features/buildings/BuildingInspector.js';
+import {
   editorPositionToScene,
   normalizeRotation,
   scenePositionToEditor
@@ -364,4 +368,19 @@ describe('building commands', () => {
     });
   });
 
+});
+
+describe('building inspector values', () => {
+  it('accepts finite coordinates and positive dimensions', () => {
+    expect(parseBuildingNumber('12.5')).toBe(12.5);
+    expect(validateBuildingField('x', -120.5)).toBe('');
+    expect(validateBuildingField('length', 60)).toBe('');
+    expect(validateBuildingField('floors', 33)).toBe('');
+  });
+
+  it('rejects invalid dimensions without inventing a value', () => {
+    expect(parseBuildingNumber('')).toBeNull();
+    expect(validateBuildingField('length', 0)).toBe('长度必须大于 0');
+    expect(validateBuildingField('floors', 2.5)).toBe('楼层数必须是整数');
+  });
 });
