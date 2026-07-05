@@ -264,6 +264,50 @@
   margin-top: 16px;
 }
 
+.observation-areas-section {
+  margin-top: 24px;
+  padding-top: 16px;
+  border-top: 1px solid var(--line);
+}
+
+.observation-areas-section__header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 14px;
+}
+
+.area-card {
+  padding: 14px;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  background: var(--paper-100, #faf9f7);
+  margin-bottom: 10px;
+}
+
+.area-card__header {
+  margin-bottom: 12px;
+}
+
+.opening-list {
+  margin-top: 10px;
+  display: grid;
+  gap: 6px;
+}
+
+.opening-list-item {
+  padding: 7px 10px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  font-size: 12px;
+  color: var(--ink-600);
+}
+
+.opening-list-empty {
+  font-size: 11px;
+  color: var(--ink-600);
+}
+
 @media (max-width: 767px) {
   .area-meta,
   .area-editor,

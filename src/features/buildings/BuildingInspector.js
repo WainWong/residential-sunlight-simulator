@@ -6,6 +6,7 @@ import {
   createRemoveBuildingCommand,
   createUpdateBuildingCommand
 } from '../../store/buildingCommands.js';
+import { createObservationAreaSection } from '../areas/ObservationAreaSection.js';
 import { createElement } from '../../ui/createElement.js';
 
 const TEMPLATE_DEFAULTS = {
@@ -66,6 +67,7 @@ export function createBuildingInspector({ store, confirmDelete = () => true }) {
     testId: 'building-inspector'
   });
   let renderedId = null;
+  let areaSection = null;
 
   function updateBuilding(buildingId, patch) {
     store.execute(createUpdateBuildingCommand(buildingId, patch));
@@ -181,11 +183,23 @@ export function createBuildingInspector({ store, confirmDelete = () => true }) {
       }),
       createElement('div', { className: 'inspector-actions' }, finish, removeBtn)
     );
+
+    if (!project.view.addingBuildingId) {
+      areaSection = createObservationAreaSection({ buildingId: building.id, building, store });
+      element.append(areaSection.element);
+    } else {
+      areaSection = null;
+    }
   }
 
   store.subscribe(project => {
     const selectedId = project.view.selectedBuildingId;
-    if (selectedId !== renderedId || !selectedId) render(project);
+    if (selectedId !== renderedId || !selectedId) {
+      render(project);
+    } else if (areaSection) {
+      const b = project.buildings.find(building => building.id === selectedId);
+      if (b) areaSection.update(b);
+    }
   });
   render(store.getState());
   return element;

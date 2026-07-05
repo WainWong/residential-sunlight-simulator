@@ -206,3 +206,56 @@ export function createClearBuildingsCommand() {
     }
   };
 }
+
+export function createAddObservationAreaCommand(buildingId, area) {
+  return {
+    label: '添加观察区',
+    apply(state) {
+      return {
+        ...state,
+        buildings: state.buildings.map(b => b.id !== buildingId ? b : {
+          ...b,
+          revision: (b.revision ?? 0) + 1,
+          observationAreas: [...b.observationAreas, area]
+        })
+      };
+    }
+  };
+}
+
+export function createUpdateObservationAreaCommand(buildingId, areaId, patch) {
+  return {
+    label: '修改观察区',
+    apply(state) {
+      return {
+        ...state,
+        buildings: state.buildings.map(b => b.id !== buildingId ? b : {
+          ...b,
+          revision: (b.revision ?? 0) + 1,
+          observationAreas: b.observationAreas.map(a =>
+            a.id !== areaId ? a : { ...a, ...patch }
+          )
+        })
+      };
+    }
+  };
+}
+
+export function createAddOpeningCommand(buildingId, areaId, opening) {
+  return {
+    label: '添加采光口',
+    apply(state) {
+      return {
+        ...state,
+        buildings: state.buildings.map(b => b.id !== buildingId ? b : {
+          ...b,
+          revision: (b.revision ?? 0) + 1,
+          openings: [...b.openings, opening],
+          observationAreas: b.observationAreas.map(a =>
+            a.id !== areaId ? a : { ...a, openingIds: [...(a.openingIds ?? []), opening.id] }
+          )
+        })
+      };
+    }
+  };
+}
