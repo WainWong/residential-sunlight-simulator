@@ -7,6 +7,16 @@ const buildingMaterial = new THREE.MeshStandardMaterial({
   roughness: 0.82,
   metalness: 0.02
 });
+const blueprintMaterial = new THREE.MeshStandardMaterial({
+  color: 0x35bfff,
+  emissive: 0x0e668f,
+  emissiveIntensity: 0.32,
+  roughness: 0.36,
+  metalness: 0.08,
+  transparent: true,
+  opacity: 0.42,
+  depthWrite: false
+});
 const floorLineMaterial = new THREE.LineBasicMaterial({
   color: 0x697576,
   transparent: true,
@@ -51,7 +61,7 @@ function floorLines(footprint, building) {
   return lines;
 }
 
-export function createBuildingMesh(building) {
+export function createBuildingMesh(building, { preview = false } = {}) {
   const footprint = createFootprint(building.template, building.params);
   const height = totalBuildingHeight(building.params);
   const geometry = new THREE.ExtrudeGeometry(footprintShape(footprint), {
@@ -62,9 +72,9 @@ export function createBuildingMesh(building) {
   geometry.rotateX(-Math.PI / 2);
   geometry.computeVertexNormals();
 
-  const solid = new THREE.Mesh(geometry, buildingMaterial);
-  solid.castShadow = true;
-  solid.receiveShadow = true;
+  const solid = new THREE.Mesh(geometry, preview ? blueprintMaterial : buildingMaterial);
+  solid.castShadow = !preview;
+  solid.receiveShadow = !preview;
   solid.userData.kind = 'building-solid';
   solid.userData.entityId = building.id;
 
@@ -72,6 +82,7 @@ export function createBuildingMesh(building) {
   group.name = `building:${building.id}`;
   group.userData.entityId = building.id;
   group.userData.revision = building.revision ?? 0;
+  group.userData.preview = preview;
   group.userData.totalHeight = height;
   group.position.set(building.position.x, 0, building.position.z);
   group.rotation.y = THREE.MathUtils.degToRad(building.rotation);
