@@ -10,16 +10,13 @@ test('desktop exposes sidebars and mobile exposes bottom navigation', async ({ p
     await expect(page.getByTestId('mobile-nav')).toBeHidden();
   } else {
     await expect(page.getByTestId('mobile-nav')).toBeVisible();
-    await expect(page.getByTestId('project-tree')).toBeHidden();
-    await expect(page.getByTestId('inspector')).toBeHidden();
+    await expect(page.getByTestId('project-tree')).toBeVisible();
   }
 });
 
-test('switches the active mobile workspace tab', async ({ page }) => {
+test('switches the active mobile workspace panel', async ({ page }) => {
   test.skip(test.info().project.name !== 'mobile');
   await page.goto('/');
-
-  await page.getByRole('button', { name: '结果' }).click();
-
-  await expect(page.getByTestId('mobile-sheet-title')).toHaveText('分析结果');
+  await page.getByTestId('mobile-nav').getByRole('button', { name: '建筑', exact: true }).click();
+  await expect(page.locator('.app-shell')).toHaveAttribute('data-mobile-panel', 'editor');
 });

@@ -1,5 +1,17 @@
-﻿.timeline {
+.timeline-stack {
+  z-index: 8;
+  display: grid;
+  background: rgb(255 255 255 / 94%);
+}
+
+.timeline {
+  display: grid;
+  min-height: 58px;
   grid-template-columns: auto minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 14px;
+  padding: 8px 22px;
+  border-top: 1px solid var(--line);
 }
 
 .timeline__range {
@@ -8,8 +20,15 @@
   margin: 0;
   border-radius: 99px;
   appearance: none;
-  background: linear-gradient(90deg, #c8c6bf 0 19%, var(--sun-500) 19% 71%, #5a6570 71%);
   cursor: pointer;
+}
+
+.timeline__range--date {
+  background: linear-gradient(90deg, #a8cddd, #2d7da6);
+}
+
+.timeline__range--time {
+  background: linear-gradient(90deg, #6b7780, var(--sun-500), #59636c);
 }
 
 .timeline__range::-webkit-slider-thumb {
@@ -22,8 +41,9 @@
   box-shadow: 0 2px 8px rgb(23 33 43 / 24%);
 }
 
+.timeline__date-input,
 .timeline__time-input {
-  min-width: 92px;
+  min-width: 118px;
   min-height: 44px;
   padding: 0 10px;
   border: 1px solid var(--line);
@@ -40,13 +60,13 @@
 
 @media (max-width: 767px) {
   .timeline {
-    grid-template-columns: auto minmax(0, 1fr) 86px;
+    grid-template-columns: auto minmax(0, 1fr) 100px;
+    padding: 6px 12px;
   }
 
+  .timeline__date-input,
   .timeline__time-input {
     min-width: 0;
-    width: 86px;
+    width: 100px;
   }
 }
-
-

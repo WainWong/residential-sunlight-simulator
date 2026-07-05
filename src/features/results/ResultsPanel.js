@@ -18,8 +18,8 @@ export function createResultsPanel(controller) {
   const litRatio = createElement('dd');
 
   const element = createElement(
-    'aside',
-    { className: 'inspector panel', testId: 'inspector' },
+    'section',
+    { className: 'results-panel', testId: 'results-panel' },
     createElement('div', { className: 'panel__label', text: '当前分析' }),
     status.element,
     duration,

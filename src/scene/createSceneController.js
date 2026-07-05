@@ -1,11 +1,14 @@
+import * as THREE from 'three';
 import { createQualitySettings } from '../features/settings/QualitySettings.js';
 import { createBuildingMesh } from './buildingMesh.js';
 import { createCameraRig } from './createCameraRig.js';
 import { createRenderer } from './createRenderer.js';
 import { createScene } from './createScene.js';
+import { pointerToNdc, resolvePickedEntity } from './picking.js';
+import { applySunLighting } from './sunLighting.js';
 import { createSceneSynchronizer } from './syncScene.js';
 
-export function createSceneController(canvas) {
+export function createSceneController(canvas, { onSelect = () => {} } = {}) {
   const quality = createQualitySettings('medium');
   const sceneParts = createScene();
   const rendererParts = createRenderer(canvas);
@@ -16,7 +19,6 @@ export function createSceneController(canvas) {
     detach: object => sceneParts.buildings.remove(object)
   });
   const viewport = canvas.parentElement;
-  const empty = viewport.querySelector('.viewport__empty');
 
   function resize() {
     const rect = viewport.getBoundingClientRect();
@@ -26,6 +28,21 @@ export function createSceneController(canvas) {
     rendererParts.renderer.shadowMap.enabled = quality.value.shadows;
     cameraParts.resize(width, height);
   }
+
+  const raycaster = new THREE.Raycaster();
+  const pointer = new THREE.Vector2();
+
+  function selectAtPointer(event) {
+    const rect = canvas.getBoundingClientRect();
+    const ndc = pointerToNdc(event, rect);
+    pointer.set(ndc.x, ndc.y);
+    raycaster.setFromCamera(pointer, cameraParts.camera);
+    const intersections = raycaster.intersectObjects(sceneParts.buildings.children, true);
+    const entityId = resolvePickedEntity(intersections);
+    if (entityId) onSelect(entityId);
+  }
+
+  canvas.addEventListener('click', selectAtPointer);
 
   const observer = new ResizeObserver(resize);
   observer.observe(viewport);
@@ -37,15 +54,26 @@ export function createSceneController(canvas) {
 
   return {
     updateProject(project) {
-      synchronizer.update(project.buildings);
+      synchronizer.update(project.buildings, {
+        previewBuildingId: project.view.editingBuildingId
+      });
       canvas.dataset.buildingCount = String(project.buildings.length);
-      if (empty) empty.hidden = project.buildings.length > 0;
+      canvas.dataset.editingBuildingId = project.view.editingBuildingId ?? '';
+    },
+    updateSolar(simulationState) {
+      applySunLighting(sceneParts.sunlight, simulationState.solar);
+      const direction = simulationState.solar.direction;
+      canvas.dataset.sunDirection = [direction.x, direction.y, direction.z]
+        .map(value => value.toFixed(4))
+        .join(',');
+      canvas.dataset.sunAboveHorizon = String(simulationState.solar.aboveHorizon);
     },
     setPreviewing(value) {
       quality.setPreviewing(value);
       resize();
     },
     dispose() {
+      canvas.removeEventListener('click', selectAtPointer);
       observer.disconnect();
       rendererParts.renderer.setAnimationLoop(null);
       synchronizer.dispose();

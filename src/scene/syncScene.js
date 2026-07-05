@@ -11,21 +11,20 @@ export function createSceneSynchronizer({ rebuild, attach, detach }) {
   }
 
   return {
-    update(buildings) {
+    update(buildings, { previewBuildingId = null } = {}) {
       const incomingIds = new Set(buildings.map(building => building.id));
       for (const id of objects.keys()) {
         if (!incomingIds.has(id)) remove(id);
       }
 
       for (const building of buildings) {
+        const preview = building.id === previewBuildingId;
+        const signature = `${building.revision ?? 0}:${preview}`;
         const current = objects.get(building.id);
-        if (current?.revision === (building.revision ?? 0)) continue;
+        if (current?.signature === signature) continue;
         if (current) remove(building.id);
-        const object = rebuild(building);
-        objects.set(building.id, {
-          revision: building.revision ?? 0,
-          object
-        });
+        const object = rebuild(building, { preview });
+        objects.set(building.id, { signature, object });
         attach(object);
       }
     },

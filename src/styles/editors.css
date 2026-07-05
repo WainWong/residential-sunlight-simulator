@@ -224,6 +224,46 @@
   font-size: 12px;
 }
 
+.building-inspector[hidden] {
+  display: none;
+}
+
+.field {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.field__label {
+  font-size: 11px;
+  color: var(--ink-600);
+}
+
+.field__error {
+  min-height: 16px;
+  color: #a83c34;
+  font-size: 10px;
+}
+
+.input[aria-invalid="true"] {
+  border-color: #c5534a;
+}
+
+.coordinate-fields {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px;
+  padding: 12px;
+  border-radius: 12px;
+  background: #e8f3f7;
+}
+
+.inspector-actions {
+  display: grid;
+  gap: 8px;
+  margin-top: 16px;
+}
+
 @media (max-width: 767px) {
   .area-meta,
   .area-editor,

@@ -90,6 +90,21 @@
   color: #9a6410;
 }
 
+.button--danger {
+  border: 1px solid #e2b8b3;
+  background: #fff7f6;
+  color: #963a34;
+}
+
+.tree-empty {
+  padding: 18px 10px;
+  border: 1px dashed var(--line);
+  border-radius: 10px;
+  color: var(--ink-600);
+  font-size: 11px;
+  line-height: 1.6;
+}
+
 :focus-visible {
   outline: 3px solid rgb(231 165 45 / 44%);
   outline-offset: 2px;

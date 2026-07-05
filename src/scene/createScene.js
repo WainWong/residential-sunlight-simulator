@@ -1,4 +1,5 @@
 import * as THREE from 'three';
+import { createSandboxAids } from './sandboxAids.js';
 
 export function createScene() {
   const scene = new THREE.Scene();
@@ -36,6 +37,9 @@ export function createScene() {
   scene.add(sunlight);
   scene.add(sunlight.target);
 
+  const aids = createSandboxAids();
+  scene.add(aids);
+
   const buildings = new THREE.Group();
   buildings.name = 'buildings';
   scene.add(buildings);
@@ -44,5 +48,5 @@ export function createScene() {
   overlays.name = 'overlays';
   scene.add(overlays);
 
-  return { scene, ground, sunlight, buildings, overlays };
+  return { scene, ground, sunlight, aids, buildings, overlays };
 }

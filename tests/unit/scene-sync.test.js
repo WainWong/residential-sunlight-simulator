@@ -43,4 +43,28 @@ describe('scene synchronization', () => {
     expect(rebuild.mock.calls.at(-1)[0].id).toBe('a');
     expect(detach).toHaveBeenCalledTimes(2);
   });
+
+  it('uses a translucent blueprint material while editing', () => {
+    const group = createBuildingMesh(barBuilding, { preview: true });
+    const solid = group.children.find(child => child.userData.kind === 'building-solid');
+
+    expect(solid.material.transparent).toBe(true);
+    expect(solid.material.opacity).toBeLessThan(1);
+    expect(group.userData.preview).toBe(true);
+  });
+
+  it('rebuilds when preview state changes without a revision change', () => {
+    const rebuild = vi.fn((building, options) => ({ building, options }));
+    const sync = createSceneSynchronizer({
+      rebuild,
+      attach: vi.fn(),
+      detach: vi.fn()
+    });
+
+    sync.update([barBuilding], { previewBuildingId: null });
+    sync.update([barBuilding], { previewBuildingId: 'building-a' });
+
+    expect(rebuild).toHaveBeenCalledTimes(2);
+    expect(rebuild.mock.calls[1][1]).toEqual({ preview: true });
+  });
 });

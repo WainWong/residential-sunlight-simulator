@@ -1,11 +1,11 @@
 import { createElement } from '../../ui/createElement.js';
-import { createProjectTree } from './DesktopShell.js';
+import { createBuildingInspector } from '../buildings/BuildingInspector.js';
 import { createResultsPanel } from '../results/ResultsPanel.js';
-import { createSimulationController } from '../results/createSimulationController.js';
-import { createTimeline as createInteractiveTimeline } from '../timeline/Timeline.js';
+import { createTimeline } from '../timeline/Timeline.js';
+import { createProjectTree } from './DesktopShell.js';
 import { createMobileControls } from './MobileShell.js';
 
-function createHeader() {
+function createHeader({ onClearSandbox }) {
   return createElement(
     'header',
     { className: 'app-header' },
@@ -23,6 +23,11 @@ function createHeader() {
     createElement(
       'div',
       { className: 'header-actions' },
+      createElement('button', {
+        className: 'button button--ghost',
+        text: '清空沙盘',
+        attributes: { type: 'button', 'data-action': 'clear-sandbox' }
+      }),
       createElement('button', {
         className: 'button button--ghost button--import',
         text: '导入',
@@ -52,40 +57,80 @@ function createViewport() {
     }),
     createElement(
       'div',
-      { className: 'viewport__location' },
-      createElement('span', { className: 'live-dot', attributes: { 'aria-hidden': 'true' } }),
-      '深圳 · 2026 冬至 · 09:30'
+      { className: 'viewport__compass', attributes: { 'aria-label': '北向指南针' } },
+      createElement('strong', { text: 'N' }),
+      createElement('span', { text: '▲' })
     ),
-    createElement(
-      'div',
-      { className: 'viewport__empty' },
-      createElement('strong', { text: '场景已准备好' }),
-      createElement('span', { text: '添加建筑后即可开始模拟' }),
-      createElement('button', {
-        className: 'button button--primary viewport__example',
-        text: '打开示例项目',
-        attributes: { type: 'button', 'data-action': 'open-example', 'data-primary-control': '' }
-      })
-    )
+    createElement('div', {
+      className: 'viewport__scale',
+      text: '每格 10 米',
+      testId: 'grid-scale'
+    }),
+    createElement('div', {
+      className: 'viewport__empty',
+      text: '点击左侧"添加建筑"开始布置',
+      testId: 'empty-sandbox-hint'
+    })
   );
 }
 
-export function createAppShell() {
-  const controller = createSimulationController();
+export function createAppShell({
+  store,
+  simulationController,
+  onAddBuilding,
+  onClearSandbox,
+  confirmDeleteBuilding
+}) {
   const { sheet, navigation } = createMobileControls();
-  return createElement(
+  const projectTree = createProjectTree({ store, onAdd: onAddBuilding });
+  const buildingInspector = createBuildingInspector({
+    store,
+    confirmDelete: confirmDeleteBuilding
+  });
+  const resultsPanel = createResultsPanel(simulationController);
+  const inspectorHost = createElement(
+    'aside',
+    { className: 'inspector-host panel', testId: 'inspector' },
+    buildingInspector,
+    resultsPanel
+  );
+
+  function updateInspector(project) {
+    const hasSelection = Boolean(project.view.selectedBuildingId);
+    buildingInspector.hidden = !hasSelection;
+    resultsPanel.hidden = hasSelection;
+  }
+  store.subscribe(updateInspector);
+  updateInspector(store.getState());
+
+  let prevEditingId = store.getState().view.editingBuildingId;
+  store.subscribe(project => {
+    const currentEditingId = project.view.editingBuildingId;
+    if (currentEditingId && !prevEditingId) {
+      appShell.dataset.mobilePanel = 'editor';
+    } else if (!currentEditingId && prevEditingId) {
+      appShell.dataset.mobilePanel = 'buildings';
+    }
+    prevEditingId = currentEditingId;
+  });
+
+  const header = createHeader({ onClearSandbox });
+  header.querySelector('[data-action="clear-sandbox"]').addEventListener('click', onClearSandbox);
+
+  const appShell = createElement(
     'div',
-    { className: 'app-shell' },
-    createHeader(),
+    { className: 'app-shell', attributes: { 'data-mobile-panel': 'buildings' } },
+    header,
     createElement(
       'div',
       { className: 'workspace' },
-      createProjectTree(),
+      projectTree,
       createViewport(),
-      createResultsPanel(controller),
+      inspectorHost,
       sheet
     ),
-    createInteractiveTimeline(controller),
+    createTimeline(simulationController),
     navigation
   );
+  return appShell;
 }

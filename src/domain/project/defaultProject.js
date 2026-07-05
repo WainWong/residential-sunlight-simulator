@@ -21,7 +21,10 @@ export function createDefaultProject() {
     view: {
       camera: null,
       activePanel: 'buildings',
-      wizardComplete: false
+      wizardComplete: false,
+      selectedBuildingId: null,
+      editingBuildingId: null,
+      addingBuildingId: null
     }
   };
 }
