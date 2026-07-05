@@ -1,16 +1,16 @@
 import { createElement } from '../../ui/createElement.js';
 
 const TABS = [
-  ['建筑', '建筑编辑'],
-  ['区域', '观察区域'],
-  ['模拟', '太阳模拟'],
-  ['结果', '分析结果']
+  ['场景', '场景对象', 'buildings'],
+  ['建筑', '建筑参数', 'editor'],
+  ['模拟', '日期与时间', 'simulation'],
+  ['结果', '分析结果', 'results']
 ];
 
 export function createMobileControls() {
   const title = createElement('h2', {
     className: 'mobile-sheet__title',
-    text: '太阳模拟',
+    text: '场景对象',
     testId: 'mobile-sheet-title'
   });
   const sheet = createElement(
@@ -18,11 +18,7 @@ export function createMobileControls() {
     { className: 'mobile-sheet' },
     createElement('div', { className: 'mobile-sheet__handle', attributes: { 'aria-hidden': 'true' } }),
     createElement('div', { className: 'panel__label', text: '当前工具' }),
-    title,
-    createElement('p', {
-      className: 'mobile-sheet__summary',
-      text: '拖动时间轴，查看阳光进入观察区域的位置。'
-    })
+    title
   );
   const navigation = createElement('nav', {
     className: 'mobile-nav',
@@ -30,9 +26,9 @@ export function createMobileControls() {
     attributes: { 'aria-label': '工作区导航' }
   });
 
-  for (const [label, sheetTitle] of TABS) {
+  for (const [label, sheetTitle, panel] of TABS) {
     const button = createElement('button', {
-      className: label === '模拟' ? 'mobile-nav__item is-active' : 'mobile-nav__item',
+      className: label === '场景' ? 'mobile-nav__item is-active' : 'mobile-nav__item',
       text: label,
       attributes: { type: 'button', 'data-primary-control': '' }
     });
@@ -40,6 +36,8 @@ export function createMobileControls() {
       title.textContent = sheetTitle;
       navigation.querySelectorAll('button').forEach(item => item.classList.remove('is-active'));
       button.classList.add('is-active');
+      const appShell = document.querySelector('.app-shell');
+      if (appShell) appShell.dataset.mobilePanel = panel;
     });
     navigation.append(button);
   }

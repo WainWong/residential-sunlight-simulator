@@ -4,82 +4,89 @@ import { downloadProject } from './features/project/exportProject.js';
 import { exportScreenshot } from './features/project/exportScreenshot.js';
 import { parseProject, readProjectFile } from './features/project/importProject.js';
 import { loadDraft, saveDraft } from './features/project/localDraft.js';
+import { createSimulationController } from './features/results/createSimulationController.js';
 import { createAppShell } from './features/shell/AppShell.js';
-import { createWizard } from './features/wizard/Wizard.js';
+import {
+  createAddBuildingCommand,
+  createClearBuildingsCommand,
+  createSelectBuildingCommand
+} from './store/buildingCommands.js';
+import { createStore } from './store/createStore.js';
 import { createElement } from './ui/createElement.js';
 import { showToast } from './ui/Toast.js';
 
 export const APP_NAME = '日照 · 住宅采光模拟器';
 
 export function mountApp(root) {
-  let currentProject = loadDraft() ?? createDefaultProject();
-  let draftTimer = null;
-  let draftNoticeShown = false;
-  const shell = createAppShell();
+  const store = createStore(loadDraft() ?? createDefaultProject());
+  const simulationController = createSimulationController(store);
+  let sceneController = null;
+  let saveTimer = null;
+
+  function scheduleSave(project) {
+    clearTimeout(saveTimer);
+    saveTimer = setTimeout(() => {
+      try {
+        saveDraft(project);
+      } catch {
+        showToast('无法保存本机草稿，请检查浏览器存储空间。', 'error');
+      }
+    }, 300);
+  }
+
+  function addBuilding() {
+    store.execute(createAddBuildingCommand());
+  }
+
+  function clearSandbox() {
+    if (globalThis.confirm('清空后将删除所有建筑、观察区和窗户。确定继续吗？')) {
+      store.execute(createClearBuildingsCommand());
+      saveDraft(store.getState());
+    }
+  }
+
+  const shell = createAppShell({
+    store,
+    simulationController,
+    onAddBuilding: addBuilding,
+    onClearSandbox: clearSandbox,
+    confirmDeleteBuilding: building =>
+      globalThis.confirm(`确定删除"${building.name}"及其观察区和窗户吗？`)
+  });
   root.replaceChildren(shell);
 
   const canvas = shell.querySelector('#scene-canvas');
-  let sceneController = null;
   const webglAvailable = supportsWebGL();
   const sceneReady = webglAvailable
     ? import('./scene/createSceneController.js').then(({ createSceneController }) => {
-        sceneController = createSceneController(canvas);
-        sceneController.updateProject(currentProject);
+        sceneController = createSceneController(canvas, {
+          onSelect: buildingId => {
+            store.execute(createSelectBuildingCommand(buildingId, { editing: true }));
+          }
+        });
+        sceneController.updateProject(store.getState());
+        sceneController.updateSolar(simulationController.getState());
         return sceneController;
       })
     : Promise.resolve(null);
   if (!webglAvailable) canvas.parentElement.append(createWebGLFallback());
 
-  function renderProjectSummary(project) {
-    const allAreas = project.buildings.flatMap(building => building.observationAreas ?? []);
-    const activeArea = allAreas.find(area => area.id === project.simulation.activeAreaId) ?? allAreas[0];
-    const areaLabel = shell.querySelector('[data-testid="active-area-name"]');
-    if (areaLabel) areaLabel.textContent = `　　● ${activeArea?.name ?? '暂无观察区'}`;
-  }
-  renderProjectSummary(currentProject);
-
-  function queueDraft(project) {
-    currentProject = structuredClone(project);
-    clearTimeout(draftTimer);
-    draftTimer = setTimeout(() => saveDraft(currentProject), 500);
-    shell.dataset.projectBuildings = String(currentProject.buildings.length);
-    if (sceneController) sceneController.updateProject(currentProject);
-    else sceneReady.then(controller => controller?.updateProject(currentProject));
-    renderProjectSummary(currentProject);
-    if (!draftNoticeShown) {
-      draftNoticeShown = true;
-      showToast('编辑内容会作为本机草稿保存，不会上传。');
-    }
-  }
-
-  shell.querySelector('[data-action="open-example"]')?.addEventListener('click', async () => {
-    try {
-      const response = await fetch('/examples/shenzhen-winter-solstice.sunlight.json');
-      if (!response.ok) throw new Error('示例项目加载失败');
-      queueDraft(parseProject(await response.text()));
-      showToast('深圳冬至示例已打开。', 'success');
-    } catch (error) {
-      showToast(error.message, 'error');
-    }
+  store.subscribe(project => {
+    scheduleSave(project);
+    shell.dataset.projectBuildings = String(project.buildings.length);
+    const emptyHint = shell.querySelector('.viewport__empty');
+    if (emptyHint) emptyHint.hidden = project.buildings.length > 0;
+    if (sceneController) sceneController.updateProject(project);
+    else sceneReady.then(controller => controller?.updateProject(project));
   });
 
-  const newProject = createElement('button', {
-    className: 'button button--ghost',
-    text: '新建项目',
-    attributes: { type: 'button', 'data-primary-control': '' }
+  simulationController.subscribe(state => {
+    if (sceneController) sceneController.updateSolar(state);
+    else sceneReady.then(controller => controller?.updateSolar(state));
   });
-  newProject.addEventListener('click', () => {
-    const closeWizard = () => shell.querySelector('.wizard-backdrop')?.remove();
-    closeWizard();
-    shell.append(createWizard({
-      onClose: closeWizard,
-      onProjectChange: queueDraft
-    }));
-  });
-  shell.querySelector('.header-actions')?.prepend(newProject);
 
   shell.querySelector('[data-action="save-project"]')?.addEventListener('click', () => {
-    downloadProject(currentProject);
+    downloadProject(store.getState());
     showToast('项目文件已生成。', 'success');
   });
 
@@ -90,7 +97,7 @@ export function mountApp(root) {
     const file = importInput.files?.[0];
     if (!file) return;
     try {
-      queueDraft(await readProjectFile(file));
+      store.replaceProject(await readProjectFile(file));
       showToast('项目已导入。', 'success');
     } catch (error) {
       showToast(error.message, 'error');
@@ -99,20 +106,28 @@ export function mountApp(root) {
     }
   });
   shell.append(importInput);
-  shell.querySelector('[data-action="import-project"]')?.addEventListener('click', () => importInput.click());
+  shell.querySelector('[data-action="import-project"]')?.addEventListener('click', () =>
+    importInput.click()
+  );
 
   shell.querySelector('[data-action="export-screenshot"]')?.addEventListener('click', async () => {
+    const { location, simulation } = store.getState();
     try {
       await exportScreenshot(canvas, {
-        city: currentProject.location.cityId === 'shenzhen' ? '深圳' : currentProject.location.cityId,
-        date: currentProject.simulation.date,
-        time: currentProject.simulation.time
+        city: location.cityId === 'shenzhen' ? '深圳' : location.cityId,
+        date: simulation.date,
+        time: simulation.time
       });
       showToast('场景截图已生成。', 'success');
     } catch (error) {
       showToast(error.message, 'error');
     }
   });
+
+  const { buildings } = store.getState();
+  shell.dataset.projectBuildings = String(buildings.length);
+  const emptyHint = shell.querySelector('.viewport__empty');
+  if (emptyHint) emptyHint.hidden = buildings.length > 0;
 }
 
 if (typeof document !== 'undefined') {
