@@ -8,6 +8,20 @@ function durationLabel(totalMinutes) {
   return `${hours} 小时 ${minutes} 分`;
 }
 
+function minuteToClock(minute) {
+  const normalized = ((Math.round(minute) % 1440) + 1440) % 1440;
+  const h = String(Math.floor(normalized / 60)).padStart(2, '0');
+  const m = String(normalized % 60).padStart(2, '0');
+  return `${h}:${m}`;
+}
+
+function intervalLabel(intervals) {
+  if (intervals == null || intervals.length === 0) return '尚未计算';
+  return intervals
+    .map(({ startMinute, endMinute }) => `${minuteToClock(startMinute)}–${minuteToClock(endMinute)}`)
+    .join('、');
+}
+
 export function createResultsPanel(controller) {
   const status = createDirectSunStatus();
   const duration = createElement('h2', {
@@ -78,7 +92,7 @@ export function createResultsPanel(controller) {
       status.update(state.hasDirectSun);
     }
     duration.textContent = durationLabel(state.totalMinutes);
-    intervalText.textContent = state.intervals == null ? '尚未计算' : '';
+    intervalText.textContent = intervalLabel(state.intervals);
     altitude.textContent = `${state.solar.altitudeDeg.toFixed(1)}°`;
     azimuth.textContent = `${state.solar.azimuthDeg.toFixed(1)}°`;
     litRatio.textContent = state.noArea ? '—' : `${Math.round(state.litRatio * 100)}%`;

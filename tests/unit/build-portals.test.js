@@ -31,4 +31,10 @@ describe('buildOpeningPortals', () => {
     expect(buildOpeningPortals(bar, [{ id: 'x', wallId: 'bogus-9', floor: 1, width: 1, height: 1 }]))
       .toEqual([]);
   });
+  it('skips openings with non-positive or missing width/height instead of producing an unbounded portal', () => {
+    expect(buildOpeningPortals(bar, [
+      { id: 'zero-width', wallId: 'south-0', floor: 1, width: 0, height: 1.6 },
+      { id: 'missing-height', wallId: 'south-0', floor: 1, width: 2.4 }
+    ])).toEqual([]);
+  });
 });

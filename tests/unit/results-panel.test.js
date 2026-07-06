@@ -23,6 +23,16 @@ describe('ResultsPanel', () => {
     expect(el.textContent).not.toContain('09:12');
   });
 
+  it('renders formatted interval ranges when intervals are present', () => {
+    const el = createResultsPanel(fakeController({
+      noArea: false, hasDirectSun: true, litRatio: 0.5, solar,
+      totalMinutes: 326, intervals: [{ startMinute: 552, endMinute: 878 }],
+      areaOptions: [{ id: 'a', name: '客厅' }], activeAreaId: 'a'
+    }));
+    expect(el.textContent).toContain('09:12–14:38');
+    expect(el.textContent).not.toContain('尚未计算');
+  });
+
   it('shows an empty-area hint when noArea', () => {
     const el = createResultsPanel(fakeController({
       noArea: true, hasDirectSun: false, litRatio: 0, solar,
