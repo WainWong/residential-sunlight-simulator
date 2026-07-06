@@ -66,6 +66,7 @@ export function mountApp(root) {
         });
         sceneController.updateProject(store.getState());
         sceneController.updateSolar(simulationController.getState());
+        sceneController.updateAnalysis(store.getState(), simulationController.getState());
         return sceneController;
       })
     : Promise.resolve(null);
@@ -87,11 +88,21 @@ export function mountApp(root) {
     if (emptyHint) emptyHint.hidden = project.buildings.length > 0;
     if (sceneController) sceneController.updateProject(project);
     else sceneReady.then(controller => controller?.updateProject(project));
+    const sim = simulationController.getState();
+    if (sceneController) sceneController.updateAnalysis(project, sim);
+    else sceneReady.then(controller => controller?.updateAnalysis(store.getState(), simulationController.getState()));
   });
 
   simulationController.subscribe(state => {
-    if (sceneController) sceneController.updateSolar(state);
-    else sceneReady.then(controller => controller?.updateSolar(state));
+    if (sceneController) {
+      sceneController.updateSolar(state);
+      sceneController.updateAnalysis(store.getState(), state);
+    } else {
+      sceneReady.then(controller => {
+        controller?.updateSolar(state);
+        controller?.updateAnalysis(store.getState(), simulationController.getState());
+      });
+    }
   });
 
   shell.querySelector('[data-action="save-project"]')?.addEventListener('click', () => {
