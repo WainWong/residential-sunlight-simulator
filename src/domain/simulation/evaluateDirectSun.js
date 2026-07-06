@@ -7,10 +7,11 @@ export function evaluateDirectSun({
   area,
   openings,
   obstacles,
-  sunDirection
+  sunDirection,
+  transform
 }) {
   const direction = normalize(sunDirection);
-  const samples = sampleArea(area);
+  const samples = sampleArea(area, transform);
   const openingHits = Object.fromEntries(openings.map(opening => [opening.id, 0]));
 
   if (direction[1] <= 0 || samples.length === 0) {
