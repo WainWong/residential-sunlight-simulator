@@ -10,9 +10,28 @@ function createFixture() {
   return { controller, store };
 }
 
+function projectWithSouthWindow() {
+  const p = createDefaultProject();
+  p.simulation.date = '2026-12-21';
+  p.simulation.time = '12:00';
+  p.simulation.activeAreaId = 'area-a';
+  p.buildings = [{
+    id: 'b1', revision: 1, name: '住宅 A', template: 'bar',
+    position: { x: 0, z: 0 }, rotation: 0,
+    params: { length: 60, depth: 18, floors: 3, floorHeight: 3 },
+    observationAreas: [{
+      id: 'area-a', name: '客厅', floor: 1,
+      cells: [[0, -8]], sampleHeight: 1.2, openingIds: ['op1']
+    }],
+    openings: [{ id: 'op1', type: 'window', wallId: 'south-0', floor: 1, width: 3, height: 1.6, sillHeight: 0.9 }]
+  }];
+  return p;
+}
+
 describe('simulation controller', () => {
   it('publishes solar results and stores the changed time', () => {
-    const { controller, store } = createFixture();
+    const store = createStore(projectWithSouthWindow());
+    const controller = createSimulationController(store);
     const listener = vi.fn();
     controller.subscribe(listener);
 
@@ -111,6 +130,44 @@ describe('simulation controller', () => {
 
     expect(listener).not.toHaveBeenCalled();
     expect(controller.getState()).toBe(stateBeforeDispose);
+  });
+});
+
+describe('simulation controller — real geometry', () => {
+  it('reports direct sun for an unobstructed south window at noon', () => {
+    const controller = createSimulationController(createStore(projectWithSouthWindow()));
+    const state = controller.getState();
+    expect(state.noArea).toBe(false);
+    expect(state.hasDirectSun).toBe(true);
+    expect(state.litRatio).toBeGreaterThan(0);
+    expect(state.totalMinutes).toBeNull();
+  });
+
+  it('loses direct sun when a tall building blocks the window', () => {
+    const p = projectWithSouthWindow();
+    p.buildings.push({
+      id: 'blocker', revision: 1, name: '遮挡楼', template: 'bar',
+      position: { x: 0, z: -30 }, rotation: 0,
+      params: { length: 120, depth: 18, floors: 40, floorHeight: 3 },
+      observationAreas: [], openings: []
+    });
+    const controller = createSimulationController(createStore(p));
+    expect(controller.getState().hasDirectSun).toBe(false);
+  });
+
+  it('flags noArea when there are no observation areas', () => {
+    const controller = createSimulationController(createStore(createDefaultProject()));
+    const state = controller.getState();
+    expect(state.noArea).toBe(true);
+    expect(state.areaOptions).toEqual([]);
+  });
+
+  it('lists all observation areas as options and switches active area', () => {
+    const store = createStore(projectWithSouthWindow());
+    const controller = createSimulationController(store);
+    expect(controller.getState().areaOptions).toEqual([{ id: 'area-a', name: '客厅' }]);
+    controller.setActiveArea('area-a');
+    expect(store.getState().simulation.activeAreaId).toBe('area-a');
   });
 });
 
