@@ -1,7 +1,10 @@
 import * as THREE from 'three';
 import { createQualitySettings } from '../features/settings/QualitySettings.js';
+import { buildAnalysisOverlays } from './analysisOverlays.js';
 import { createBuildingMesh } from './buildingMesh.js';
 import { createCameraRig } from './createCameraRig.js';
+import { createObservationOverlay } from './observationOverlay.js';
+import { createOpeningOverlay } from './openingOverlay.js';
 import { createRenderer } from './createRenderer.js';
 import { createScene } from './createScene.js';
 import { pointerToNdc, resolvePickedEntity } from './picking.js';
@@ -68,6 +71,20 @@ export function createSceneController(canvas, { onSelect = () => {} } = {}) {
         .join(',');
       canvas.dataset.sunAboveHorizon = String(simulationState.solar.aboveHorizon);
     },
+    updateAnalysis(project, simulationState) {
+      sceneParts.overlays.clear();
+      const overlays = buildAnalysisOverlays(project, simulationState);
+      if (!overlays) return;
+      const areaGroup = createObservationOverlay({
+        cells: overlays.area.cells, baseY: overlays.area.baseY, litSampleIds: overlays.area.litSampleIds
+      });
+      areaGroup.position.set(overlays.area.group.position.x, 0, overlays.area.group.position.z);
+      areaGroup.rotation.y = THREE.MathUtils.degToRad(overlays.area.group.rotationDeg);
+      sceneParts.overlays.add(areaGroup);
+      for (const opening of overlays.openings) {
+        sceneParts.overlays.add(createOpeningOverlay(opening));
+      }
+    },
     setPreviewing(value) {
       quality.setPreviewing(value);
       resize();
@@ -77,6 +94,7 @@ export function createSceneController(canvas, { onSelect = () => {} } = {}) {
       observer.disconnect();
       rendererParts.renderer.setAnimationLoop(null);
       synchronizer.dispose();
+      sceneParts.overlays.clear();
       cameraParts.dispose();
       rendererParts.dispose();
     }
