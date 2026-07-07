@@ -8,6 +8,6 @@ describe('application defaults', () => {
     expect(APP_NAME).toBe('日照 · 住宅采光模拟器');
     expect(project.buildings).toEqual([]);
     expect(project.view.selectedBuildingId).toBeNull();
-    expect(project.view.editingBuildingId).toBeNull();
+    expect(project.view.editorMode).toBe('none');
   });
 });

@@ -24,7 +24,6 @@ export function createDefaultProject() {
       wizardComplete: false,
       selectedBuildingId: null,
       editorMode: 'none',
-      editingBuildingId: null,
       addingBuildingId: null
     }
   };

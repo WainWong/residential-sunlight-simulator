@@ -88,7 +88,7 @@ describe('building commands', () => {
     });
     expect(store.getState().view).toMatchObject({
       selectedBuildingId: 'building-b',
-      editingBuildingId: 'building-b',
+      editorMode: 'building',
       addingBuildingId: 'building-b'
     });
   });
@@ -132,7 +132,7 @@ describe('building commands', () => {
 
     expect(store.getState().view).toMatchObject({
       selectedBuildingId: 'building-a',
-      editingBuildingId: null,
+      editorMode: 'none',
       addingBuildingId: null
     });
 
@@ -141,7 +141,6 @@ describe('building commands', () => {
       selectedBuildingId: 'building-a',
       editorMode: 'none'
     });
-    expect(store.getState().view.editingBuildingId).toBeNull();
   });
 
   it('cancels only the building currently being added', () => {
@@ -153,7 +152,7 @@ describe('building commands', () => {
     expect(cancelled.buildings).toEqual([]);
     expect(cancelled.view).toMatchObject({
       selectedBuildingId: null,
-      editingBuildingId: null,
+      editorMode: 'none',
       addingBuildingId: null
     });
   });
@@ -212,7 +211,6 @@ describe('building commands', () => {
       ...project.view,
       selectedBuildingId: null,
       editorMode: 'none',
-      editingBuildingId: null,
       addingBuildingId: null
     });
   });
@@ -332,7 +330,7 @@ describe('building commands', () => {
     expect(project.buildings.map(building => building.id)).toEqual(['building-a', 'building-b']);
     expect(project.view).toMatchObject({
       selectedBuildingId: 'building-b',
-      editingBuildingId: 'building-b',
+      editorMode: 'building',
       addingBuildingId: 'building-b'
     });
   });
@@ -354,7 +352,7 @@ describe('building commands', () => {
       view: {
         ...project.view,
         selectedBuildingId: 'building-a',
-        editingBuildingId: 'building-a'
+        editorMode: 'building'
       }
     };
 
@@ -363,7 +361,7 @@ describe('building commands', () => {
     expect(next.buildings.map(building => building.id)).toEqual(['building-a']);
     expect(next.view).toMatchObject({
       selectedBuildingId: 'building-a',
-      editingBuildingId: 'building-a',
+      editorMode: 'building',
       addingBuildingId: null
     });
   });
@@ -377,7 +375,6 @@ describe('explicit editor mode', () => {
     const next = createSelectBuildingCommand('b1').apply(p);
     expect(next.view.selectedBuildingId).toBe('b1');
     expect(next.view.editorMode).toBe('none');
-    expect(next.view.editingBuildingId).toBeNull();
   });
 
   it('add building starts in building editor mode', () => {
@@ -385,7 +382,6 @@ describe('explicit editor mode', () => {
     expect(next.view).toMatchObject({
       selectedBuildingId: 'b1', editorMode: 'building', addingBuildingId: 'b1'
     });
-    expect(next.view.editingBuildingId).toBe('b1');
   });
 
   it('setEditorMode switches between areas and building without touching selection', () => {
@@ -393,10 +389,8 @@ describe('explicit editor mode', () => {
     p = createFinishBuildingCommand('b1').apply(p);
     p = createSetEditorModeCommand('areas').apply(p);
     expect(p.view).toMatchObject({ selectedBuildingId: 'b1', editorMode: 'areas' });
-    expect(p.view.editingBuildingId).toBeNull();
     p = createSetEditorModeCommand('building').apply(p);
     expect(p.view.editorMode).toBe('building');
-    expect(p.view.editingBuildingId).toBe('b1');
   });
 
   it('setEditorMode is a no-op with an invalid mode or no selection', () => {
@@ -409,7 +403,6 @@ describe('explicit editor mode', () => {
     let p = createAddBuildingCommand({ id: 'b1' }).apply(createDefaultProject());
     p = createFinishBuildingCommand('b1').apply(p);
     expect(p.view).toMatchObject({ selectedBuildingId: 'b1', editorMode: 'none', addingBuildingId: null });
-    expect(p.view.editingBuildingId).toBeNull();
   });
 });
 

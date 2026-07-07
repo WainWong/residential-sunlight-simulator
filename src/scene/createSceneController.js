@@ -61,7 +61,7 @@ export function createSceneController(canvas, { onSelect = () => {} } = {}) {
       const { previewBuildingId, highlightBuildingId } = deriveScenePreview(project.view);
       synchronizer.update(project.buildings, { previewBuildingId, highlightBuildingId });
       canvas.dataset.buildingCount = String(project.buildings.length);
-      canvas.dataset.editingBuildingId = previewBuildingId ?? '';
+      canvas.dataset.previewBuildingId = previewBuildingId ?? '';
     },
     updateSolar(simulationState) {
       applySunLighting(sceneParts.sunlight, simulationState.solar);
