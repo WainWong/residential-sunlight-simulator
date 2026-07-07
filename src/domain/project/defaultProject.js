@@ -23,6 +23,7 @@ export function createDefaultProject() {
       activePanel: 'buildings',
       wizardComplete: false,
       selectedBuildingId: null,
+      editorMode: 'none',
       editingBuildingId: null,
       addingBuildingId: null
     }

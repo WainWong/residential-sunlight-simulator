@@ -20,6 +20,17 @@ function withoutTemplateParams(params) {
   );
 }
 
+const EDITOR_MODES = new Set(['none', 'building', 'areas']);
+
+// Migration mirror: keep editingBuildingId derivable from editorMode so
+// unmigrated consumers keep working until the mirror is removed.
+function deriveEditing(view) {
+  return {
+    ...view,
+    editingBuildingId: view.editorMode === 'building' ? view.selectedBuildingId : null
+  };
+}
+
 function nextBuildingName(buildings) {
   return `住宅 ${buildings.length + 1}`;
 }
@@ -53,12 +64,12 @@ export function createAddBuildingCommand(overrides = {}) {
       return {
         ...state,
         buildings: [...state.buildings, building],
-        view: {
+        view: deriveEditing({
           ...state.view,
           selectedBuildingId: id,
-          editingBuildingId: id,
+          editorMode: 'building',
           addingBuildingId: id
-        }
+        })
       };
     }
   };
@@ -100,17 +111,31 @@ export function createUpdateBuildingCommand(buildingId, patch = {}) {
   };
 }
 
-export function createSelectBuildingCommand(buildingId, { editing = false } = {}) {
+export function createSelectBuildingCommand(buildingId) {
   return {
     label: '选择建筑',
     apply(state) {
       return {
         ...state,
-        view: {
+        view: deriveEditing({
           ...state.view,
           selectedBuildingId: buildingId,
-          editingBuildingId: editing ? buildingId : state.view.editingBuildingId
-        }
+          editorMode: 'none'
+        })
+      };
+    }
+  };
+}
+
+export function createSetEditorModeCommand(mode) {
+  return {
+    label: '切换编辑模式',
+    apply(state) {
+      if (!EDITOR_MODES.has(mode)) return state;
+      if (mode !== 'none' && !state.view.selectedBuildingId) return state;
+      return {
+        ...state,
+        view: deriveEditing({ ...state.view, editorMode: mode })
       };
     }
   };
@@ -120,19 +145,18 @@ export function createFinishBuildingCommand(buildingId) {
   return {
     label: '完成建筑',
     apply(state) {
-      if (state.view.editingBuildingId !== buildingId) return state;
+      if (state.view.editorMode !== 'building' || state.view.selectedBuildingId !== buildingId) {
+        return state;
+      }
       return {
         ...state,
-        view: {
+        view: deriveEditing({
           ...state.view,
-          selectedBuildingId: buildingId,
-          editingBuildingId: state.view.editingBuildingId === buildingId
-            ? null
-            : state.view.editingBuildingId,
+          editorMode: 'none',
           addingBuildingId: state.view.addingBuildingId === buildingId
             ? null
             : state.view.addingBuildingId
-        }
+        })
       };
     }
   };
@@ -146,16 +170,16 @@ export function createCancelAddedBuildingCommand(buildingId) {
       return {
         ...state,
         buildings: state.buildings.filter(building => building.id !== buildingId),
-        view: {
+        view: deriveEditing({
           ...state.view,
           selectedBuildingId: state.view.selectedBuildingId === buildingId
             ? null
             : state.view.selectedBuildingId,
-          editingBuildingId: state.view.editingBuildingId === buildingId
-            ? null
-            : state.view.editingBuildingId,
+          editorMode: state.view.selectedBuildingId === buildingId
+            ? 'none'
+            : state.view.editorMode,
           addingBuildingId: null
-        }
+        })
       };
     }
   };
@@ -168,18 +192,18 @@ export function createRemoveBuildingCommand(buildingId) {
       return {
         ...state,
         buildings: state.buildings.filter(building => building.id !== buildingId),
-        view: {
+        view: deriveEditing({
           ...state.view,
           selectedBuildingId: state.view.selectedBuildingId === buildingId
             ? null
             : state.view.selectedBuildingId,
-          editingBuildingId: state.view.editingBuildingId === buildingId
-            ? null
-            : state.view.editingBuildingId,
+          editorMode: state.view.selectedBuildingId === buildingId
+            ? 'none'
+            : state.view.editorMode,
           addingBuildingId: state.view.addingBuildingId === buildingId
             ? null
             : state.view.addingBuildingId
-        }
+        })
       };
     }
   };
@@ -196,12 +220,12 @@ export function createClearBuildingsCommand() {
           ...state.simulation,
           activeAreaId: null
         },
-        view: {
+        view: deriveEditing({
           ...state.view,
           selectedBuildingId: null,
-          editingBuildingId: null,
+          editorMode: 'none',
           addingBuildingId: null
-        }
+        })
       };
     }
   };

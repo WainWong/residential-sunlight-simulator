@@ -18,6 +18,7 @@ import {
   createFinishBuildingCommand,
   createRemoveBuildingCommand,
   createSelectBuildingCommand,
+  createSetEditorModeCommand,
   createUpdateBuildingCommand
 } from '../../src/store/buildingCommands.js';
 
@@ -124,7 +125,7 @@ describe('building commands', () => {
     expect(createUpdateBuildingCommand('missing', { name: '不存在' }).apply(project)).toBe(project);
   });
 
-  it('finishes a draft and reselects it for editing', () => {
+  it('finishes a draft; reselecting it does not resume editing', () => {
     const store = createStore(createDefaultProject());
     store.execute(createAddBuildingCommand({ id: 'building-a' }));
     store.execute(createFinishBuildingCommand('building-a'));
@@ -136,13 +137,11 @@ describe('building commands', () => {
     });
 
     store.execute(createSelectBuildingCommand('building-a'));
-    expect(store.getState().view.editingBuildingId).toBeNull();
-
-    store.execute(createSelectBuildingCommand('building-a', { editing: true }));
     expect(store.getState().view).toMatchObject({
       selectedBuildingId: 'building-a',
-      editingBuildingId: 'building-a'
+      editorMode: 'none'
     });
+    expect(store.getState().view.editingBuildingId).toBeNull();
   });
 
   it('cancels only the building currently being added', () => {
@@ -168,7 +167,7 @@ describe('building commands', () => {
       view: {
         ...project.view,
         selectedBuildingId: 'building-a',
-        editingBuildingId: 'building-b',
+        editorMode: 'none',
         addingBuildingId: 'building-b'
       }
     };
@@ -178,7 +177,7 @@ describe('building commands', () => {
     expect(next.buildings.map(building => building.id)).toEqual(['building-b']);
     expect(next.view).toMatchObject({
       selectedBuildingId: null,
-      editingBuildingId: 'building-b',
+      editorMode: 'none',
       addingBuildingId: 'building-b'
     });
   });
@@ -212,6 +211,7 @@ describe('building commands', () => {
     expect(next.view).toEqual({
       ...project.view,
       selectedBuildingId: null,
+      editorMode: 'none',
       editingBuildingId: null,
       addingBuildingId: null
     });
@@ -368,6 +368,49 @@ describe('building commands', () => {
     });
   });
 
+});
+
+describe('explicit editor mode', () => {
+  it('select only selects, does not enter editing', () => {
+    let p = createAddBuildingCommand({ id: 'b1' }).apply(createDefaultProject());
+    p = createFinishBuildingCommand('b1').apply(p);
+    const next = createSelectBuildingCommand('b1').apply(p);
+    expect(next.view.selectedBuildingId).toBe('b1');
+    expect(next.view.editorMode).toBe('none');
+    expect(next.view.editingBuildingId).toBeNull();
+  });
+
+  it('add building starts in building editor mode', () => {
+    const next = createAddBuildingCommand({ id: 'b1' }).apply(createDefaultProject());
+    expect(next.view).toMatchObject({
+      selectedBuildingId: 'b1', editorMode: 'building', addingBuildingId: 'b1'
+    });
+    expect(next.view.editingBuildingId).toBe('b1');
+  });
+
+  it('setEditorMode switches between areas and building without touching selection', () => {
+    let p = createAddBuildingCommand({ id: 'b1' }).apply(createDefaultProject());
+    p = createFinishBuildingCommand('b1').apply(p);
+    p = createSetEditorModeCommand('areas').apply(p);
+    expect(p.view).toMatchObject({ selectedBuildingId: 'b1', editorMode: 'areas' });
+    expect(p.view.editingBuildingId).toBeNull();
+    p = createSetEditorModeCommand('building').apply(p);
+    expect(p.view.editorMode).toBe('building');
+    expect(p.view.editingBuildingId).toBe('b1');
+  });
+
+  it('setEditorMode is a no-op with an invalid mode or no selection', () => {
+    const base = createDefaultProject();
+    expect(createSetEditorModeCommand('bogus').apply(base)).toBe(base);
+    expect(createSetEditorModeCommand('building').apply(base)).toBe(base);
+  });
+
+  it('finish returns to overview (editorMode none)', () => {
+    let p = createAddBuildingCommand({ id: 'b1' }).apply(createDefaultProject());
+    p = createFinishBuildingCommand('b1').apply(p);
+    expect(p.view).toMatchObject({ selectedBuildingId: 'b1', editorMode: 'none', addingBuildingId: null });
+    expect(p.view.editingBuildingId).toBeNull();
+  });
 });
 
 describe('building inspector values', () => {
