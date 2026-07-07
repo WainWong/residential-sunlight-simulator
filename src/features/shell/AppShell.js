@@ -103,15 +103,15 @@ export function createAppShell({
   store.subscribe(updateInspector);
   updateInspector(store.getState());
 
-  let prevEditingId = store.getState().view.editingBuildingId;
+  let prevSelectedId = store.getState().view.selectedBuildingId;
   store.subscribe(project => {
-    const currentEditingId = project.view.editingBuildingId;
-    if (currentEditingId && !prevEditingId) {
+    const currentSelectedId = project.view.selectedBuildingId;
+    if (currentSelectedId && !prevSelectedId) {
       appShell.dataset.mobilePanel = 'editor';
-    } else if (!currentEditingId && prevEditingId) {
+    } else if (!currentSelectedId && prevSelectedId) {
       appShell.dataset.mobilePanel = 'buildings';
     }
-    prevEditingId = currentEditingId;
+    prevSelectedId = currentSelectedId;
   });
 
   const header = createHeader({ onClearSandbox });
