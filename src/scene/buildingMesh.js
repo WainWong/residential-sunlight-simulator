@@ -17,6 +17,13 @@ const blueprintMaterial = new THREE.MeshStandardMaterial({
   opacity: 0.42,
   depthWrite: false
 });
+const highlightMaterial = new THREE.MeshStandardMaterial({
+  color: 0xa9b2b2,
+  roughness: 0.82,
+  metalness: 0.02,
+  emissive: 0x2f6d86,
+  emissiveIntensity: 0.35
+});
 const floorLineMaterial = new THREE.LineBasicMaterial({
   color: 0x697576,
   transparent: true,
@@ -61,7 +68,7 @@ function floorLines(footprint, building) {
   return lines;
 }
 
-export function createBuildingMesh(building, { preview = false } = {}) {
+export function createBuildingMesh(building, { preview = false, highlighted = false } = {}) {
   const footprint = createFootprint(building.template, building.params);
   const height = totalBuildingHeight(building.params);
   const geometry = new THREE.ExtrudeGeometry(footprintShape(footprint), {
@@ -72,7 +79,8 @@ export function createBuildingMesh(building, { preview = false } = {}) {
   geometry.rotateX(-Math.PI / 2);
   geometry.computeVertexNormals();
 
-  const solid = new THREE.Mesh(geometry, preview ? blueprintMaterial : buildingMaterial);
+  const material = preview ? blueprintMaterial : (highlighted ? highlightMaterial : buildingMaterial);
+  const solid = new THREE.Mesh(geometry, material);
   solid.castShadow = !preview;
   solid.receiveShadow = !preview;
   solid.userData.kind = 'building-solid';
@@ -83,6 +91,7 @@ export function createBuildingMesh(building, { preview = false } = {}) {
   group.userData.entityId = building.id;
   group.userData.revision = building.revision ?? 0;
   group.userData.preview = preview;
+  group.userData.highlighted = !preview && highlighted;
   group.userData.totalHeight = height;
   group.position.set(building.position.x, 0, building.position.z);
   group.rotation.y = THREE.MathUtils.degToRad(building.rotation);

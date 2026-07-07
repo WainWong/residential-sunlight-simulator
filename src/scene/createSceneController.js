@@ -8,6 +8,7 @@ import { createOpeningOverlay } from './openingOverlay.js';
 import { createRenderer } from './createRenderer.js';
 import { createScene } from './createScene.js';
 import { pointerToNdc, resolvePickedEntity } from './picking.js';
+import { deriveScenePreview } from './scenePreview.js';
 import { applySunLighting } from './sunLighting.js';
 import { createSceneSynchronizer } from './syncScene.js';
 
@@ -57,11 +58,10 @@ export function createSceneController(canvas, { onSelect = () => {} } = {}) {
 
   return {
     updateProject(project) {
-      synchronizer.update(project.buildings, {
-        previewBuildingId: project.view.editingBuildingId
-      });
+      const { previewBuildingId, highlightBuildingId } = deriveScenePreview(project.view);
+      synchronizer.update(project.buildings, { previewBuildingId, highlightBuildingId });
       canvas.dataset.buildingCount = String(project.buildings.length);
-      canvas.dataset.editingBuildingId = project.view.editingBuildingId ?? '';
+      canvas.dataset.editingBuildingId = previewBuildingId ?? '';
     },
     updateSolar(simulationState) {
       applySunLighting(sceneParts.sunlight, simulationState.solar);

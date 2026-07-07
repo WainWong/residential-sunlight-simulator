@@ -61,7 +61,7 @@ export function mountApp(root) {
     ? import('./scene/createSceneController.js').then(({ createSceneController }) => {
         sceneController = createSceneController(canvas, {
           onSelect: buildingId => {
-            store.execute(createSelectBuildingCommand(buildingId, { editing: true }));
+            store.execute(createSelectBuildingCommand(buildingId));
           }
         });
         sceneController.updateProject(store.getState());
@@ -72,17 +72,17 @@ export function mountApp(root) {
     : Promise.resolve(null);
   if (!webglAvailable) canvas.parentElement.append(createWebGLFallback());
 
-  let prevEditingId = store.getState().view.editingBuildingId;
+  let prevEditing = store.getState().view.editorMode === 'building';
   store.subscribe(project => {
-    const currentEditingId = project.view.editingBuildingId;
-    if (!currentEditingId && prevEditingId) {
+    const currentEditing = project.view.editorMode === 'building';
+    if (!currentEditing && prevEditing) {
       clearTimeout(saveTimer);
       saveTimer = null;
       try { saveDraft(project); } catch { /* handled in scheduleSave */ }
     } else {
       scheduleSave(project);
     }
-    prevEditingId = currentEditingId;
+    prevEditing = currentEditing;
     shell.dataset.projectBuildings = String(project.buildings.length);
     const emptyHint = shell.querySelector('.viewport__empty');
     if (emptyHint) emptyHint.hidden = project.buildings.length > 0;
