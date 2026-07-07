@@ -44,7 +44,7 @@ export function createProjectTree({ store, onAdd }) {
         `building-tree-${building.id}`
       );
       row.addEventListener('click', () => {
-        store.execute(createSelectBuildingCommand(building.id, { editing: true }));
+        store.execute(createSelectBuildingCommand(building.id));
       });
       return row;
     }));
