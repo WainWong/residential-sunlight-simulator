@@ -21,9 +21,9 @@ function projectWithSouthWindow() {
     params: { length: 60, depth: 18, floors: 3, floorHeight: 3 },
     observationAreas: [{
       id: 'area-a', name: '客厅', floor: 1,
-      cells: [[0, -8]], sampleHeight: 1.2, openingIds: ['op1']
+      rects: [{ x0: -3, z0: -11, x1: 3, z1: -4 }], sampleHeight: 1.2
     }],
-    openings: [{ id: 'op1', type: 'window', wallId: 'south-0', floor: 1, width: 3, height: 1.6, sillHeight: 0.9 }]
+    openings: []
   }];
   return p;
 }
