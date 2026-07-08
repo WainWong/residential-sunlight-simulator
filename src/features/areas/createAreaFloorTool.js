@@ -1,6 +1,7 @@
 import { createElement } from '../../ui/createElement.js';
 import {
   createAddObservationAreaCommand,
+  createSetActiveAreaCommand,
   createSetEditorModeCommand,
   createUpdateObservationAreaCommand
 } from '../../store/buildingCommands.js';
@@ -69,13 +70,7 @@ export function createAreaFloorTool({ store, buildingId }) {
   });
   areaSelect.addEventListener('change', () => {
     currentAreaId = areaSelect.value;
-    store.execute({
-      label: '切换观察区',
-      apply: project => ({
-        ...project,
-        simulation: { ...project.simulation, activeAreaId: currentAreaId }
-      })
-    });
+    store.execute(createSetActiveAreaCommand(currentAreaId));
     syncFields();
   });
 

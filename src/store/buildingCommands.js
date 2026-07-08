@@ -256,6 +256,18 @@ export function createUpdateObservationAreaCommand(buildingId, areaId, patch) {
   };
 }
 
+export function createSetActiveAreaCommand(activeAreaId) {
+  return {
+    label: '切换观察区',
+    apply(state) {
+      return {
+        ...state,
+        simulation: { ...state.simulation, activeAreaId }
+      };
+    }
+  };
+}
+
 export function createAddOpeningCommand(buildingId, areaId, opening) {
   return {
     label: '添加采光口',

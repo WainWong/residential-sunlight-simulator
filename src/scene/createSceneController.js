@@ -111,7 +111,7 @@ export function createSceneController(canvas, { onSelect = () => {}, store = nul
       cameraParts.controls.enabled = false;
       const slab = createFloorSlab(building, floor);
       sceneParts.scene.add(slab);
-      const getBuilding = () => (store?.getState() ?? project).buildings.find(b => b.id === buildingId);
+      const getBuilding = () => store.getState().buildings.find(b => b.id === buildingId);
       const getMode = () => canvas.closest('.workspace')?.querySelector('.area-floor-tool')?.dataset.tool ?? 'move';
       const drag = createAreaDrag({
         canvas,

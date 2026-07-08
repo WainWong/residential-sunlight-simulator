@@ -32,9 +32,11 @@ export function createFloorSlab(building, floor) {
   group.add(slab);
   const xs = outer.map(p => p[0]);
   const zs = outer.map(p => p[1]);
-  const size = Math.max(Math.max(...xs) - Math.min(...xs), Math.max(...zs) - Math.min(...zs));
+  const minX = Math.min(...xs), maxX = Math.max(...xs);
+  const minZ = Math.min(...zs), maxZ = Math.max(...zs);
+  const size = Math.max(maxX - minX, maxZ - minZ);
   const grid = new THREE.GridHelper(Math.ceil(size), Math.ceil(size), 0x9fb0b6, 0xc3ced2);
-  grid.position.set((Math.min(...xs) + Math.max(...xs)) / 2, y + 0.012, (Math.min(...zs) + Math.max(...zs)) / 2);
+  grid.position.set((minX + maxX) / 2, y + 0.012, (minZ + maxZ) / 2);
   grid.material.transparent = true;
   grid.material.opacity = 0.35;
   group.add(grid);

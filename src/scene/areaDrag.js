@@ -1,15 +1,12 @@
 import * as THREE from 'three';
-
-const DEG = Math.PI / 180;
+import { rotateLocalToWorld } from '../domain/buildings/wallGeometry.js';
+import { pointerToNdc } from './picking.js';
 
 export function worldToLocalFloor([wx, wz], building) {
   const dx = wx - building.position.x;
   const dz = wz - building.position.z;
-  const t = building.rotation * DEG;
-  const c = Math.cos(t);
-  const s = Math.sin(t);
-  // inverse of rotateLocalToWorld's rotation matrix is its transpose
-  return [dx * c - dz * s, dx * s + dz * c];
+  // world -> local is the inverse rotation, i.e. rotateLocalToWorld at -rotation
+  return rotateLocalToWorld([dx, dz], -building.rotation);
 }
 
 export function normalizeRect(p0, p1) {
@@ -48,7 +45,8 @@ export function createAreaDrag({ canvas, camera, floorY, getBuilding, getMode, o
 
   function localAt(event) {
     const rect = canvas.getBoundingClientRect();
-    ndc.set(((event.clientX - rect.left) / rect.width) * 2 - 1, -((event.clientY - rect.top) / rect.height) * 2 + 1);
+    const { x, y } = pointerToNdc(event, rect);
+    ndc.set(x, y);
     raycaster.setFromCamera(ndc, camera);
     if (!raycaster.ray.intersectPlane(plane, hit)) return null;
     return worldToLocalFloor([hit.x, hit.z], getBuilding());
