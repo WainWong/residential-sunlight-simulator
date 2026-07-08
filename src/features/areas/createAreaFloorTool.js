@@ -1,6 +1,8 @@
 import { createElement } from '../../ui/createElement.js';
 import {
   createAddObservationAreaCommand,
+  createApplyAreaDraftCommand,
+  createClearAreaDraftCommand,
   createSetActiveAreaCommand,
   createSetAreaToolCommand,
   createSetEditorModeCommand,
@@ -8,7 +10,6 @@ import {
 } from '../../store/buildingCommands.js';
 
 const TOOLS = [
-  ['move', '移动'],
   ['draw', '画区'],
   ['erase', '擦除']
 ];
@@ -43,7 +44,10 @@ export function createAreaFloorTool({ store, buildingId }) {
   function applyToolUI(tool) {
     currentTool = tool;
     element.dataset.tool = tool;
-    for (const [t, btn] of toolButtons) btn.setAttribute('aria-pressed', String(t === tool));
+    for (const [t, btn] of toolButtons) {
+      btn.setAttribute('aria-pressed', String(t === tool));
+      btn.classList.toggle('is-active', t === tool);
+    }
   }
 
   function selectTool(tool) {
@@ -109,19 +113,59 @@ export function createAreaFloorTool({ store, buildingId }) {
       floorInput.value = String(area.floor);
       floorInput.setAttribute('max', String(currentBuilding.params.floors));
     }
+
+    // Empty state: hide fields and toolbar when no areas exist; show hint instead.
+    const hasAreas = areas.length > 0;
+    emptyHint.hidden = hasAreas;
+    for (const f of areaFields) f.hidden = !hasAreas;
+    toolBar.hidden = !hasAreas;
+
+    // Draft confirm UI: show apply/cancel when a draft targets the current building+active area.
+    const state = store.getState();
+    const draft = state?.view?.areaDraft;
+    const active = state?.simulation?.activeAreaId;
+    const hasDraft = Boolean(draft && draft.buildingId === buildingId && draft.areaId === active);
+    applyBtn.hidden = !hasDraft;
+    cancelBtn.hidden = !hasDraft;
+    draftStatus.textContent = hasDraft ? '● 草稿未应用' : '✓ 已生效';
   }
+
+  const emptyHint = createElement('p', {
+    className: 'area-empty-hint', testId: 'area-empty-hint',
+    text: '还没有观察区，点击下方按钮创建一个。'
+  });
+
+  const draftStatus = createElement('span', { className: 'draft-status', testId: 'draft-status' });
+  const applyBtn = createElement('button', {
+    className: 'button button--primary', text: '应用选区 ✓', testId: 'draft-apply',
+    attributes: { type: 'button' }
+  });
+  applyBtn.addEventListener('click', () => store.execute(createApplyAreaDraftCommand()));
+  const cancelBtn = createElement('button', {
+    className: 'button button--ghost', text: '撤销草稿', testId: 'draft-cancel',
+    attributes: { type: 'button' }
+  });
+  cancelBtn.addEventListener('click', () => store.execute(createClearAreaDraftCommand()));
+  const draftBar = createElement('div', { className: 'area-draft-bar' }, draftStatus, cancelBtn, applyBtn);
+
+  const areaSelectField = createElement('label', { className: 'field' },
+    createElement('span', { className: 'field__label', text: '观察区' }), areaSelect);
+  const nameField = createElement('label', { className: 'field' },
+    createElement('span', { className: 'field__label', text: '区域名称' }), nameInput);
+  const floorField = createElement('label', { className: 'field' },
+    createElement('span', { className: 'field__label', text: '楼层' }), floorInput);
+  const areaFields = [areaSelectField, nameField, floorField];
 
   element.append(
     back,
     createElement('div', { className: 'panel__label', text: '观察区编辑' }),
+    emptyHint,
     toolBar,
-    createElement('label', { className: 'field' },
-      createElement('span', { className: 'field__label', text: '观察区' }), areaSelect),
+    areaSelectField,
     addAreaBtn,
-    createElement('label', { className: 'field' },
-      createElement('span', { className: 'field__label', text: '区域名称' }), nameInput),
-    createElement('label', { className: 'field' },
-      createElement('span', { className: 'field__label', text: '楼层' }), floorInput)
+    nameField,
+    floorField,
+    draftBar
   );
   applyToolUI(currentTool);
 
