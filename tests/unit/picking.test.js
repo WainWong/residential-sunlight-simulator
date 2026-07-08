@@ -47,9 +47,9 @@ describe('editing overlays', () => {
 
   it('creates tagged observation, opening, and sun overlays', () => {
     const area = createObservationOverlay({
-      cells: [[0, 0], [1, 0]],
+      rects: [{ x0: 0, z0: 0, x1: 1, z1: 1 }, { x0: 1, z0: 0, x1: 2, z1: 1 }],
       baseY: 6,
-      litSampleIds: ['0:0:0']
+      lit: false
     });
     const opening = createOpeningOverlay({
       id: 'window-a',

@@ -60,6 +60,7 @@ export function mountApp(root) {
   const sceneReady = webglAvailable
     ? import('./scene/createSceneController.js').then(({ createSceneController }) => {
         sceneController = createSceneController(canvas, {
+          store,
           onSelect: buildingId => {
             store.execute(createSelectBuildingCommand(buildingId));
           }
@@ -72,7 +73,10 @@ export function mountApp(root) {
     : Promise.resolve(null);
   if (!webglAvailable) canvas.parentElement.append(createWebGLFallback());
 
+  const withController = fn => (sceneController ? fn(sceneController) : sceneReady.then(fn));
+
   let prevEditing = store.getState().view.editorMode === 'building';
+  let prevAreasMode = store.getState().view.editorMode === 'areas';
   store.subscribe(project => {
     const currentEditing = project.view.editorMode === 'building';
     if (!currentEditing && prevEditing) {
@@ -86,23 +90,30 @@ export function mountApp(root) {
     shell.dataset.projectBuildings = String(project.buildings.length);
     const emptyHint = shell.querySelector('.viewport__empty');
     if (emptyHint) emptyHint.hidden = project.buildings.length > 0;
-    if (sceneController) sceneController.updateProject(project);
-    else sceneReady.then(controller => controller?.updateProject(project));
     const sim = simulationController.getState();
-    if (sceneController) sceneController.updateAnalysis(project, sim);
-    else sceneReady.then(controller => controller?.updateAnalysis(store.getState(), simulationController.getState()));
+    withController(controller => {
+      controller?.updateProject(project);
+      controller?.updateAnalysis(project, sim);
+    });
+
+    const currentAreasMode = project.view.editorMode === 'areas';
+    if (currentAreasMode !== prevAreasMode) {
+      withController(controller => {
+        if (!controller) return;
+        if (currentAreasMode) controller.enterFloorFocus(project, simulationController.getState());
+        else controller.exitFloorFocus();
+      });
+    } else if (currentAreasMode) {
+      withController(controller => controller?.setFloorTool(project.view.areaTool));
+    }
+    prevAreasMode = currentAreasMode;
   });
 
   simulationController.subscribe(state => {
-    if (sceneController) {
-      sceneController.updateSolar(state);
-      sceneController.updateAnalysis(store.getState(), state);
-    } else {
-      sceneReady.then(controller => {
-        controller?.updateSolar(state);
-        controller?.updateAnalysis(store.getState(), simulationController.getState());
-      });
-    }
+    withController(controller => {
+      controller?.updateSolar(state);
+      controller?.updateAnalysis(store.getState(), state);
+    });
   });
 
   shell.querySelector('[data-action="save-project"]')?.addEventListener('click', () => {

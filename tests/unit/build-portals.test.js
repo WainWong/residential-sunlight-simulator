@@ -4,12 +4,13 @@ import { buildOpeningPortals } from '../../src/domain/simulation/buildOpeningPor
 
 describe('sampleArea transform', () => {
   it('is identity without a transform (unchanged)', () => {
-    expect(sampleArea({ cells: [[0, 0]], sampleHeight: 0 })[0].position).toEqual([0.25, 0, 0.25]);
+    expect(sampleArea({ rects: [{ x0: 0, z0: 0, x1: 1, z1: 1 }], sampleHeight: 0 })[0].position)
+      .toEqual([0.5, 0, 0.5]);
   });
   it('applies a world transform when provided', () => {
     const t = ([x, y, z]) => [x + 10, y + 27, z - 5];
-    expect(sampleArea({ cells: [[0, 0]], sampleHeight: 0 }, t)[0].position)
-      .toEqual([10.25, 27, -4.75]);
+    expect(sampleArea({ rects: [{ x0: 0, z0: 0, x1: 1, z1: 1 }], sampleHeight: 0 }, t)[0].position)
+      .toEqual([10.5, 27, -4.5]);
   });
 });
 

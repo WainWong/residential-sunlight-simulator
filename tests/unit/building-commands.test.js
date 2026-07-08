@@ -18,6 +18,7 @@ import {
   createFinishBuildingCommand,
   createRemoveBuildingCommand,
   createSelectBuildingCommand,
+  createSetAreaToolCommand,
   createSetEditorModeCommand,
   createUpdateBuildingCommand
 } from '../../src/store/buildingCommands.js';
@@ -397,6 +398,12 @@ describe('explicit editor mode', () => {
     const base = createDefaultProject();
     expect(createSetEditorModeCommand('bogus').apply(base)).toBe(base);
     expect(createSetEditorModeCommand('building').apply(base)).toBe(base);
+  });
+
+  it('setAreaTool updates view.areaTool for valid tools and ignores invalid ones', () => {
+    const base = createDefaultProject();
+    expect(createSetAreaToolCommand('erase').apply(base).view.areaTool).toBe('erase');
+    expect(createSetAreaToolCommand('bogus').apply(base)).toBe(base);
   });
 
   it('finish returns to overview (editorMode none)', () => {

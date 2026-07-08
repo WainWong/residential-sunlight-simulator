@@ -24,7 +24,8 @@ export function createDefaultProject() {
       wizardComplete: false,
       selectedBuildingId: null,
       editorMode: 'none',
-      addingBuildingId: null
+      addingBuildingId: null,
+      areaTool: 'draw'
     }
   };
 }

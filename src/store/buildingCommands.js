@@ -21,6 +21,7 @@ function withoutTemplateParams(params) {
 }
 
 const EDITOR_MODES = new Set(['none', 'building', 'areas']);
+const AREA_TOOLS = new Set(['move', 'draw', 'erase']);
 
 function nextBuildingName(buildings) {
   return `住宅 ${buildings.length + 1}`;
@@ -251,6 +252,31 @@ export function createUpdateObservationAreaCommand(buildingId, areaId, patch) {
             a.id !== areaId ? a : { ...a, ...patch }
           )
         })
+      };
+    }
+  };
+}
+
+export function createSetActiveAreaCommand(activeAreaId) {
+  return {
+    label: '切换观察区',
+    apply(state) {
+      return {
+        ...state,
+        simulation: { ...state.simulation, activeAreaId }
+      };
+    }
+  };
+}
+
+export function createSetAreaToolCommand(tool) {
+  return {
+    label: '切换观察区工具',
+    apply(state) {
+      if (!AREA_TOOLS.has(tool)) return state;
+      return {
+        ...state,
+        view: { ...state.view, areaTool: tool }
       };
     }
   };

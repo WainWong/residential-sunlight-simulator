@@ -46,7 +46,7 @@ describe('BuildingInspector routing', () => {
     store.execute(createFinishBuildingCommand('b1'));
     store.execute(createSetEditorModeCommand('areas'));
     expect(q(el, 'building-overview')).toBeNull();
-    expect(hasText(el, '观察区域')).toBe(true);
+    expect(hasText(el, '观察区编辑')).toBe(true);
     expect(q(el, 'inspector-back')).not.toBeNull();
     q(el, 'inspector-back').click();
     expect(q(el, 'building-overview')).not.toBeNull();
@@ -55,7 +55,7 @@ describe('BuildingInspector routing', () => {
   it('building editor and area section never appear at the same time', () => {
     const { store, el } = mount();
     store.execute(createAddBuildingCommand({ id: 'b1' }));
-    expect(hasText(el, '观察区域')).toBe(false);
+    expect(hasText(el, '观察区编辑')).toBe(false);
     store.execute(createFinishBuildingCommand('b1'));
     store.execute(createSetEditorModeCommand('areas'));
     expect(hasText(el, '建筑长度（米）')).toBe(false);

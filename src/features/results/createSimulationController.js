@@ -1,8 +1,8 @@
 import { getSolarPosition } from '../../domain/solar/getSolarPosition.js';
 import { floorBaseY } from '../../domain/buildings/floorMath.js';
-import { rotateLocalToWorld, resolveWallId } from '../../domain/buildings/wallGeometry.js';
+import { rotateLocalToWorld } from '../../domain/buildings/wallGeometry.js';
 import { buildObstacles } from '../../domain/simulation/buildObstacles.js';
-import { buildOpeningPortals } from '../../domain/simulation/buildOpeningPortals.js';
+import { deriveAperturesFromArea } from '../../domain/simulation/deriveApertures.js';
 import { evaluateDirectSun } from '../../domain/simulation/evaluateDirectSun.js';
 
 export function timeToMinute(time) {
@@ -33,15 +33,8 @@ function resolveDirectSun({ project, building, area }) {
     const [wx, wz] = rotateLocalToWorld([lx, lz], building.rotation);
     return [wx + building.position.x, baseY, wz + building.position.z];
   };
-  const openings = (building.openings ?? []).filter(o => (area.openingIds ?? []).includes(o.id));
-  const portals = buildOpeningPortals(building, openings);
-  const excludeWallIds = new Set(
-    openings
-      .map(o => resolveWallId(building, o.wallId))
-      .filter(Boolean)
-      .map(wallId => `${building.id}:${wallId}`)
-  );
-  const obstacles = buildObstacles(project.buildings, { excludeWallIds });
+  const { portals, apertureWallIds } = deriveAperturesFromArea(building, area);
+  const obstacles = buildObstacles(project.buildings, { excludeWallIds: apertureWallIds });
 
   return { transform, portals, obstacles };
 }
