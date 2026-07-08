@@ -24,7 +24,13 @@ export function createAreaFloorTool({ store, buildingId }) {
     className: 'button button--ghost', text: '‹ 返回', testId: 'inspector-back',
     attributes: { type: 'button' }
   });
-  back.addEventListener('click', () => store.execute(createSetEditorModeCommand('none')));
+  back.addEventListener('click', () => {
+    const session = store.getState()?.view?.areaEditing;
+    if (session && session.buildingId === buildingId) {
+      store.execute(createCancelAreaEditingCommand());
+    }
+    store.execute(createSetEditorModeCommand('none'));
+  });
 
   // --- Shared session inputs (reused across create/edit renders) ---
   const nameInput = createElement('input', {

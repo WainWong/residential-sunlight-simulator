@@ -79,4 +79,16 @@ describe('createAreaFloorTool', () => {
     q(element, 'area-cancel').click();
     expect(store.execute.mock.calls.at(-1)[0].label).toBe('取消观察区编辑');
   });
+
+  it('back button cancels an active session before leaving', () => {
+    const store = fakeStore({
+      view: { areaEditing: { mode: 'create', buildingId: 'b1', areaId: null, floor: 1, name: '', rects: [], tool: 'draw' } }
+    });
+    const { element, update } = createAreaFloorTool({ store, buildingId: 'b1' });
+    update(building());
+    q(element, 'inspector-back').click();
+    const labels = store.execute.mock.calls.map(c => c[0].label);
+    expect(labels).toContain('取消观察区编辑');
+    expect(labels).toContain('切换编辑模式');
+  });
 });
