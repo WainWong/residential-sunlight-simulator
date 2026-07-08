@@ -264,6 +264,10 @@
   margin-top: 16px;
 }
 
+.inspector-actions .button--danger {
+  margin-top: 4px;
+}
+
 .observation-areas-section {
   margin-top: 24px;
   padding-top: 16px;

@@ -60,4 +60,13 @@ describe('BuildingInspector routing', () => {
     store.execute(createSetEditorModeCommand('areas'));
     expect(hasText(el, '建筑长度（米）')).toBe(false);
   });
+
+  it('overview groups all three actions in one actions container', () => {
+    const { store, el } = mount();
+    store.execute(createAddBuildingCommand({ id: 'b1' }));
+    store.execute(createFinishBuildingCommand('b1'));
+    const actions = el.querySelector('.inspector-actions');
+    expect(actions.querySelector('[data-testid="overview-edit-building"]')).not.toBeNull();
+    expect(actions.querySelector('[data-testid="overview-delete"]')).not.toBeNull();
+  });
 });

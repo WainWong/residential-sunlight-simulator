@@ -29,8 +29,7 @@ export function createBuildingOverview({ store, confirmDelete = () => true }) {
     'div', { className: 'building-overview', testId: 'building-overview' },
     createElement('div', { className: 'panel__label', text: '建筑概览' }),
     title, summary,
-    createElement('div', { className: 'inspector-actions' }, editBuilding, editAreas),
-    remove
+    createElement('div', { className: 'inspector-actions' }, editBuilding, editAreas, remove)
   );
 
   function row(term, value) {
