@@ -94,6 +94,15 @@ describe('createAreaFloorTool', () => {
     expect(q(element, 'draft-status').textContent).toContain('草稿未应用');
   });
 
+  it('presents a single empty area as a setup state, not as an ambiguous selector', () => {
+    const store = fakeStore({ simulation: { activeAreaId: 'a1' } });
+    const { element, update } = createAreaFloorTool({ store, buildingId: 'b1' });
+    update({ id: 'b1', params: { floors: 5 }, observationAreas: [{ id: 'a1', name: '观察区 1', floor: 1, rects: [] }] });
+    expect(q(element, 'area-select')?.closest('.field').hidden).toBe(true);
+    expect(q(element, 'area-empty-hint').hidden).toBe(false);
+    expect(q(element, 'area-empty-hint').textContent).toContain('选择楼层后，在画面中拖拽画出观察区');
+  });
+
   it('hides draft buttons and shows confirmed status when no draft exists', () => {
     const store = fakeStore();
     const { element, update } = createAreaFloorTool({ store, buildingId: 'b1' });

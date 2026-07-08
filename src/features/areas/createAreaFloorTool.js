@@ -110,6 +110,7 @@ export function createAreaFloorTool({ store, buildingId }) {
     }));
     if (currentAreaId != null) areaSelect.value = currentAreaId;
     const area = areas.find(a => a.id === currentAreaId);
+    const isSingleEmptyArea = areas.length === 1 && (area?.rects?.length ?? 0) === 0;
     if (area) {
       nameInput.value = area.name;
       floorInput.value = String(area.floor);
@@ -118,8 +119,14 @@ export function createAreaFloorTool({ store, buildingId }) {
 
     // Empty state: hide fields and toolbar when no areas exist; show hint instead.
     const hasAreas = areas.length > 0;
-    emptyHint.hidden = hasAreas;
-    for (const f of areaFields) f.hidden = !hasAreas;
+    const showSetupHint = !hasAreas || isSingleEmptyArea;
+    emptyHint.hidden = !showSetupHint;
+    emptyHint.textContent = hasAreas
+      ? '选择楼层后，在画面中拖拽画出观察区；点“应用选区”后才会生效。'
+      : '还没有观察区，点击下方按钮创建一个。';
+    areaSelectField.hidden = !hasAreas || isSingleEmptyArea;
+    nameField.hidden = !hasAreas;
+    floorField.hidden = !hasAreas;
     toolBar.hidden = !hasAreas;
     draftBar.hidden = !hasAreas;
 
@@ -157,7 +164,6 @@ export function createAreaFloorTool({ store, buildingId }) {
     createElement('span', { className: 'field__label', text: '区域名称' }), nameInput);
   const floorField = createElement('label', { className: 'field' },
     createElement('span', { className: 'field__label', text: '楼层' }), floorInput);
-  const areaFields = [areaSelectField, nameField, floorField];
 
   element.append(
     back,

@@ -42,6 +42,7 @@ export function createSceneController(canvas, { onSelect = () => {}, store = nul
   const pointer = new THREE.Vector2();
 
   function selectAtPointer(event) {
+    if (floorFocus) return;
     const rect = canvas.getBoundingClientRect();
     const ndc = pointerToNdc(event, rect);
     pointer.set(ndc.x, ndc.y);
