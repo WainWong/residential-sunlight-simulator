@@ -14,8 +14,7 @@ import { pointerToNdc, resolvePickedEntity } from './picking.js';
 import { deriveScenePreview } from './scenePreview.js';
 import { applySunLighting } from './sunLighting.js';
 import { createSceneSynchronizer } from './syncScene.js';
-import { createUpdateAreaDraftCommand } from '../store/buildingCommands.js';
-import { resolveDraftRects } from '../domain/buildings/areaDraft.js';
+import { createUpdateAreaEditingCommand } from '../store/buildingCommands.js';
 
 export function createSceneController(canvas, { onSelect = () => {}, store = null } = {}) {
   const quality = createQualitySettings('medium');
@@ -100,12 +99,13 @@ export function createSceneController(canvas, { onSelect = () => {}, store = nul
     },
     enterFloorFocus(project, simulationState) {
       if (floorFocus) return;
-      const buildingId = project.view.selectedBuildingId;
+      const editing = project.view.areaEditing;
+      if (!editing) return;
+      const buildingId = editing.buildingId;
+      const floor = editing.floor;
       const building = project.buildings.find(b => b.id === buildingId);
       if (!building) return;
-      const areaId = simulationState.activeAreaId;
-      const area = (building.observationAreas ?? []).find(a => a.id === areaId);
-      const floor = area?.floor ?? 1;
+      const areaId = editing.areaId;
 
       for (const child of sceneParts.buildings.children) child.visible = false;
 
@@ -140,16 +140,14 @@ export function createSceneController(canvas, { onSelect = () => {}, store = nul
         },
         onCommit: (rect, mode) => {
           clearPreview();
-          if (!store || !areaId) return;
-          const current = getBuilding();
-          const currentArea = (current.observationAreas ?? []).find(a => a.id === areaId);
-          const draft = store.getState().view.areaDraft;
-          const baseRects = resolveDraftRects(draft, buildingId, areaId, currentArea?.rects);
-          const rects = applyRectEdit(baseRects, rect, mode);
-          store.execute(createUpdateAreaDraftCommand(buildingId, areaId, rects));
+          if (!store) return;
+          const editingState = store.getState().view.areaEditing;
+          if (!editingState) return;
+          const rects = applyRectEdit(editingState.rects ?? [], rect, mode);
+          store.execute(createUpdateAreaEditingCommand({ rects }));
         }
       });
-      floorFocus = { slab, outline, drag, tool: store.getState().view.areaTool ?? 'draw', clearPreview };
+      floorFocus = { slab, outline, drag, tool: editing.tool ?? 'draw', clearPreview };
     },
     setFloorTool(tool) {
       if (!floorFocus) return;

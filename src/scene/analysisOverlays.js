@@ -3,6 +3,22 @@ import { deriveAperturesFromArea } from '../domain/simulation/deriveApertures.js
 import { isDraftFor, resolveDraftRects } from '../domain/buildings/areaDraft.js';
 
 export function buildAnalysisOverlays(project, simulationState) {
+  const editing = project.view?.areaEditing;
+  if (editing) {
+    const building = project.buildings.find(b => b.id === editing.buildingId);
+    if (!building) return null;
+    const baseY = floorBaseY({ floor: editing.floor, ...building.params });
+    return {
+      area: {
+        rects: editing.rects,
+        baseY,
+        lit: false,
+        draft: true,
+        group: { position: { x: building.position.x, z: building.position.z }, rotationDeg: building.rotation }
+      },
+      openings: []
+    };
+  }
   if (simulationState.noArea || !simulationState.activeAreaId) return null;
   let found = null;
   for (const building of project.buildings) {

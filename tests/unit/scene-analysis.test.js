@@ -33,4 +33,13 @@ describe('buildAnalysisOverlays', () => {
   it('returns null when noArea', () => {
     expect(buildAnalysisOverlays(project, { activeAreaId: null, litSampleIds: [], noArea: true })).toBeNull();
   });
+
+  it('renders areaEditing rects while editing without requiring an active saved area', () => {
+    const out = buildAnalysisOverlays({
+      ...project,
+      view: { areaEditing: { mode: 'create', buildingId: 'b1', areaId: null, floor: 2, name: '', rects: [{ x0: 0, z0: 0, x1: 1, z1: 1 }], tool: 'draw' } }
+    }, { activeAreaId: null, litSampleIds: [], noArea: false });
+    expect(out.area.draft).toBe(true);
+    expect(out.area.rects).toEqual([{ x0: 0, z0: 0, x1: 1, z1: 1 }]);
+  });
 });

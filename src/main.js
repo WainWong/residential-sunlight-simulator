@@ -78,6 +78,7 @@ export function mountApp(root) {
 
   let prevEditing = store.getState().view.editorMode === 'building';
   let prevAreasMode = store.getState().view.editorMode === 'areas';
+  let prevAreaEditing = Boolean(store.getState().view.areaEditing);
   store.subscribe(project => {
     const currentEditing = project.view.editorMode === 'building';
     if (!currentEditing && prevEditing) {
@@ -102,14 +103,18 @@ export function mountApp(root) {
       if (!currentAreasMode && store.getState().view.areaDraft) {
         store.execute(createClearAreaDraftCommand());
       }
+    }
+    const currentAreaEditing = Boolean(project.view.areaEditing);
+    if (currentAreaEditing !== prevAreaEditing) {
       withController(controller => {
         if (!controller) return;
-        if (currentAreasMode) controller.enterFloorFocus(project, simulationController.getState());
+        if (currentAreaEditing) controller.enterFloorFocus(project, simulationController.getState());
         else controller.exitFloorFocus();
       });
-    } else if (currentAreasMode) {
-      withController(controller => controller?.setFloorTool(project.view.areaTool));
+    } else if (currentAreaEditing) {
+      withController(controller => controller?.setFloorTool(project.view.areaEditing.tool));
     }
+    prevAreaEditing = currentAreaEditing;
     prevAreasMode = currentAreasMode;
   });
 
