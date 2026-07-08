@@ -60,6 +60,7 @@ export function mountApp(root) {
   const sceneReady = webglAvailable
     ? import('./scene/createSceneController.js').then(({ createSceneController }) => {
         sceneController = createSceneController(canvas, {
+          store,
           onSelect: buildingId => {
             store.execute(createSelectBuildingCommand(buildingId));
           }
@@ -73,6 +74,7 @@ export function mountApp(root) {
   if (!webglAvailable) canvas.parentElement.append(createWebGLFallback());
 
   let prevEditing = store.getState().view.editorMode === 'building';
+  let prevAreasMode = store.getState().view.editorMode === 'areas';
   store.subscribe(project => {
     const currentEditing = project.view.editorMode === 'building';
     if (!currentEditing && prevEditing) {
@@ -91,6 +93,18 @@ export function mountApp(root) {
     const sim = simulationController.getState();
     if (sceneController) sceneController.updateAnalysis(project, sim);
     else sceneReady.then(controller => controller?.updateAnalysis(store.getState(), simulationController.getState()));
+
+    const currentAreasMode = project.view.editorMode === 'areas';
+    if (currentAreasMode !== prevAreasMode) {
+      const applyFocus = controller => {
+        if (!controller) return;
+        if (currentAreasMode) controller.enterFloorFocus(project, simulationController.getState());
+        else controller.exitFloorFocus();
+      };
+      if (sceneController) applyFocus(sceneController);
+      else sceneReady.then(applyFocus);
+    }
+    prevAreasMode = currentAreasMode;
   });
 
   simulationController.subscribe(state => {

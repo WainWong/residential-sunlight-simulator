@@ -7,7 +7,7 @@ import {
   createSetEditorModeCommand,
   createUpdateBuildingCommand
 } from '../../store/buildingCommands.js';
-import { createObservationAreaSection } from '../areas/ObservationAreaSection.js';
+import { createAreaFloorTool } from '../areas/createAreaFloorTool.js';
 import { createBuildingOverview } from './BuildingOverview.js';
 import { createElement } from '../../ui/createElement.js';
 
@@ -70,7 +70,7 @@ export function createBuildingInspector({ store, confirmDelete = () => true }) {
   });
   const overview = createBuildingOverview({ store, confirmDelete });
   let renderKey = null;
-  let areaSection = null;
+  let areaTool = null;
 
   const updateBuilding = (id, patch) => store.execute(createUpdateBuildingCommand(id, patch));
 
@@ -150,23 +150,24 @@ export function createBuildingInspector({ store, confirmDelete = () => true }) {
   function render(project) {
     const building = project.buildings.find(b => b.id === project.view.selectedBuildingId);
     element.hidden = !building;
-    if (!building) { renderKey = null; areaSection = null; element.replaceChildren(); return; }
+    if (!building) { renderKey = null; areaTool = null; element.replaceChildren(); return; }
     const mode = project.view.editorMode;
     const key = `${building.id}:${mode}`;
 
     if (key === renderKey) {
-      if (mode === 'areas' && areaSection) areaSection.update(building);
+      if (mode === 'areas' && areaTool) areaTool.update(building);
       else if (mode === 'none') overview.update(building);
       return;
     }
     renderKey = key;
-    areaSection = null;
+    areaTool = null;
 
     if (mode === 'building') {
       renderParamsEditor(project, building);
     } else if (mode === 'areas') {
-      areaSection = createObservationAreaSection({ buildingId: building.id, building, store });
-      element.replaceChildren(backButton(), areaSection.element);
+      areaTool = createAreaFloorTool({ store, buildingId: building.id });
+      areaTool.update(building);
+      element.replaceChildren(areaTool.element);
     } else {
       overview.update(building);
       element.replaceChildren(overview.element);
