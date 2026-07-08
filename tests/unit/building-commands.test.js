@@ -23,7 +23,12 @@ import {
   createUpdateBuildingCommand,
   createUpdateAreaDraftCommand,
   createApplyAreaDraftCommand,
-  createClearAreaDraftCommand
+  createClearAreaDraftCommand,
+  createStartAreaCreateCommand,
+  createStartAreaEditCommand,
+  createUpdateAreaEditingCommand,
+  createCancelAreaEditingCommand,
+  createSaveAreaEditingCommand
 } from '../../src/store/buildingCommands.js';
 
 describe('building editor coordinates', () => {
@@ -450,6 +455,62 @@ describe('area draft commands', () => {
   it('area tool whitelist rejects the removed "move" tool', () => {
     expect(createSetAreaToolCommand('move').apply(base)).toBe(base);
     expect(createSetAreaToolCommand('erase').apply(base).view.areaTool).toBe('erase');
+  });
+});
+
+describe('area editing session commands', () => {
+  const base = {
+    simulation: { activeAreaId: null },
+    view: { selectedBuildingId: 'b1', editorMode: 'areas', areaEditing: null },
+    buildings: [{
+      id: 'b1', revision: 1, params: { floors: 5 },
+      observationAreas: [{ id: 'a1', name: '客厅', floor: 2, rects: [{ x0: 0, z0: 0, x1: 2, z1: 2 }], sampleHeight: 0 }]
+    }]
+  };
+
+  it('starts a create session without adding an observation area', () => {
+    const next = createStartAreaCreateCommand('b1').apply(base);
+    expect(next.buildings[0].observationAreas).toHaveLength(1);
+    expect(next.view.areaEditing).toMatchObject({ mode: 'create', buildingId: 'b1', areaId: null, floor: 1, name: '', rects: [], tool: 'draw' });
+    expect(next.view.editorMode).toBe('areas');
+  });
+
+  it('starts an edit session by cloning the existing area', () => {
+    const next = createStartAreaEditCommand('b1', 'a1').apply(base);
+    expect(next.view.areaEditing).toMatchObject({ mode: 'edit', buildingId: 'b1', areaId: 'a1', floor: 2, name: '客厅', tool: 'draw' });
+    expect(next.view.areaEditing.rects).toEqual([{ x0: 0, z0: 0, x1: 2, z1: 2 }]);
+    expect(next.view.areaEditing.rects).not.toBe(base.buildings[0].observationAreas[0].rects);
+  });
+
+  it('patches the active editing session', () => {
+    const editing = createStartAreaCreateCommand('b1').apply(base);
+    const next = createUpdateAreaEditingCommand({ floor: 3, name: '卧室', rects: [{ x0: 1, z0: 1, x1: 3, z1: 3 }] }).apply(editing);
+    expect(next.view.areaEditing).toMatchObject({ floor: 3, name: '卧室' });
+    expect(next.view.areaEditing.rects).toEqual([{ x0: 1, z0: 1, x1: 3, z1: 3 }]);
+  });
+
+  it('cancels editing without changing official areas', () => {
+    const editing = createUpdateAreaEditingCommand({ rects: [{ x0: 9, z0: 9, x1: 10, z1: 10 }] }).apply(createStartAreaEditCommand('b1', 'a1').apply(base));
+    const next = createCancelAreaEditingCommand().apply(editing);
+    expect(next.view.areaEditing).toBeNull();
+    expect(next.buildings[0].observationAreas[0].rects).toEqual([{ x0: 0, z0: 0, x1: 2, z1: 2 }]);
+  });
+
+  it('saving a create session adds the area and selects it for results', () => {
+    const editing = createUpdateAreaEditingCommand({ name: '书房', floor: 3, rects: [{ x0: 1, z0: 1, x1: 2, z1: 2 }] }).apply(createStartAreaCreateCommand('b1').apply(base));
+    const next = createSaveAreaEditingCommand().apply(editing);
+    expect(next.view.areaEditing).toBeNull();
+    expect(next.buildings[0].observationAreas).toHaveLength(2);
+    expect(next.buildings[0].observationAreas[1]).toMatchObject({ name: '书房', floor: 3, rects: [{ x0: 1, z0: 1, x1: 2, z1: 2 }], sampleHeight: 0 });
+    expect(next.simulation.activeAreaId).toBe(next.buildings[0].observationAreas[1].id);
+  });
+
+  it('saving an edit session updates the official area', () => {
+    const editing = createUpdateAreaEditingCommand({ name: '主卧', floor: 4, rects: [{ x0: 2, z0: 2, x1: 4, z1: 4 }] }).apply(createStartAreaEditCommand('b1', 'a1').apply(base));
+    const next = createSaveAreaEditingCommand().apply(editing);
+    expect(next.view.areaEditing).toBeNull();
+    expect(next.buildings[0].observationAreas[0]).toMatchObject({ id: 'a1', name: '主卧', floor: 4, rects: [{ x0: 2, z0: 2, x1: 4, z1: 4 }] });
+    expect(next.simulation.activeAreaId).toBe('a1');
   });
 });
 

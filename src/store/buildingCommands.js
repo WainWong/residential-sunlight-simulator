@@ -1,3 +1,4 @@
+import { createAreaEditingSession } from '../domain/buildings/areaEditing.js';
 import { normalizeRotation } from '../domain/buildings/editorCoordinates.js';
 
 export const BUILDING_DEFAULTS = Object.freeze({
@@ -264,6 +265,88 @@ export function createSetActiveAreaCommand(activeAreaId) {
       return {
         ...state,
         simulation: { ...state.simulation, activeAreaId }
+      };
+    }
+  };
+}
+
+export function createStartAreaCreateCommand(buildingId) {
+  return {
+    label: '开始新建观察区',
+    apply(state) {
+      return {
+        ...state,
+        view: {
+          ...state.view,
+          editorMode: 'areas',
+          areaEditing: createAreaEditingSession({ mode: 'create', buildingId })
+        }
+      };
+    }
+  };
+}
+
+export function createStartAreaEditCommand(buildingId, areaId) {
+  return {
+    label: '开始编辑观察区',
+    apply(state) {
+      const building = state.buildings.find(b => b.id === buildingId);
+      const area = (building?.observationAreas ?? []).find(a => a.id === areaId);
+      if (!building || !area) return state;
+      return {
+        ...state,
+        view: {
+          ...state.view,
+          editorMode: 'areas',
+          areaEditing: createAreaEditingSession({ mode: 'edit', buildingId, area })
+        }
+      };
+    }
+  };
+}
+
+export function createUpdateAreaEditingCommand(patch) {
+  return {
+    label: '修改观察区编辑会话',
+    apply(state) {
+      if (!state.view.areaEditing) return state;
+      return { ...state, view: { ...state.view, areaEditing: { ...state.view.areaEditing, ...patch } } };
+    }
+  };
+}
+
+export function createCancelAreaEditingCommand() {
+  return {
+    label: '取消观察区编辑',
+    apply(state) {
+      if (!state.view.areaEditing) return state;
+      return { ...state, view: { ...state.view, areaEditing: null } };
+    }
+  };
+}
+
+export function createSaveAreaEditingCommand() {
+  return {
+    label: '保存观察区',
+    apply(state) {
+      const editing = state.view.areaEditing;
+      if (!editing || editing.rects.length === 0) return state;
+      const areaId = editing.mode === 'edit'
+        ? editing.areaId
+        : (globalThis.crypto?.randomUUID?.() ?? `area-${Date.now()}`);
+      const name = editing.name.trim() || `观察区 ${((state.buildings.find(b => b.id === editing.buildingId)?.observationAreas?.length ?? 0) + 1)}`;
+      const area = { id: areaId, name, floor: editing.floor, rects: editing.rects, sampleHeight: 0 };
+      return {
+        ...state,
+        buildings: state.buildings.map(b => b.id !== editing.buildingId ? b : {
+          ...b,
+          revision: (b.revision ?? 0) + 1,
+          observationAreas: editing.mode === 'edit'
+            ? b.observationAreas.map(a => a.id !== editing.areaId ? a : { ...a, ...area })
+            : [...b.observationAreas, area]
+        }),
+        simulation: { ...state.simulation, activeAreaId: areaId },
+        view: { ...state.view, areaEditing: null }
       };
     }
   };
