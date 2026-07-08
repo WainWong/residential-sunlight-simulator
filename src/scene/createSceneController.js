@@ -3,6 +3,8 @@ import { createQualitySettings } from '../features/settings/QualitySettings.js';
 import { buildAnalysisOverlays } from './analysisOverlays.js';
 import { createBuildingMesh } from './buildingMesh.js';
 import { createCameraRig } from './createCameraRig.js';
+import { applyRectEdit, createAreaDrag } from './areaDrag.js';
+import { createFloorSlab, floorFocusTarget, floorVisibility } from './floorFocus.js';
 import { createObservationOverlay } from './observationOverlay.js';
 import { createOpeningOverlay } from './openingOverlay.js';
 import { createRenderer } from './createRenderer.js';
@@ -11,8 +13,9 @@ import { pointerToNdc, resolvePickedEntity } from './picking.js';
 import { deriveScenePreview } from './scenePreview.js';
 import { applySunLighting } from './sunLighting.js';
 import { createSceneSynchronizer } from './syncScene.js';
+import { createUpdateObservationAreaCommand } from '../store/buildingCommands.js';
 
-export function createSceneController(canvas, { onSelect = () => {} } = {}) {
+export function createSceneController(canvas, { onSelect = () => {}, store = null } = {}) {
   const quality = createQualitySettings('medium');
   const sceneParts = createScene();
   const rendererParts = createRenderer(canvas);
@@ -48,6 +51,8 @@ export function createSceneController(canvas, { onSelect = () => {} } = {}) {
 
   canvas.addEventListener('click', selectAtPointer);
 
+  let floorFocus = null;
+
   const observer = new ResizeObserver(resize);
   observer.observe(viewport);
   resize();
@@ -76,7 +81,7 @@ export function createSceneController(canvas, { onSelect = () => {} } = {}) {
       const overlays = buildAnalysisOverlays(project, simulationState);
       if (!overlays) return;
       const areaGroup = createObservationOverlay({
-        cells: overlays.area.cells, baseY: overlays.area.baseY, litSampleIds: overlays.area.litSampleIds
+        rects: overlays.area.rects, baseY: overlays.area.baseY, lit: overlays.area.lit
       });
       areaGroup.position.set(overlays.area.group.position.x, 0, overlays.area.group.position.z);
       areaGroup.rotation.y = THREE.MathUtils.degToRad(overlays.area.group.rotationDeg);
@@ -88,6 +93,49 @@ export function createSceneController(canvas, { onSelect = () => {} } = {}) {
     setPreviewing(value) {
       quality.setPreviewing(value);
       resize();
+    },
+    enterFloorFocus(project, simulationState) {
+      if (floorFocus) return;
+      const buildingId = project.view.selectedBuildingId;
+      const building = project.buildings.find(b => b.id === buildingId);
+      if (!building) return;
+      const areaId = simulationState.activeAreaId;
+      const area = (building.observationAreas ?? []).find(a => a.id === areaId);
+      const floor = area?.floor ?? 1;
+      const isVisible = floorVisibility(project.buildings, buildingId);
+      for (const child of sceneParts.buildings.children) {
+        child.visible = isVisible(child.userData?.entityId);
+      }
+      const { target, height } = floorFocusTarget(building, floor);
+      cameraParts.setTopView(target, height);
+      cameraParts.controls.enabled = false;
+      const slab = createFloorSlab(building, floor);
+      sceneParts.scene.add(slab);
+      const getBuilding = () => project.buildings.find(b => b.id === buildingId);
+      const getMode = () => canvas.closest('.workspace')?.querySelector('.area-floor-tool')?.dataset.tool ?? 'move';
+      const drag = createAreaDrag({
+        canvas,
+        camera: cameraParts.camera,
+        floorY: target.y,
+        getBuilding,
+        getMode,
+        onCommit: (rect, mode) => {
+          if (!store || !areaId) return;
+          const current = getBuilding();
+          const currentArea = (current.observationAreas ?? []).find(a => a.id === areaId);
+          const rects = applyRectEdit(currentArea?.rects ?? [], rect, mode);
+          store.execute(createUpdateObservationAreaCommand(buildingId, areaId, { rects }));
+        }
+      });
+      floorFocus = { slab, drag };
+    },
+    exitFloorFocus() {
+      if (!floorFocus) return;
+      sceneParts.scene.remove(floorFocus.slab);
+      floorFocus.drag.dispose();
+      for (const child of sceneParts.buildings.children) child.visible = true;
+      cameraParts.controls.enabled = true;
+      floorFocus = null;
     },
     dispose() {
       canvas.removeEventListener('click', selectAtPointer);

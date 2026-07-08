@@ -1,5 +1,5 @@
 import { floorBaseY } from '../domain/buildings/floorMath.js';
-import { buildOpeningPortals } from '../domain/simulation/buildOpeningPortals.js';
+import { deriveAperturesFromArea } from '../domain/simulation/deriveApertures.js';
 
 export function buildAnalysisOverlays(project, simulationState) {
   if (simulationState.noArea || !simulationState.activeAreaId) return null;
@@ -11,22 +11,20 @@ export function buildAnalysisOverlays(project, simulationState) {
   if (!found) return null;
   const { building, area } = found;
   const baseY = floorBaseY({ floor: area.floor, ...building.params }) + (area.sampleHeight ?? 0);
-  const openings = (building.openings ?? []).filter(o => (area.openingIds ?? []).includes(o.id));
-  const portals = buildOpeningPortals(building, openings);
+  const { portals } = deriveAperturesFromArea(building, area);
   return {
     area: {
-      cells: area.cells,
+      rects: area.rects ?? [],
       baseY,
-      litSampleIds: simulationState.litSampleIds ?? [],
+      lit: (simulationState.litSampleIds ?? []).length > 0,
       group: { position: { x: building.position.x, z: building.position.z }, rotationDeg: building.rotation }
     },
-    openings: openings.map(o => {
-      const portal = portals.find(p => p.id === o.id);
-      return {
-        id: o.id, width: o.width, height: o.height,
-        center: portal ? [portal.plane.point[0], portal.bounds.minV + o.height / 2, portal.plane.point[2]] : null,
-        normal: portal ? portal.plane.normal : null
-      };
-    }).filter(o => o.center)
+    openings: portals.map(p => ({
+      id: p.id,
+      width: p.bounds.maxU - p.bounds.minU,
+      height: p.bounds.maxV - p.bounds.minV,
+      center: [p.plane.point[0], (p.bounds.minV + p.bounds.maxV) / 2, p.plane.point[2]],
+      normal: p.plane.normal
+    }))
   };
 }
