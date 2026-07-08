@@ -1,15 +1,12 @@
 import * as THREE from 'three';
 import { createFootprint } from '../domain/buildings/createFootprint.js';
 import { floorBaseY } from '../domain/buildings/floorMath.js';
+import { applyBuildingTransform, getOuterRing } from './buildingSceneHelpers.js';
 
 export function floorFocusTarget(building, floor) {
   const y = floorBaseY({ floor, ...building.params });
   const span = Math.max(building.params.length, building.params.depth);
   return { target: { x: building.position.x, y, z: building.position.z }, height: span * 1.2 + 60 };
-}
-
-export function floorVisibility() {
-  return () => false;
 }
 
 const slabMaterial = new THREE.MeshBasicMaterial({
@@ -18,7 +15,7 @@ const slabMaterial = new THREE.MeshBasicMaterial({
 
 export function createFloorSlab(building, floor) {
   const footprint = createFootprint(building.template, building.params);
-  const outer = Array.isArray(footprint) ? footprint : footprint.outer;
+  const outer = getOuterRing(footprint);
   const shape = new THREE.Shape();
   outer.forEach(([x, z], i) => (i === 0 ? shape.moveTo(x, -z) : shape.lineTo(x, -z)));
   shape.closePath();
@@ -40,8 +37,7 @@ export function createFloorSlab(building, floor) {
   grid.material.transparent = true;
   grid.material.opacity = 0.35;
   group.add(grid);
-  group.position.set(building.position.x, 0, building.position.z);
-  group.rotation.y = THREE.MathUtils.degToRad(building.rotation);
+  applyBuildingTransform(group, building);
   return group;
 }
 
@@ -49,14 +45,13 @@ const outlineMaterial = new THREE.LineBasicMaterial({ color: 0x4b6f78, transpare
 
 export function createWallOutline(building, floor) {
   const footprint = createFootprint(building.template, building.params);
-  const outer = Array.isArray(footprint) ? footprint : footprint.outer;
+  const outer = getOuterRing(footprint);
   const y = floorBaseY({ floor, ...building.params }) + building.params.floorHeight;
   const points = outer.map(([x, z]) => new THREE.Vector3(x, y, z));
   const group = new THREE.Group();
   group.name = 'wall-outline';
   group.userData.kind = 'wall-outline';
   group.add(new THREE.LineLoop(new THREE.BufferGeometry().setFromPoints(points), outlineMaterial));
-  group.position.set(building.position.x, 0, building.position.z);
-  group.rotation.y = THREE.MathUtils.degToRad(building.rotation);
+  applyBuildingTransform(group, building);
   return group;
 }

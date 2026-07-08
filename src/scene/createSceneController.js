@@ -4,7 +4,8 @@ import { buildAnalysisOverlays } from './analysisOverlays.js';
 import { createBuildingMesh } from './buildingMesh.js';
 import { createCameraRig } from './createCameraRig.js';
 import { applyRectEdit, createAreaDrag } from './areaDrag.js';
-import { createFloorSlab, createWallOutline, floorFocusTarget, floorVisibility } from './floorFocus.js';
+import { createFloorSlab, createWallOutline, floorFocusTarget } from './floorFocus.js';
+import { applyBuildingTransform } from './buildingSceneHelpers.js';
 import { createObservationOverlay } from './observationOverlay.js';
 import { createOpeningOverlay } from './openingOverlay.js';
 import { createRenderer } from './createRenderer.js';
@@ -14,6 +15,7 @@ import { deriveScenePreview } from './scenePreview.js';
 import { applySunLighting } from './sunLighting.js';
 import { createSceneSynchronizer } from './syncScene.js';
 import { createUpdateAreaDraftCommand } from '../store/buildingCommands.js';
+import { resolveDraftRects } from '../domain/buildings/areaDraft.js';
 
 export function createSceneController(canvas, { onSelect = () => {}, store = null } = {}) {
   const quality = createQualitySettings('medium');
@@ -104,18 +106,11 @@ export function createSceneController(canvas, { onSelect = () => {}, store = nul
       const area = (building.observationAreas ?? []).find(a => a.id === areaId);
       const floor = area?.floor ?? 1;
 
-      const isVisible = floorVisibility();
-      for (const child of sceneParts.buildings.children) child.visible = isVisible(child.userData?.entityId);
+      for (const child of sceneParts.buildings.children) child.visible = false;
 
       const { target, height } = floorFocusTarget(building, floor);
       cameraParts.setTopView(target, height);
-
-      const controls = cameraParts.controls;
-      controls.enabled = true;
-      controls.enableRotate = false;
-      controls.enableZoom = true;
-      controls.mouseButtons = { LEFT: -1, MIDDLE: THREE.MOUSE.DOLLY, RIGHT: THREE.MOUSE.PAN };
-      controls.touches = { ONE: -1, TWO: THREE.TOUCH.DOLLY_PAN };
+      cameraParts.setTopdownMode(true);
 
       const slab = createFloorSlab(building, floor);
       const outline = createWallOutline(building, floor);
@@ -123,7 +118,13 @@ export function createSceneController(canvas, { onSelect = () => {}, store = nul
       sceneParts.scene.add(outline);
 
       let previewGroup = null;
-      const clearPreview = () => { if (previewGroup) { sceneParts.overlays.remove(previewGroup); previewGroup = null; } };
+      const clearPreview = () => {
+        if (previewGroup) {
+          previewGroup.traverse(c => c.geometry?.dispose());
+          sceneParts.overlays.remove(previewGroup);
+          previewGroup = null;
+        }
+      };
 
       const getBuilding = () => store.getState().buildings.find(b => b.id === buildingId);
       const getMode = () => floorFocus?.tool ?? 'draw';
@@ -133,8 +134,7 @@ export function createSceneController(canvas, { onSelect = () => {}, store = nul
           clearPreview();
           if (!rect) return;
           previewGroup = createObservationOverlay({ rects: [rect], baseY: target.y, draft: true });
-          previewGroup.position.set(building.position.x, 0, building.position.z);
-          previewGroup.rotation.y = THREE.MathUtils.degToRad(building.rotation);
+          applyBuildingTransform(previewGroup, building);
           sceneParts.overlays.add(previewGroup);
         },
         onCommit: (rect, mode) => {
@@ -143,7 +143,7 @@ export function createSceneController(canvas, { onSelect = () => {}, store = nul
           const current = getBuilding();
           const currentArea = (current.observationAreas ?? []).find(a => a.id === areaId);
           const draft = store.getState().view.areaDraft;
-          const baseRects = (draft && draft.areaId === areaId) ? draft.rects : (currentArea?.rects ?? []);
+          const baseRects = resolveDraftRects(draft, buildingId, areaId, currentArea?.rects);
           const rects = applyRectEdit(baseRects, rect, mode);
           store.execute(createUpdateAreaDraftCommand(buildingId, areaId, rects));
         }
@@ -161,11 +161,7 @@ export function createSceneController(canvas, { onSelect = () => {}, store = nul
       sceneParts.scene.remove(floorFocus.outline);
       floorFocus.drag.dispose();
       for (const child of sceneParts.buildings.children) child.visible = true;
-      const controls = cameraParts.controls;
-      controls.enabled = true;
-      controls.enableRotate = true;
-      controls.mouseButtons = { LEFT: THREE.MOUSE.ROTATE, MIDDLE: THREE.MOUSE.DOLLY, RIGHT: THREE.MOUSE.PAN };
-      controls.touches = { ONE: THREE.TOUCH.ROTATE, TWO: THREE.TOUCH.DOLLY_PAN };
+      cameraParts.setTopdownMode(false);
       floorFocus = null;
     },
     dispose() {

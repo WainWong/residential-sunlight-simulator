@@ -1,4 +1,5 @@
 import { createElement } from '../../ui/createElement.js';
+import { isDraftFor } from '../../domain/buildings/areaDraft.js';
 import {
   createAddObservationAreaCommand,
   createApplyAreaDraftCommand,
@@ -126,7 +127,7 @@ export function createAreaFloorTool({ store, buildingId }) {
     const state = store.getState();
     const draft = state?.view?.areaDraft;
     const active = state?.simulation?.activeAreaId;
-    const hasDraft = Boolean(draft && draft.buildingId === buildingId && draft.areaId === active);
+    const hasDraft = isDraftFor(draft, buildingId, active);
     applyBtn.hidden = !hasDraft;
     cancelBtn.hidden = !hasDraft;
     draftStatus.textContent = hasDraft ? '● 草稿未应用' : '✓ 已生效';
