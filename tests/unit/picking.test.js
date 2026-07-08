@@ -65,4 +65,12 @@ describe('editing overlays', () => {
     expect(opening.userData.entityId).toBe('window-a');
     expect(sun.userData.kind).toBe('sun-overlay');
   });
+
+  it('marks a draft observation overlay', () => {
+    const draftGroup = createObservationOverlay({
+      rects: [{ x0: 0, z0: 0, x1: 1, z1: 1 }], baseY: 6, draft: true
+    });
+    expect(draftGroup.userData.draft).toBe(true);
+    expect(draftGroup.children).toHaveLength(1);
+  });
 });
