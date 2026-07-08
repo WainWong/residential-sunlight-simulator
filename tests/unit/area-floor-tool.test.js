@@ -21,6 +21,14 @@ describe('createAreaFloorTool', () => {
     q(element, 'tool-erase').click();
     expect(element.dataset.tool).toBe('erase');
   });
+  it('dispatches a set-area-tool command on tool click', () => {
+    const store = { execute: vi.fn() };
+    const { element, update } = createAreaFloorTool({ store, buildingId: 'b1' });
+    update(building());
+    q(element, 'tool-erase').click();
+    const last = store.execute.mock.calls.at(-1)[0];
+    expect(last.label).toBe('切换观察区工具');
+  });
   it('back returns to overview', () => {
     const store = { execute: vi.fn() };
     const { element, update } = createAreaFloorTool({ store, buildingId: 'b1' });

@@ -103,6 +103,8 @@ export function mountApp(root) {
         if (currentAreasMode) controller.enterFloorFocus(project, simulationController.getState());
         else controller.exitFloorFocus();
       });
+    } else if (currentAreasMode) {
+      withController(controller => controller?.setFloorTool(project.view.areaTool));
     }
     prevAreasMode = currentAreasMode;
   });

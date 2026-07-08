@@ -108,11 +108,12 @@ export function createSceneController(canvas, { onSelect = () => {}, store = nul
       }
       const { target, height } = floorFocusTarget(building, floor);
       cameraParts.setTopView(target, height);
-      cameraParts.controls.enabled = false;
+      const initialTool = store.getState().view.areaTool ?? 'move';
+      cameraParts.controls.enabled = initialTool === 'move';
       const slab = createFloorSlab(building, floor);
       sceneParts.scene.add(slab);
       const getBuilding = () => store.getState().buildings.find(b => b.id === buildingId);
-      const getMode = () => canvas.closest('.workspace')?.querySelector('.area-floor-tool')?.dataset.tool ?? 'move';
+      const getMode = () => floorFocus?.tool ?? 'move';
       const drag = createAreaDrag({
         canvas,
         camera: cameraParts.camera,
@@ -127,7 +128,12 @@ export function createSceneController(canvas, { onSelect = () => {}, store = nul
           store.execute(createUpdateObservationAreaCommand(buildingId, areaId, { rects }));
         }
       });
-      floorFocus = { slab, drag };
+      floorFocus = { slab, drag, tool: initialTool };
+    },
+    setFloorTool(tool) {
+      if (!floorFocus) return;
+      floorFocus.tool = tool;
+      cameraParts.controls.enabled = tool === 'move';
     },
     exitFloorFocus() {
       if (!floorFocus) return;

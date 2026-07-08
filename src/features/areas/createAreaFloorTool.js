@@ -2,6 +2,7 @@ import { createElement } from '../../ui/createElement.js';
 import {
   createAddObservationAreaCommand,
   createSetActiveAreaCommand,
+  createSetAreaToolCommand,
   createSetEditorModeCommand,
   createUpdateObservationAreaCommand
 } from '../../store/buildingCommands.js';
@@ -33,15 +34,21 @@ export function createAreaFloorTool({ store, buildingId }) {
       className: 'template-card', text: label, testId: `tool-${tool}`,
       attributes: { type: 'button', 'aria-pressed': 'false' }
     });
-    btn.addEventListener('click', () => setTool(tool));
+    btn.addEventListener('click', () => selectTool(tool));
     toolButtons.set(tool, btn);
     toolBar.append(btn);
   }
 
-  function setTool(tool) {
+  // Store holds the authoritative tool for the scene; this only reflects it in the toolbar UI.
+  function applyToolUI(tool) {
     currentTool = tool;
     element.dataset.tool = tool;
     for (const [t, btn] of toolButtons) btn.setAttribute('aria-pressed', String(t === tool));
+  }
+
+  function selectTool(tool) {
+    applyToolUI(tool);
+    store.execute(createSetAreaToolCommand(tool));
   }
 
   const nameInput = createElement('input', {
@@ -116,7 +123,7 @@ export function createAreaFloorTool({ store, buildingId }) {
     createElement('label', { className: 'field' },
       createElement('span', { className: 'field__label', text: '楼层' }), floorInput)
   );
-  setTool(currentTool);
+  applyToolUI(currentTool);
 
   return {
     element,
