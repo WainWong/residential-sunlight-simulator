@@ -20,7 +20,10 @@ import {
   createSelectBuildingCommand,
   createSetAreaToolCommand,
   createSetEditorModeCommand,
-  createUpdateBuildingCommand
+  createUpdateBuildingCommand,
+  createUpdateAreaDraftCommand,
+  createApplyAreaDraftCommand,
+  createClearAreaDraftCommand
 } from '../../src/store/buildingCommands.js';
 
 describe('building editor coordinates', () => {
@@ -410,6 +413,43 @@ describe('explicit editor mode', () => {
     let p = createAddBuildingCommand({ id: 'b1' }).apply(createDefaultProject());
     p = createFinishBuildingCommand('b1').apply(p);
     expect(p.view).toMatchObject({ selectedBuildingId: 'b1', editorMode: 'none', addingBuildingId: null });
+  });
+});
+
+describe('area draft commands', () => {
+  const base = {
+    view: { areaTool: 'draw', areaDraft: null },
+    buildings: [{ id: 'b1', revision: 1, observationAreas: [{ id: 'a1', rects: [] }] }]
+  };
+
+  it('update stores a draft without touching area.rects', () => {
+    const rects = [{ x0: 0, z0: 0, x1: 2, z1: 2 }];
+    const next = createUpdateAreaDraftCommand('b1', 'a1', rects).apply(base);
+    expect(next.view.areaDraft).toEqual({ buildingId: 'b1', areaId: 'a1', rects });
+    expect(next.buildings[0].observationAreas[0].rects).toEqual([]);
+  });
+
+  it('apply writes the draft rects into the area and clears the draft', () => {
+    const rects = [{ x0: 0, z0: 0, x1: 2, z1: 2 }];
+    const drafted = createUpdateAreaDraftCommand('b1', 'a1', rects).apply(base);
+    const applied = createApplyAreaDraftCommand().apply(drafted);
+    expect(applied.buildings[0].observationAreas[0].rects).toEqual(rects);
+    expect(applied.buildings[0].revision).toBe(2);
+    expect(applied.view.areaDraft).toBeNull();
+  });
+
+  it('apply is a no-op when there is no draft', () => {
+    expect(createApplyAreaDraftCommand().apply(base)).toBe(base);
+  });
+
+  it('clear removes the draft', () => {
+    const drafted = createUpdateAreaDraftCommand('b1', 'a1', []).apply(base);
+    expect(createClearAreaDraftCommand().apply(drafted).view.areaDraft).toBeNull();
+  });
+
+  it('area tool whitelist rejects the removed "move" tool', () => {
+    expect(createSetAreaToolCommand('move').apply(base)).toBe(base);
+    expect(createSetAreaToolCommand('erase').apply(base).view.areaTool).toBe('erase');
   });
 });
 
