@@ -81,6 +81,7 @@ export function createAreaFloorTool({ store, buildingId }) {
   });
   areaSelect.addEventListener('change', () => {
     currentAreaId = areaSelect.value;
+    store.execute(createClearAreaDraftCommand());
     store.execute(createSetActiveAreaCommand(currentAreaId));
     syncFields();
   });
@@ -119,6 +120,7 @@ export function createAreaFloorTool({ store, buildingId }) {
     emptyHint.hidden = hasAreas;
     for (const f of areaFields) f.hidden = !hasAreas;
     toolBar.hidden = !hasAreas;
+    draftBar.hidden = !hasAreas;
 
     // Draft confirm UI: show apply/cancel when a draft targets the current building+active area.
     const state = store.getState();

@@ -115,4 +115,31 @@ describe('createAreaFloorTool', () => {
     q(element, 'draft-cancel').click();
     expect(store.execute.mock.calls.at(-1)[0].label).toBe('放弃观察区草稿');
   });
+
+  it('switching areas clears the draft before setting active area', () => {
+    const twoAreaBuilding = {
+      id: 'b1', params: { floors: 5 },
+      observationAreas: [
+        { id: 'a1', name: '客厅', floor: 1, rects: [] },
+        { id: 'a2', name: '卧室', floor: 2, rects: [] }
+      ]
+    };
+    const store = fakeStore();
+    const { element, update } = createAreaFloorTool({ store, buildingId: 'b1' });
+    update(twoAreaBuilding);
+    const select = q(element, 'area-select');
+    select.value = 'a2';
+    select.dispatchEvent(new window.Event('change'));
+    const labels = store.execute.mock.calls.map(c => c[0].label);
+    expect(labels).toContain('放弃观察区草稿');
+    expect(labels.indexOf('放弃观察区草稿')).toBeLessThan(labels.indexOf('切换观察区'));
+  });
+
+  it('hides draft bar when there are no areas', () => {
+    const store = fakeStore();
+    const tool = createAreaFloorTool({ store, buildingId: 'b1' });
+    tool.update(buildingWithNoAreas());
+    const draftBar = tool.element.querySelector('.area-draft-bar');
+    expect(draftBar.hidden).toBe(true);
+  });
 });
