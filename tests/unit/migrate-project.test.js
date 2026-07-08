@@ -39,7 +39,7 @@ describe('migrateProject areaTool and areaDraft', () => {
       view: { areaTool: 'move' }
     });
     expect(migrated.view.areaTool).toBe('draw');
-    expect(migrated.view.areaDraft).toBeNull();
+    expect(migrated.view.areaDraft).toBeUndefined();
   });
 
   it('keeps a valid area tool and existing areaDraft untouched', () => {
@@ -48,5 +48,15 @@ describe('migrateProject areaTool and areaDraft', () => {
       view: { areaTool: 'erase', areaDraft: null }
     });
     expect(migrated.view.areaTool).toBe('erase');
+  });
+
+  it('drops stale area draft and ensures areaEditing is null', () => {
+    const migrated = migrateProject({
+      schemaVersion: 1,
+      buildings: [],
+      view: { areaDraft: { buildingId: 'b1', areaId: 'a1', rects: [] }, areaTool: 'erase' }
+    });
+    expect(migrated.view.areaEditing).toBeNull();
+    expect(migrated.view.areaDraft).toBeUndefined();
   });
 });

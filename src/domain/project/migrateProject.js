@@ -16,6 +16,7 @@ export function migrateProject(rawProject) {
   }
   const view = project.view ?? (project.view = {});
   if (view.areaTool !== 'draw' && view.areaTool !== 'erase') view.areaTool = 'draw';
-  if (view.areaDraft === undefined) view.areaDraft = null;
+  view.areaEditing = null;
+  delete view.areaDraft;
   return project;
 }
