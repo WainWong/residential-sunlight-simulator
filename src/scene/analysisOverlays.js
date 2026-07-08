@@ -10,13 +10,17 @@ export function buildAnalysisOverlays(project, simulationState) {
   }
   if (!found) return null;
   const { building, area } = found;
+  const draft = project.view?.areaDraft;
+  const usingDraft = Boolean(draft && draft.buildingId === building.id && draft.areaId === area.id);
+  const rects = usingDraft ? draft.rects : (area.rects ?? []);
   const baseY = floorBaseY({ floor: area.floor, ...building.params }) + (area.sampleHeight ?? 0);
   const { portals } = deriveAperturesFromArea(building, area);
   return {
     area: {
-      rects: area.rects ?? [],
+      rects,
       baseY,
-      lit: (simulationState.litSampleIds ?? []).length > 0,
+      lit: !usingDraft && (simulationState.litSampleIds ?? []).length > 0,
+      draft: usingDraft,
       group: { position: { x: building.position.x, z: building.position.z }, rotationDeg: building.rotation }
     },
     openings: portals.map(p => ({
