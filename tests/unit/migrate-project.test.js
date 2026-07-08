@@ -31,3 +31,22 @@ describe('migrateProject cells->rects', () => {
     expect(() => migrateProject({ schemaVersion: 2 })).toThrow();
   });
 });
+
+describe('migrateProject areaTool and areaDraft', () => {
+  it('normalizes a legacy move tool to draw and ensures areaDraft', () => {
+    const migrated = migrateProject({
+      schemaVersion: 1, buildings: [],
+      view: { areaTool: 'move' }
+    });
+    expect(migrated.view.areaTool).toBe('draw');
+    expect(migrated.view.areaDraft).toBeNull();
+  });
+
+  it('keeps a valid area tool and existing areaDraft untouched', () => {
+    const migrated = migrateProject({
+      schemaVersion: 1, buildings: [],
+      view: { areaTool: 'erase', areaDraft: null }
+    });
+    expect(migrated.view.areaTool).toBe('erase');
+  });
+});
