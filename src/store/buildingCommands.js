@@ -258,6 +258,26 @@ export function createUpdateObservationAreaCommand(buildingId, areaId, patch) {
   };
 }
 
+export function createRemoveObservationAreaCommand(buildingId, areaId) {
+  return {
+    label: '删除观察区',
+    apply(state) {
+      return {
+        ...state,
+        buildings: state.buildings.map(b => b.id !== buildingId ? b : {
+          ...b,
+          revision: (b.revision ?? 0) + 1,
+          observationAreas: b.observationAreas.filter(a => a.id !== areaId)
+        }),
+        simulation: {
+          ...state.simulation,
+          activeAreaId: state.simulation?.activeAreaId === areaId ? null : state.simulation?.activeAreaId
+        }
+      };
+    }
+  };
+}
+
 export function createSetActiveAreaCommand(activeAreaId) {
   return {
     label: '切换观察区',
