@@ -6,5 +6,13 @@ export function migrateProject(rawProject) {
     throw new Error(`不支持的项目版本：${String(version)}`);
   }
 
-  return structuredClone(rawProject);
+  const project = structuredClone(rawProject);
+  for (const building of project.buildings ?? []) {
+    for (const area of building.observationAreas ?? []) {
+      delete area.cells;
+      delete area.openingIds;
+      if (!Array.isArray(area.rects)) area.rects = [];
+    }
+  }
+  return project;
 }
