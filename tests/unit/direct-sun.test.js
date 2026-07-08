@@ -2,7 +2,7 @@
 import { evaluateDirectSun } from '../../src/domain/simulation/evaluateDirectSun.js';
 import { sampleArea } from '../../src/domain/simulation/sampleArea.js';
 
-const area = { cells: [[0, 0]], sampleHeight: 0 };
+const area = { rects: [{ x0: 0, z0: 0, x1: 1, z1: 1 }], sampleHeight: 0 };
 const southWindow = {
   id: 'window-1',
   type: 'window',
@@ -16,12 +16,9 @@ const southWindow = {
 const winterSun = [0, 0.6, -0.8];
 
 describe('observation sampling', () => {
-  it('creates four stable samples per square metre', () => {
+  it('places one sample per square metre at the cell centre', () => {
     expect(sampleArea(area)).toEqual([
-      { id: '0:0:0', position: [0.25, 0, 0.25] },
-      { id: '0:0:1', position: [0.75, 0, 0.25] },
-      { id: '0:0:2', position: [0.25, 0, 0.75] },
-      { id: '0:0:3', position: [0.75, 0, 0.75] }
+      { id: '1:1', position: [0.5, 0, 0.5] }
     ]);
   });
 });
@@ -37,7 +34,7 @@ describe('direct sunlight', () => {
 
     expect(result.hasDirectSun).toBe(true);
     expect(result.litRatio).toBe(1);
-    expect(result.openingHits['window-1']).toBe(4);
+    expect(result.openingHits['window-1']).toBe(1);
   });
 
   it('blocks samples behind another building', () => {
@@ -68,7 +65,7 @@ describe('direct sunlight', () => {
 
     expect(result.hasDirectSun).toBe(true);
     expect(result.openingHits['window-2']).toBe(0);
-    expect(result.openingHits['window-1']).toBe(4);
+    expect(result.openingHits['window-1']).toBe(1);
   });
 
   it('returns no direct sun below the horizon', () => {
