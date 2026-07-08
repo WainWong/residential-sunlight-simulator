@@ -8,6 +8,7 @@ import { createSimulationController } from './features/results/createSimulationC
 import { createAppShell } from './features/shell/AppShell.js';
 import {
   createAddBuildingCommand,
+  createClearAreaDraftCommand,
   createClearBuildingsCommand,
   createSelectBuildingCommand
 } from './store/buildingCommands.js';
@@ -98,6 +99,9 @@ export function mountApp(root) {
 
     const currentAreasMode = project.view.editorMode === 'areas';
     if (currentAreasMode !== prevAreasMode) {
+      if (!currentAreasMode && store.getState().view.areaDraft) {
+        store.execute(createClearAreaDraftCommand());
+      }
       withController(controller => {
         if (!controller) return;
         if (currentAreasMode) controller.enterFloorFocus(project, simulationController.getState());
