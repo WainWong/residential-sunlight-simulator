@@ -89,18 +89,21 @@ export function mountApp(root) {
     shell.dataset.projectBuildings = String(project.buildings.length);
     const emptyHint = shell.querySelector('.viewport__empty');
     if (emptyHint) emptyHint.hidden = project.buildings.length > 0;
+    const present = project.view.phase === 'present';
     const sim = simulationController.getState();
     withController(controller => {
       controller?.updateProject(project);
-      controller?.updateAnalysis(project, sim);
+      controller?.updateSolar(sim, project.view.phase);
+      if (present) controller?.updateAnalysis(project, sim);
       controller?.syncFloorFocus(project);
     });
   });
 
   simulationController.subscribe(state => {
+    const present = store.getState().view.phase === 'present';
     withController(controller => {
-      controller?.updateSolar(state);
-      controller?.updateAnalysis(store.getState(), state);
+      controller?.updateSolar(state, store.getState().view.phase);
+      if (present) controller?.updateAnalysis(store.getState(), state);
     });
   });
 
@@ -133,7 +136,7 @@ export function mountApp(root) {
     const { location, simulation } = store.getState();
     try {
       await exportScreenshot(canvas, {
-        city: location.cityId === 'shenzhen' ? '深圳' : location.cityId,
+        city: location.label ?? (location.cityId === 'shenzhen' ? '深圳' : location.cityId),
         date: simulation.date,
         time: simulation.time
       });
