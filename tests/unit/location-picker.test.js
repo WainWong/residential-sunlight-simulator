@@ -30,4 +30,28 @@ describe('createLocationPicker', () => {
     update(project);
     expect(q(element, 'location-city').value).toBe('shanghai');
   });
+
+  it('commits a custom-coordinate location on lat change', () => {
+    const store = { execute: vi.fn(), getState: () => createDefaultProject() };
+    const { element, update } = createLocationPicker({ store });
+    update(createDefaultProject());
+    const select = q(element, 'location-city');
+    select.value = 'custom';
+    select.dispatchEvent(new Event('change'));
+    const lat = q(element, 'location-lat');
+    const lon = q(element, 'location-lon');
+    lat.value = '29.5';
+    lon.value = '106.5';
+    lat.dispatchEvent(new Event('change'));
+    const cmd = store.execute.mock.calls.at(-1)[0];
+    expect(cmd.label).toBe('修改项目位置');
+    const loc = cmd.apply(createDefaultProject()).location;
+    expect(loc).toEqual({
+      cityId: 'custom',
+      label: '自定义坐标',
+      latitude: 29.5,
+      longitude: 106.5,
+      timeZone: 'Asia/Shanghai'
+    });
+  });
 });

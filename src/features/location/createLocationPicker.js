@@ -35,6 +35,8 @@ export function createLocationPicker({ store }) {
     attributes: { type: 'number', step: '0.0001', 'aria-label': '经度' }
   });
 
+  const customWrapper = createElement('div', { testId: 'location-custom', className: 'location-picker__custom' }, latInput, lonInput);
+
   function commit(cityId, lat, lon) {
     const preset = PRESET_CITIES.find(c => c.cityId === cityId) ?? PRESET_CITIES.find(c => c.cityId === 'custom');
     store.execute(createSetLocationCommand({
@@ -49,12 +51,10 @@ export function createLocationPicker({ store }) {
   citySelect.addEventListener('change', () => {
     const preset = PRESET_CITIES.find(c => c.cityId === citySelect.value);
     if (citySelect.value === 'custom') {
-      latInput.hidden = false;
-      lonInput.hidden = false;
+      customWrapper.hidden = false;
       return;
     }
-    latInput.hidden = true;
-    lonInput.hidden = true;
+    customWrapper.hidden = true;
     commit(citySelect.value, preset.latitude, preset.longitude);
   });
 
@@ -68,17 +68,14 @@ export function createLocationPicker({ store }) {
   const element = createElement('div', { className: 'location-picker field', testId: 'location-picker' },
     createElement('span', { className: 'field__label', text: '地点' }),
     citySelect,
-    latInput,
-    lonInput
+    customWrapper
   );
 
   function update(project) {
     const loc = project.location ?? {};
     const known = PRESET_CITIES.some(c => c.cityId === loc.cityId);
     citySelect.value = known ? loc.cityId : 'custom';
-    const custom = citySelect.value === 'custom';
-    latInput.hidden = !custom;
-    lonInput.hidden = !custom;
+    customWrapper.hidden = citySelect.value !== 'custom';
     if (document.activeElement !== latInput) latInput.value = String(loc.latitude ?? 0);
     if (document.activeElement !== lonInput) lonInput.value = String(loc.longitude ?? 0);
   }
