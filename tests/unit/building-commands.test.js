@@ -19,6 +19,8 @@ import {
   createRemoveBuildingCommand,
   createSelectBuildingCommand,
   createSetEditorModeCommand,
+  createSetPhaseCommand,
+  createSetLocationCommand,
   createUpdateBuildingCommand,
   createStartAreaCreateCommand,
   createStartAreaEditCommand,
@@ -26,6 +28,7 @@ import {
   createCancelAreaEditingCommand,
   createSaveAreaEditingCommand
 } from '../../src/store/buildingCommands.js';
+import { areaLabel } from '../../src/domain/buildings/areaEditing.js';
 
 describe('building editor coordinates', () => {
   it('maps UI X/Y to scene X/Z and converts numeric values', () => {
@@ -417,28 +420,31 @@ describe('area editing session commands', () => {
     view: { selectedBuildingId: 'b1', editorMode: 'areas', areaEditing: null },
     buildings: [{
       id: 'b1', revision: 1, params: { floors: 5 },
-      observationAreas: [{ id: 'a1', name: '客厅', floor: 2, rects: [{ x0: 0, z0: 0, x1: 2, z1: 2 }], sampleHeight: 0 }]
+      observationAreas: [{ id: 'a1', floor: 2, rects: [{ x0: 0, z0: 0, x1: 2, z1: 2 }], sampleHeight: 0 }]
     }]
   };
 
   it('starts a create session without adding an observation area', () => {
     const next = createStartAreaCreateCommand('b1').apply(base);
     expect(next.buildings[0].observationAreas).toHaveLength(1);
-    expect(next.view.areaEditing).toMatchObject({ mode: 'create', buildingId: 'b1', areaId: null, floor: 1, name: '', rects: [], tool: 'draw' });
+    expect(next.view.areaEditing).toMatchObject({ mode: 'create', buildingId: 'b1', areaId: null, floor: 1, rects: [], tool: 'draw' });
+    expect(next.view.areaEditing.name).toBeUndefined();
     expect(next.view.editorMode).toBe('areas');
   });
 
   it('starts an edit session by cloning the existing area', () => {
     const next = createStartAreaEditCommand('b1', 'a1').apply(base);
-    expect(next.view.areaEditing).toMatchObject({ mode: 'edit', buildingId: 'b1', areaId: 'a1', floor: 2, name: '客厅', tool: 'draw' });
+    expect(next.view.areaEditing).toMatchObject({ mode: 'edit', buildingId: 'b1', areaId: 'a1', floor: 2, tool: 'draw' });
+    expect(next.view.areaEditing.name).toBeUndefined();
     expect(next.view.areaEditing.rects).toEqual([{ x0: 0, z0: 0, x1: 2, z1: 2 }]);
     expect(next.view.areaEditing.rects).not.toBe(base.buildings[0].observationAreas[0].rects);
   });
 
   it('patches the active editing session', () => {
     const editing = createStartAreaCreateCommand('b1').apply(base);
-    const next = createUpdateAreaEditingCommand({ floor: 3, name: '卧室', rects: [{ x0: 1, z0: 1, x1: 3, z1: 3 }] }).apply(editing);
-    expect(next.view.areaEditing).toMatchObject({ floor: 3, name: '卧室' });
+    const next = createUpdateAreaEditingCommand({ floor: 3, rects: [{ x0: 1, z0: 1, x1: 3, z1: 3 }] }).apply(editing);
+    expect(next.view.areaEditing).toMatchObject({ floor: 3 });
+    expect(next.view.areaEditing.name).toBeUndefined();
     expect(next.view.areaEditing.rects).toEqual([{ x0: 1, z0: 1, x1: 3, z1: 3 }]);
   });
 
@@ -450,19 +456,21 @@ describe('area editing session commands', () => {
   });
 
   it('saving a create session adds the area and selects it for results', () => {
-    const editing = createUpdateAreaEditingCommand({ name: '书房', floor: 3, rects: [{ x0: 1, z0: 1, x1: 2, z1: 2 }] }).apply(createStartAreaCreateCommand('b1').apply(base));
+    const editing = createUpdateAreaEditingCommand({ floor: 3, rects: [{ x0: 1, z0: 1, x1: 2, z1: 2 }] }).apply(createStartAreaCreateCommand('b1').apply(base));
     const next = createSaveAreaEditingCommand().apply(editing);
     expect(next.view.areaEditing).toBeNull();
     expect(next.buildings[0].observationAreas).toHaveLength(2);
-    expect(next.buildings[0].observationAreas[1]).toMatchObject({ name: '书房', floor: 3, rects: [{ x0: 1, z0: 1, x1: 2, z1: 2 }], sampleHeight: 0 });
+    expect(next.buildings[0].observationAreas[1]).toMatchObject({ floor: 3, rects: [{ x0: 1, z0: 1, x1: 2, z1: 2 }], sampleHeight: 0 });
+    expect(next.buildings[0].observationAreas[1].name).toBeUndefined();
     expect(next.simulation.activeAreaId).toBe(next.buildings[0].observationAreas[1].id);
   });
 
   it('saving an edit session updates the official area', () => {
-    const editing = createUpdateAreaEditingCommand({ name: '主卧', floor: 4, rects: [{ x0: 2, z0: 2, x1: 4, z1: 4 }] }).apply(createStartAreaEditCommand('b1', 'a1').apply(base));
+    const editing = createUpdateAreaEditingCommand({ floor: 4, rects: [{ x0: 2, z0: 2, x1: 4, z1: 4 }] }).apply(createStartAreaEditCommand('b1', 'a1').apply(base));
     const next = createSaveAreaEditingCommand().apply(editing);
     expect(next.view.areaEditing).toBeNull();
-    expect(next.buildings[0].observationAreas[0]).toMatchObject({ id: 'a1', name: '主卧', floor: 4, rects: [{ x0: 2, z0: 2, x1: 4, z1: 4 }] });
+    expect(next.buildings[0].observationAreas[0]).toMatchObject({ id: 'a1', floor: 4, rects: [{ x0: 2, z0: 2, x1: 4, z1: 4 }] });
+    expect(next.buildings[0].observationAreas[0].name).toBeUndefined();
     expect(next.simulation.activeAreaId).toBe('a1');
   });
 
@@ -472,7 +480,7 @@ describe('area editing session commands', () => {
       view: { selectedBuildingId: 'b1', editorMode: 'areas', areaEditing: null },
       buildings: [{
         id: 'b1', revision: 1, params: { floors: 5 },
-        observationAreas: [{ id: 'a1', name: '客厅', floor: 2, rects: [{ x0: 0, z0: 0, x1: 2, z1: 2 }], sampleHeight: 1.5 }]
+        observationAreas: [{ id: 'a1', floor: 2, rects: [{ x0: 0, z0: 0, x1: 2, z1: 2 }], sampleHeight: 1.5 }]
       }]
     };
     const editing = createUpdateAreaEditingCommand({ rects: [{ x0: 3, z0: 3, x1: 5, z1: 5 }] }).apply(createStartAreaEditCommand('b1', 'a1').apply(tall));
@@ -493,5 +501,29 @@ describe('building inspector values', () => {
     expect(parseBuildingNumber('')).toBeNull();
     expect(validateBuildingField('length', 0)).toBe('长度必须大于 0');
     expect(validateBuildingField('floors', 2.5)).toBe('楼层数必须是整数');
+  });
+});
+
+describe('phase and location commands', () => {
+  it('sets the phase and ignores invalid values', () => {
+    const store = createStore(createDefaultProject());
+    store.execute(createSetPhaseCommand('present'));
+    expect(store.getState().view.phase).toBe('present');
+    store.execute(createSetPhaseCommand('nonsense'));
+    expect(store.getState().view.phase).toBe('present');
+  });
+
+  it('sets the project location', () => {
+    const store = createStore(createDefaultProject());
+    const loc = { cityId: 'beijing', label: '北京', latitude: 39.9042, longitude: 116.4074, timeZone: 'Asia/Shanghai' };
+    store.execute(createSetLocationCommand(loc));
+    expect(store.getState().location).toEqual(loc);
+  });
+});
+
+describe('area label derivation', () => {
+  it('derives a 1-based label independent of any stored name', () => {
+    expect(areaLabel({ id: 'a1' }, 0)).toBe('观察区 1');
+    expect(areaLabel({ id: 'a2' }, 2)).toBe('观察区 3');
   });
 });

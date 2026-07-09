@@ -22,6 +22,7 @@ function withoutTemplateParams(params) {
 }
 
 const EDITOR_MODES = new Set(['none', 'building', 'areas']);
+const PHASES = new Set(['edit', 'present']);
 
 function nextBuildingName(buildings) {
   return `住宅 ${buildings.length + 1}`;
@@ -129,6 +130,25 @@ export function createSetEditorModeCommand(mode) {
         ...state,
         view: { ...state.view, editorMode: mode }
       };
+    }
+  };
+}
+
+export function createSetPhaseCommand(phase) {
+  return {
+    label: '切换环节',
+    apply(state) {
+      if (!PHASES.has(phase)) return state;
+      return { ...state, view: { ...state.view, phase } };
+    }
+  };
+}
+
+export function createSetLocationCommand(location) {
+  return {
+    label: '修改项目位置',
+    apply(state) {
+      return { ...state, location: structuredClone(location) };
     }
   };
 }
@@ -350,12 +370,10 @@ export function createSaveAreaEditingCommand() {
     apply(state) {
       const editing = state.view.areaEditing;
       if (!editing || editing.rects.length === 0) return state;
-      const building = findBuilding(state, editing.buildingId);
       const areaId = editing.mode === 'edit'
         ? editing.areaId
         : (globalThis.crypto?.randomUUID?.() ?? `area-${Date.now()}`);
-      const name = editing.name.trim() || `观察区 ${((building?.observationAreas?.length ?? 0) + 1)}`;
-      const area = { id: areaId, name, floor: editing.floor, rects: editing.rects, sampleHeight: editing.sampleHeight ?? 0 };
+      const area = { id: areaId, floor: editing.floor, rects: editing.rects, sampleHeight: editing.sampleHeight ?? 0 };
       return {
         ...state,
         buildings: state.buildings.map(b => b.id !== editing.buildingId ? b : {
