@@ -20,6 +20,7 @@ export function createAreaFloorTool({ store, buildingId }) {
 
   const element = createElement('div', { className: 'area-floor-tool' });
 
+  // --- Back button (shared by both views) ---
   const back = createElement('button', {
     className: 'button button--ghost', text: '‹ 返回', testId: 'inspector-back',
     attributes: { type: 'button' }
@@ -91,36 +92,57 @@ export function createAreaFloorTool({ store, buildingId }) {
   });
   cancelBtn.addEventListener('click', () => store.execute(createCancelAreaEditingCommand()));
 
-  // --- Home view ---
-  function renderHome(building) {
-    const areas = building.observationAreas ?? [];
+  // --- Home view scaffold (built once) ---
+  const homeTitle = createElement('h2', { className: 'panel__title', text: '建筑' });
+  const emptyHint = createElement('p', {
+    className: 'area-empty-hint', testId: 'area-empty-hint',
+    text: '还没有观察区，点击下方按钮新建一个。'
+  });
+  const cardsContainer = createElement('div', { className: 'area-home', testId: 'area-home' });
+  const createStartBtn = createElement('button', {
+    className: 'button button--secondary', text: '＋ 新建观察区', testId: 'area-create-start',
+    attributes: { type: 'button' }
+  });
+  createStartBtn.addEventListener('click', () => {
+    store.execute(createStartAreaCreateCommand(buildingId));
+  });
 
-    const createStartBtn = createElement('button', {
-      className: 'button button--secondary', text: '＋ 新建观察区', testId: 'area-create-start',
-      attributes: { type: 'button' }
-    });
-    createStartBtn.addEventListener('click', () => {
-      store.execute(createStartAreaCreateCommand(buildingId));
-    });
+  const homeView = createElement('div', {},
+    createElement('div', { className: 'panel__label', text: '观察区' }),
+    homeTitle,
+    cardsContainer,
+    emptyHint,
+    createStartBtn
+  );
 
-    const children = [
-      back,
-      createElement('div', { className: 'panel__label', text: '观察区' }),
-      createElement('h2', { className: 'panel__title', text: building.name ?? '建筑' }),
-      createElement('div', { className: 'area-home', testId: 'area-home' },
-        ...(areas.length === 0
-          ? [createElement('p', {
-              className: 'area-empty-hint', testId: 'area-empty-hint',
-              text: '还没有观察区，点击下方按钮新建一个。'
-            })]
-          : areas.map(area => areaCard(area)))
-      ),
-      createStartBtn
-    ];
-    element.replaceChildren(...children);
-  }
+  // --- Session view scaffold (built once) ---
+  const sessionLabel = createElement('div', {
+    className: 'panel__label', text: '新建观察区', testId: 'area-session-title'
+  });
+  const sessionTitle = createElement('h2', { className: 'panel__title', text: '建筑' });
+  const nameField = createElement('label', { className: 'field' },
+    createElement('span', { className: 'field__label', text: '区域名称' }), nameInput);
+  const floorField = createElement('label', { className: 'field' },
+    createElement('span', { className: 'field__label', text: '所在楼层' }), floorInput);
 
-  function areaCard(area) {
+  const sessionView = createElement('div', {},
+    sessionLabel,
+    sessionTitle,
+    createElement('div', { className: 'area-session', testId: 'area-session' },
+      nameField,
+      floorField,
+      toolBar,
+      rectSummary
+    ),
+    createElement('div', { className: 'inspector-actions' }, cancelBtn, saveBtn)
+  );
+
+  element.append(back, homeView, sessionView);
+
+  // --- Area card creation + keyed reconciliation ---
+  const cardElements = new Map(); // areaId -> card element
+
+  function createAreaCard(area) {
     const editBtn = createElement('button', {
       className: 'button button--ghost', text: '编辑', testId: `area-edit-${area.id}`,
       attributes: { type: 'button' }
@@ -137,26 +159,62 @@ export function createAreaFloorTool({ store, buildingId }) {
       store.execute(createRemoveObservationAreaCommand(buildingId, area.id));
     });
 
-    const size = rectArea(area.rects).toFixed(1);
-    return createElement('div', {
+    const nameSpan = createElement('span', { className: 'area-card__name' });
+    const metaSpan = createElement('span', { className: 'area-card__meta' });
+    const card = createElement('div', {
       className: 'area-card', testId: `area-card-${area.id}`
     },
-      createElement('div', { className: 'area-card__info' },
-        createElement('span', { className: 'area-card__name', text: area.name || '未命名观察区' }),
-        createElement('span', { className: 'area-card__meta', text: `${area.floor} 层 · ${size} m²` })
-      ),
+      createElement('div', { className: 'area-card__info' }, nameSpan, metaSpan),
       createElement('div', { className: 'area-card__actions' }, editBtn, deleteBtn)
     );
+    card._nameSpan = nameSpan;
+    card._metaSpan = metaSpan;
+    updateAreaCard(card, area);
+    return card;
   }
 
-  // --- Session view (create / edit) ---
-  function renderSession(building, session) {
-    const titleText = session.mode === 'edit' ? '编辑观察区' : '新建观察区';
-    const titleLabel = createElement('div', {
-      className: 'panel__label', text: titleText, testId: 'area-session-title'
-    });
+  function updateAreaCard(card, area) {
+    card._nameSpan.textContent = area.name || '未命名观察区';
+    const size = rectArea(area.rects).toFixed(1);
+    card._metaSpan.textContent = `${area.floor} 层 · ${size} m²`;
+  }
 
-    // Sync input values from session state.
+  function reconcileCards(areas) {
+    const seen = new Set(areas.map(a => a.id));
+    // Remove cards no longer present.
+    for (const [id, card] of cardElements) {
+      if (!seen.has(id)) {
+        card.remove();
+        cardElements.delete(id);
+      }
+    }
+    // Create/update/reorder.
+    const ordered = [];
+    for (const area of areas) {
+      let card = cardElements.get(area.id);
+      if (!card) {
+        card = createAreaCard(area);
+        cardElements.set(area.id, card);
+      } else {
+        updateAreaCard(card, area);
+      }
+      ordered.push(card);
+    }
+    if (ordered.length) cardsContainer.append(...ordered);
+  }
+
+  function renderHome(building) {
+    const areas = building.observationAreas ?? [];
+    homeTitle.textContent = building.name ?? '建筑';
+    reconcileCards(areas);
+    emptyHint.hidden = areas.length > 0;
+    cardsContainer.hidden = areas.length === 0;
+  }
+
+  function renderSession(building, session) {
+    sessionLabel.textContent = session.mode === 'edit' ? '编辑观察区' : '新建观察区';
+    sessionTitle.textContent = building.name ?? '建筑';
+
     if (document.activeElement !== nameInput) nameInput.value = session.name ?? '';
     if (document.activeElement !== floorInput) floorInput.value = String(session.floor ?? 1);
     floorInput.setAttribute('max', String(building.params.floors));
@@ -173,32 +231,16 @@ export function createAreaFloorTool({ store, buildingId }) {
     // create mode the draw tool is the only option.
     const eraseBtn = toolButtons.get('erase');
     if (eraseBtn) eraseBtn.hidden = !(session.mode === 'edit' && session.rects.length > 0);
-
-    const nameField = createElement('label', { className: 'field' },
-      createElement('span', { className: 'field__label', text: '区域名称' }), nameInput);
-    const floorField = createElement('label', { className: 'field' },
-      createElement('span', { className: 'field__label', text: '所在楼层' }), floorInput);
-
-    element.replaceChildren(
-      back,
-      titleLabel,
-      createElement('h2', { className: 'panel__title', text: building.name ?? '建筑' }),
-      createElement('div', { className: 'area-session', testId: 'area-session' },
-        nameField,
-        floorField,
-        toolBar,
-        rectSummary
-      ),
-      createElement('div', { className: 'inspector-actions' }, cancelBtn, saveBtn)
-    );
   }
 
   function sync() {
     if (!currentBuilding) return;
     const state = store.getState();
     const session = state?.view?.areaEditing;
-    // Only render a session if it targets this building.
-    if (session && session.buildingId === buildingId) {
+    const sessionActive = !!(session && session.buildingId === buildingId);
+    homeView.hidden = sessionActive;
+    sessionView.hidden = !sessionActive;
+    if (sessionActive) {
       renderSession(currentBuilding, session);
     } else {
       renderHome(currentBuilding);
