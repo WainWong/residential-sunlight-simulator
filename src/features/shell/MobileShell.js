@@ -30,7 +30,7 @@ export function createMobileControls() {
     const button = createElement('button', {
       className: label === '场景' ? 'mobile-nav__item is-active' : 'mobile-nav__item',
       text: label,
-      attributes: { type: 'button', 'data-primary-control': '' }
+      attributes: { type: 'button', 'data-primary-control': '', 'data-panel': panel }
     });
     button.addEventListener('click', () => {
       title.textContent = sheetTitle;

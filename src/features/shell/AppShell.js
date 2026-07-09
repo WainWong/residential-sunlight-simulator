@@ -101,6 +101,8 @@ export function createAppShell({
     timeline.hidden = !present;
     locationPicker.element.hidden = !present;
     if (present) locationPicker.update(project);
+    navigation.querySelector('[data-panel="simulation"]')?.toggleAttribute('hidden', !present);
+    navigation.querySelector('[data-panel="results"]')?.toggleAttribute('hidden', !present);
     const editBtn = header.querySelector('[data-testid="phase-edit"]');
     const presentBtn = header.querySelector('[data-testid="phase-present"]');
     if (editBtn) editBtn.classList.toggle('is-active', !present);

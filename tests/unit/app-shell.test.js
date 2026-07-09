@@ -47,6 +47,18 @@ describe('AppShell inspector vs results', () => {
   });
 });
 
+describe('AppShell mobile phase gating', () => {
+  it('hides simulation/results tabs in edit phase and shows them in present', () => {
+    const { store, shell } = mount();
+    const nav = shell.querySelector('[data-testid="mobile-nav"]');
+    const labels = [...nav.querySelectorAll('button:not([hidden])')].map(b => b.textContent);
+    expect(labels).toEqual(['场景', '建筑']); // edit phase: only 场景/建筑
+    store.execute(createSetPhaseCommand('present'));
+    const labelsPresent = [...nav.querySelectorAll('button:not([hidden])')].map(b => b.textContent);
+    expect(labelsPresent).toEqual(['场景', '建筑', '模拟', '结果']);
+  });
+});
+
 describe('AppShell phase toggle', () => {
   it('hides timeline and location picker in edit phase; shows them in present', () => {
     const { store, shell } = mount();
