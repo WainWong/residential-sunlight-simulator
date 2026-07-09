@@ -32,4 +32,27 @@ describe('buildAnalysisOverlays', () => {
     expect(out.area.draft).toBe(true);
     expect(out.area.rects).toEqual([{ x0: 0, z0: 0, x1: 1, z1: 1 }]);
   });
+
+  it('suppresses lit/unlit analysis overlays in the edit phase but still allows the editing draft', () => {
+    const simState = { activeAreaId: 'a', litSampleIds: ['1:1'], noArea: false };
+    expect(buildAnalysisOverlays(project, simState, 'edit')).toBeNull();
+    const present = buildAnalysisOverlays(project, simState, 'present');
+    expect(present).not.toBeNull();
+    expect(present.area.draft).toBe(false);
+    expect(present.area.lit).toBe(true);
+    const def = buildAnalysisOverlays(project, simState);
+    expect(def).not.toBeNull();
+    expect(def.area.lit).toBe(true);
+  });
+
+  it('still returns the editing-draft overlay in edit when areaEditing is set', () => {
+    const editingProject = {
+      ...project,
+      view: { areaEditing: { mode: 'create', buildingId: 'b1', areaId: null, floor: 2, name: '', rects: [{ x0: 0, z0: 0, x1: 1, z1: 1 }], tool: 'draw' } }
+    };
+    const out = buildAnalysisOverlays(editingProject, { activeAreaId: 'a', litSampleIds: ['1:1'], noArea: false }, 'edit');
+    expect(out).not.toBeNull();
+    expect(out.area.draft).toBe(true);
+    expect(out.area.rects).toEqual([{ x0: 0, z0: 0, x1: 1, z1: 1 }]);
+  });
 });

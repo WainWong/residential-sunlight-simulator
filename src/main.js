@@ -69,7 +69,7 @@ export function mountApp(root) {
         const sim0 = simulationController.getState();
         sceneController.updateProject(project0);
         sceneController.updateSolar(sim0, project0.view.phase);
-        if (project0.view.phase === 'present') sceneController.updateAnalysis(project0, sim0);
+        sceneController.updateAnalysis(project0, sim0, project0.view.phase);
         return sceneController;
       })
     : Promise.resolve(null);
@@ -91,21 +91,19 @@ export function mountApp(root) {
     shell.dataset.projectBuildings = String(project.buildings.length);
     const emptyHint = shell.querySelector('.viewport__empty');
     if (emptyHint) emptyHint.hidden = project.buildings.length > 0;
-    const present = project.view.phase === 'present';
     const sim = simulationController.getState();
     withController(controller => {
       controller?.updateProject(project);
       controller?.updateSolar(sim, project.view.phase);
-      if (present) controller?.updateAnalysis(project, sim);
+      controller?.updateAnalysis(project, sim, project.view.phase);
       controller?.syncFloorFocus(project);
     });
   });
 
   simulationController.subscribe(state => {
-    const present = store.getState().view.phase === 'present';
     withController(controller => {
       controller?.updateSolar(state, store.getState().view.phase);
-      if (present) controller?.updateAnalysis(store.getState(), state);
+      controller?.updateAnalysis(store.getState(), state, store.getState().view.phase);
     });
   });
 

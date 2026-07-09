@@ -519,6 +519,34 @@ describe('phase and location commands', () => {
     store.execute(createSetLocationCommand(loc));
     expect(store.getState().location).toEqual(loc);
   });
+
+  it('clears areaEditing and editorMode when transitioning to present', () => {
+    let project = createAddBuildingCommand({ id: 'b1' }).apply(createDefaultProject());
+    project = createFinishBuildingCommand('b1').apply(project);
+    project = createStartAreaCreateCommand('b1').apply(project);
+    project = createUpdateAreaEditingCommand({ rects: [{ x0: 0, z0: 0, x1: 1, z1: 1 }] }).apply(project);
+    expect(project.view.areaEditing).not.toBeNull();
+    expect(project.view.editorMode).toBe('areas');
+
+    const present = createSetPhaseCommand('present').apply(project);
+    expect(present.view.phase).toBe('present');
+    expect(present.view.areaEditing).toBeNull();
+    expect(present.view.editorMode).toBe('none');
+  });
+
+  it('does not touch areaEditing or editorMode when transitioning to edit', () => {
+    let project = createAddBuildingCommand({ id: 'b1' }).apply(createDefaultProject());
+    project = createFinishBuildingCommand('b1').apply(project);
+    project = createStartAreaCreateCommand('b1').apply(project);
+    project = createUpdateAreaEditingCommand({ rects: [{ x0: 0, z0: 0, x1: 1, z1: 1 }] }).apply(project);
+    project = createSetPhaseCommand('present').apply(project);
+    project = createStartAreaCreateCommand('b1').apply(project);
+
+    const edit = createSetPhaseCommand('edit').apply(project);
+    expect(edit.view.phase).toBe('edit');
+    expect(edit.view.areaEditing).not.toBeNull();
+    expect(edit.view.editorMode).toBe('areas');
+  });
 });
 
 describe('area label derivation', () => {

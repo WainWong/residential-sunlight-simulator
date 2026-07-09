@@ -161,9 +161,9 @@ export function createSceneController(canvas, { onSelect = () => {}, store = nul
         .join(',');
       canvas.dataset.sunAboveHorizon = String(simulationState.solar.aboveHorizon);
     },
-    updateAnalysis(project, simulationState) {
+    updateAnalysis(project, simulationState, phase = 'present') {
       sceneParts.overlays.clear();
-      const overlays = buildAnalysisOverlays(project, simulationState);
+      const overlays = buildAnalysisOverlays(project, simulationState, phase);
       if (!overlays) return;
       const areaGroup = createObservationOverlay({
         rects: overlays.area.rects, baseY: overlays.area.baseY,

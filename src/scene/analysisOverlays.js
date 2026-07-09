@@ -1,7 +1,7 @@
 import { floorBaseY } from '../domain/buildings/floorMath.js';
 import { deriveAperturesFromArea } from '../domain/simulation/deriveApertures.js';
 
-export function buildAnalysisOverlays(project, simulationState) {
+export function buildAnalysisOverlays(project, simulationState, phase = 'present') {
   const editing = project.view?.areaEditing;
   if (editing) {
     const building = project.buildings.find(b => b.id === editing.buildingId);
@@ -18,6 +18,7 @@ export function buildAnalysisOverlays(project, simulationState) {
       openings: []
     };
   }
+  if (phase === 'edit') return null;
   if (simulationState.noArea || !simulationState.activeAreaId) return null;
   let found = null;
   for (const building of project.buildings) {

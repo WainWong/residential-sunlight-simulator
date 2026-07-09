@@ -139,7 +139,12 @@ export function createSetPhaseCommand(phase) {
     label: '切换环节',
     apply(state) {
       if (!PHASES.has(phase)) return state;
-      return { ...state, view: { ...state.view, phase } };
+      const view = { ...state.view, phase };
+      if (phase === 'present') {
+        view.areaEditing = null;
+        view.editorMode = 'none';
+      }
+      return { ...state, view };
     }
   };
 }
