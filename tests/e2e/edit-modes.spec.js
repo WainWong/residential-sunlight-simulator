@@ -12,7 +12,7 @@ test('single building: explicit modes, select does not auto-edit', async ({ page
 
   await page.getByTestId('overview-edit-areas').click();
   await expect(page.getByTestId('building-overview')).toHaveCount(0);
-  await expect(page.getByText('观察区域')).toBeVisible();
+  await expect(page.getByTestId('area-home')).toBeVisible();
   await page.getByTestId('inspector-back').click();
   await expect(page.getByTestId('building-overview')).toBeVisible();
 
