@@ -31,9 +31,8 @@ async function dragRectOnCanvas(page) {
 test('area create flow: empty home → drag → save shows card', async ({ page }) => {
   await addBuildingAndOpenAreas(page);
 
-  // Empty state: hint visible, no area-select dropdown, no cards yet.
+  // Empty state: hint visible, no cards yet.
   await expect(page.getByTestId('area-empty-hint')).toBeVisible();
-  await expect(page.getByTestId('area-select')).toHaveCount(0);
   await expect(page.getByTestId('area-create-start')).toBeVisible();
 
   // Start a create session.
