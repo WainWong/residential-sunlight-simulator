@@ -13,7 +13,7 @@ function building(over = {}) {
 
 describe('BuildingOverview', () => {
   it('shows a read-only summary with area and opening counts', () => {
-    const store = { execute: vi.fn() };
+    const store = { execute: vi.fn(), getState: () => ({ view: { phase: 'edit' } }) };
     const { element, update } = createBuildingOverview({ store, confirmDelete: () => true });
     update(building());
     expect(element.textContent).toContain('一字型');
@@ -23,7 +23,7 @@ describe('BuildingOverview', () => {
   });
 
   it('enters building editor mode on 编辑建筑', () => {
-    const store = { execute: vi.fn() };
+    const store = { execute: vi.fn(), getState: () => ({ view: { phase: 'edit' } }) };
     const { element, update } = createBuildingOverview({ store, confirmDelete: () => true });
     update(building());
     element.querySelector('[data-testid="overview-edit-building"]').click();
@@ -31,16 +31,25 @@ describe('BuildingOverview', () => {
     expect(store.execute.mock.calls[0][0].label).toBe('切换编辑模式');
   });
 
-  it('enters areas editor mode on 观察区与窗', () => {
-    const store = { execute: vi.fn() };
+  it('starts an area create session on 新建观察区', () => {
+    const store = { execute: vi.fn(), getState: () => ({ view: { phase: 'edit' } }) };
     const { element, update } = createBuildingOverview({ store, confirmDelete: () => true });
     update(building());
     element.querySelector('[data-testid="overview-edit-areas"]').click();
     expect(store.execute).toHaveBeenCalledTimes(1);
+    expect(store.execute.mock.calls[0][0].label).toBe('开始新建观察区');
+  });
+
+  it('disables editing actions in present phase', () => {
+    const store = { execute: vi.fn(), getState: () => ({ view: { phase: 'present' } }) };
+    const { element, update } = createBuildingOverview({ store, confirmDelete: () => true });
+    update(building());
+    expect(element.querySelector('[data-testid="overview-edit-building"]').disabled).toBe(true);
+    expect(element.querySelector('[data-testid="overview-edit-areas"]').disabled).toBe(true);
   });
 
   it('deletes only after confirm', () => {
-    const store = { execute: vi.fn() };
+    const store = { execute: vi.fn(), getState: () => ({ view: { phase: 'edit' } }) };
     const confirmDelete = vi.fn(() => false);
     const { element, update } = createBuildingOverview({ store, confirmDelete });
     update(building());

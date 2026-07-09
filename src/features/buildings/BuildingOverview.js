@@ -1,5 +1,5 @@
 import { BUILDING_TEMPLATES } from '../../domain/buildings/templates.js';
-import { createSetEditorModeCommand, createRemoveBuildingCommand } from '../../store/buildingCommands.js';
+import { createSetEditorModeCommand, createRemoveBuildingCommand, createStartAreaCreateCommand } from '../../store/buildingCommands.js';
 import { createElement } from '../../ui/createElement.js';
 
 export function createBuildingOverview({ store, confirmDelete = () => true }) {
@@ -10,7 +10,7 @@ export function createBuildingOverview({ store, confirmDelete = () => true }) {
     testId: 'overview-edit-building', attributes: { type: 'button', 'data-primary-control': '' }
   });
   const editAreas = createElement('button', {
-    className: 'button button--secondary', text: '观察区与窗',
+    className: 'button button--secondary', text: '新建观察区',
     testId: 'overview-edit-areas', attributes: { type: 'button' }
   });
   const remove = createElement('button', {
@@ -20,7 +20,9 @@ export function createBuildingOverview({ store, confirmDelete = () => true }) {
 
   let current = null;
   editBuilding.addEventListener('click', () => store.execute(createSetEditorModeCommand('building')));
-  editAreas.addEventListener('click', () => store.execute(createSetEditorModeCommand('areas')));
+  editAreas.addEventListener('click', () => {
+    if (current) store.execute(createStartAreaCreateCommand(current.id));
+  });
   remove.addEventListener('click', () => {
     if (current && confirmDelete(current)) store.execute(createRemoveBuildingCommand(current.id));
   });
@@ -37,6 +39,9 @@ export function createBuildingOverview({ store, confirmDelete = () => true }) {
   }
   function update(b) {
     current = b;
+    const locked = store.getState()?.view?.phase === 'present';
+    editBuilding.disabled = locked;
+    editAreas.disabled = locked;
     title.textContent = b.name;
     const label = BUILDING_TEMPLATES[b.template]?.label ?? b.template;
     summary.replaceChildren(
