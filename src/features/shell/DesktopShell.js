@@ -1,14 +1,10 @@
-import { createSelectBuildingCommand } from '../../store/buildingCommands.js';
+import {
+  createSelectBuildingCommand,
+  createStartAreaCreateCommand,
+  createStartAreaEditCommand
+} from '../../store/buildingCommands.js';
 import { createElement } from '../../ui/createElement.js';
-
-function treeRow(label, className = '', testId = null) {
-  return createElement('button', {
-    className: `tree-row ${className}`,
-    text: label,
-    testId,
-    attributes: { type: 'button' }
-  });
-}
+import { areaLabel } from '../../domain/buildings/areaEditing.js';
 
 export function createProjectTree({ store, onAdd }) {
   const list = createElement('div', { className: 'tree-list' });
@@ -29,6 +25,9 @@ export function createProjectTree({ store, onAdd }) {
   );
 
   function render(project) {
+    const locked = project.view.phase === 'present';
+    add.disabled = locked;
+
     if (project.buildings.length === 0) {
       list.replaceChildren(createElement('p', {
         className: 'tree-empty',
@@ -36,18 +35,54 @@ export function createProjectTree({ store, onAdd }) {
       }));
       return;
     }
-    list.replaceChildren(...project.buildings.map(building => {
+
+    const nodes = project.buildings.map(building => {
       const selected = building.id === project.view.selectedBuildingId;
-      const row = treeRow(
-        `▾ ${building.name}`,
-        selected ? 'is-active' : '',
-        `building-tree-${building.id}`
+      const addAreaBtn = createElement('button', {
+        className: 'button button--ghost tree-row__add',
+        text: '＋ 观察区',
+        testId: `building-add-area-${building.id}`,
+        attributes: { type: 'button' }
+      });
+      addAreaBtn.disabled = locked;
+      const header = createElement('div', { className: 'tree-row tree-row--building' },
+        createElement('button', {
+          className: `tree-row__label ${selected ? 'is-active' : ''}`,
+          text: `▾ ${building.name}`,
+          testId: `building-tree-${building.id}`,
+          attributes: { type: 'button' }
+        }),
+        addAreaBtn
       );
-      row.addEventListener('click', () => {
+      header.querySelector('.tree-row__label').addEventListener('click', () => {
         store.execute(createSelectBuildingCommand(building.id));
       });
-      return row;
-    }));
+      addAreaBtn.addEventListener('click', () => {
+        if (locked) return;
+        store.execute(createStartAreaCreateCommand(building.id));
+      });
+
+      const children = (building.observationAreas ?? []).map((area, index) => {
+        const row = createElement('button', {
+          className: 'tree-row tree-row--area',
+          text: `${areaLabel(area, index)} · ${area.floor} 层`,
+          testId: `area-tree-${area.id}`,
+          attributes: { type: 'button' }
+        });
+        row.addEventListener('click', () => {
+          if (locked) {
+            store.execute(createSelectBuildingCommand(building.id));
+          } else {
+            store.execute(createStartAreaEditCommand(building.id, area.id));
+          }
+        });
+        return row;
+      });
+
+      return createElement('div', { className: 'tree-node' }, header, ...children);
+    });
+
+    list.replaceChildren(...nodes);
   }
 
   store.subscribe(render);
