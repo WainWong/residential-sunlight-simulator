@@ -65,9 +65,11 @@ export function mountApp(root) {
             store.execute(createSelectBuildingCommand(buildingId));
           }
         });
-        sceneController.updateProject(store.getState());
-        sceneController.updateSolar(simulationController.getState());
-        sceneController.updateAnalysis(store.getState(), simulationController.getState());
+        const project0 = store.getState();
+        const sim0 = simulationController.getState();
+        sceneController.updateProject(project0);
+        sceneController.updateSolar(sim0, project0.view.phase);
+        if (project0.view.phase === 'present') sceneController.updateAnalysis(project0, sim0);
         return sceneController;
       })
     : Promise.resolve(null);
