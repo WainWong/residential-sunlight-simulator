@@ -100,7 +100,7 @@ export function mountApp(root) {
     if (currentAreaEditing !== prevAreaEditing) {
       withController(controller => {
         if (!controller) return;
-        if (currentAreaEditing) controller.enterFloorFocus(project, simulationController.getState());
+        if (currentAreaEditing) controller.enterFloorFocus(project);
         else controller.exitFloorFocus();
       });
     } else if (currentAreaEditing) {
