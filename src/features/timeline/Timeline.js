@@ -117,7 +117,7 @@ export function createTimeline(controller) {
 
   return createElement(
     'div',
-    { className: 'timeline-stack' },
+    { className: 'timeline-stack', testId: 'timeline' },
     timelineRow({
       kind: 'date',
       button: playButton('播放全年日期', datePlayback),

@@ -6,7 +6,8 @@ import { createSimulationController } from '../../src/features/results/createSim
 import { createAppShell } from '../../src/features/shell/AppShell.js';
 import {
   createAddBuildingCommand, createClearBuildingsCommand,
-  createFinishBuildingCommand, createSetEditorModeCommand
+  createFinishBuildingCommand, createSetEditorModeCommand,
+  createSetPhaseCommand
 } from '../../src/store/buildingCommands.js';
 
 function mount() {
@@ -43,5 +44,24 @@ describe('AppShell inspector vs results', () => {
     expect(shell.dataset.mobilePanel).toBe('editor');
     store.execute(createClearBuildingsCommand());
     expect(shell.dataset.mobilePanel).toBe('buildings');
+  });
+});
+
+describe('AppShell phase toggle', () => {
+  it('hides timeline and location picker in edit phase; shows them in present', () => {
+    const { store, shell } = mount();
+    expect(shell.querySelector('[data-testid="timeline"]').hidden).toBe(true);
+    expect(shell.querySelector('[data-testid="location-picker"]').hidden).toBe(true);
+    store.execute(createSetPhaseCommand('present'));
+    expect(shell.querySelector('[data-testid="timeline"]').hidden).toBe(false);
+    expect(shell.querySelector('[data-testid="location-picker"]').hidden).toBe(false);
+  });
+
+  it('forces results panel over inspector in present phase even when a building is selected', () => {
+    const { store, shell } = mount();
+    store.execute(createAddBuildingCommand({ id: 'b1' }));
+    store.execute(createSetPhaseCommand('present'));
+    expect(shell.querySelector('[data-testid="building-inspector"]').hidden).toBe(true);
+    expect(shell.querySelector('[data-testid="results-panel"]').hidden).toBe(false);
   });
 });
