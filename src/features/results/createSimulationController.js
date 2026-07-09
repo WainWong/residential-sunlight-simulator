@@ -4,6 +4,7 @@ import { rotateLocalToWorld } from '../../domain/buildings/wallGeometry.js';
 import { buildObstacles } from '../../domain/simulation/buildObstacles.js';
 import { deriveAperturesFromArea } from '../../domain/simulation/deriveApertures.js';
 import { evaluateDirectSun } from '../../domain/simulation/evaluateDirectSun.js';
+import { areaLabel } from '../../domain/buildings/areaEditing.js';
 
 export function timeToMinute(time) {
   const [hours, minutes] = time.split(':').map(Number);
@@ -19,10 +20,10 @@ function collectAreas(project) {
   const options = [];
   const map = new Map();
   for (const building of project.buildings) {
-    for (const area of building.observationAreas ?? []) {
-      options.push({ id: area.id, name: area.name });
+    (building.observationAreas ?? []).forEach((area, index) => {
+      options.push({ id: area.id, name: areaLabel(area, index) });
       map.set(area.id, { building, area });
-    }
+    });
   }
   return { options, map };
 }

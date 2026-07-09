@@ -20,7 +20,7 @@ function projectWithSouthWindow() {
     position: { x: 0, z: 0 }, rotation: 0,
     params: { length: 60, depth: 18, floors: 3, floorHeight: 3 },
     observationAreas: [{
-      id: 'area-a', name: '客厅', floor: 1,
+      id: 'area-a', floor: 1,
       rects: [{ x0: -3, z0: -11, x1: 3, z1: -4 }], sampleHeight: 1.2
     }],
     openings: []
@@ -165,7 +165,7 @@ describe('simulation controller — real geometry', () => {
   it('lists all observation areas as options and switches active area', () => {
     const store = createStore(projectWithSouthWindow());
     const controller = createSimulationController(store);
-    expect(controller.getState().areaOptions).toEqual([{ id: 'area-a', name: '客厅' }]);
+    expect(controller.getState().areaOptions).toEqual([{ id: 'area-a', name: '观察区 1' }]);
     controller.setActiveArea('area-a');
     expect(store.getState().simulation.activeAreaId).toBe('area-a');
   });
