@@ -12,6 +12,9 @@ test('imports a south-window project and reports direct sun', async ({ page }) =
   // 触发隐藏 file input
   await page.getByRole('button', { name: '导入' }).click();
   await page.locator('input[type="file"]').setInputFiles(fixture);
+  // Results are only shown in the present phase; the fixture has an area so
+  // switching is allowed.
+  await page.getByTestId('phase-present').click();
   // 无观察区选择（单区），结果面板应展示直射状态（非“暂无观察区”）
   const status = page.getByTestId('direct-sun-status');
   await expect(status).not.toHaveText('暂无观察区');
