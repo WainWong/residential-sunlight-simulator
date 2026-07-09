@@ -309,7 +309,7 @@ export function createStartAreaEditCommand(buildingId, areaId) {
   return {
     label: '开始编辑观察区',
     apply(state) {
-      const building = state.buildings.find(b => b.id === buildingId);
+      const building = findBuilding(state, buildingId);
       const area = (building?.observationAreas ?? []).find(a => a.id === areaId);
       if (!building || !area) return state;
       return {
@@ -350,19 +350,12 @@ export function createSaveAreaEditingCommand() {
     apply(state) {
       const editing = state.view.areaEditing;
       if (!editing || editing.rects.length === 0) return state;
+      const building = findBuilding(state, editing.buildingId);
       const areaId = editing.mode === 'edit'
         ? editing.areaId
         : (globalThis.crypto?.randomUUID?.() ?? `area-${Date.now()}`);
-      const name = editing.name.trim() || `观察区 ${((state.buildings.find(b => b.id === editing.buildingId)?.observationAreas?.length ?? 0) + 1)}`;
-      // The editing session does not track sampleHeight; preserve the original
-      // area's value on edit, default to 0 on create.
-      let sampleHeight = 0;
-      if (editing.mode === 'edit') {
-        const editingBuilding = state.buildings.find(b => b.id === editing.buildingId);
-        const originalArea = editingBuilding?.observationAreas?.find(a => a.id === editing.areaId);
-        sampleHeight = originalArea?.sampleHeight ?? 0;
-      }
-      const area = { id: areaId, name, floor: editing.floor, rects: editing.rects, sampleHeight };
+      const name = editing.name.trim() || `观察区 ${((building?.observationAreas?.length ?? 0) + 1)}`;
+      const area = { id: areaId, name, floor: editing.floor, rects: editing.rects, sampleHeight: editing.sampleHeight ?? 0 };
       return {
         ...state,
         buildings: state.buildings.map(b => b.id !== editing.buildingId ? b : {

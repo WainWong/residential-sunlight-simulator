@@ -10,6 +10,7 @@ export function createAreaEditingSession({ mode, buildingId, area = null, defaul
     floor: area?.floor ?? defaults.floor ?? 1,
     name: area?.name ?? defaults.name ?? '',
     rects: cloneRects(area?.rects ?? defaults.rects ?? []),
+    sampleHeight: area?.sampleHeight ?? defaults.sampleHeight ?? 0,
     tool: defaults.tool ?? 'draw'
   };
 }

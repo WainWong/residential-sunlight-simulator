@@ -100,7 +100,7 @@ export function createSceneController(canvas, { onSelect = () => {}, store = nul
         clearPreview();
         if (!rect) return;
         previewGroup = createObservationOverlay({ rects: [rect], baseY: target.y, draft: true });
-        applyBuildingTransform(previewGroup, building);
+        applyBuildingTransform(previewGroup, getBuilding());
         sceneParts.overlays.add(previewGroup);
       },
       onCommit: (rect, mode) => {
@@ -113,6 +113,29 @@ export function createSceneController(canvas, { onSelect = () => {}, store = nul
       }
     });
     floorFocus = { slab, outline, drag, tool: editing.tool ?? 'draw', clearPreview };
+  }
+
+  // Reconcile floor-focus lifecycle from the editing session. The controller owns
+  // its own diffing (like syncScene does for meshes) so main.js just calls this
+  // unconditionally on every project change.
+  function syncFloorFocus(project) {
+    const editing = project.view.areaEditing;
+    const sig = editing ? `${editing.buildingId}:${editing.floor}` : '';
+    if (!editing) {
+      if (floorFocus) {
+        disposeFloorFocus();
+        for (const child of sceneParts.buildings.children) child.visible = true;
+        cameraParts.setTopdownMode(false);
+      }
+      return;
+    }
+    if (!floorFocus || floorFocus.sig !== sig) {
+      if (floorFocus) disposeFloorFocus();
+      buildFloorFocus(project);
+      if (floorFocus) floorFocus.sig = sig;
+    } else {
+      floorFocus.tool = editing.tool ?? 'draw';
+    }
   }
 
   const observer = new ResizeObserver(resize);
@@ -157,29 +180,8 @@ export function createSceneController(canvas, { onSelect = () => {}, store = nul
       quality.setPreviewing(value);
       resize();
     },
-    enterFloorFocus(project) {
-      // Idempotent: if already focused (e.g. re-entry triggered by a floor
-      // change while the session stays open), tear down the per-floor objects
-      // first, then rebuild for the new floor.
-      if (floorFocus) disposeFloorFocus();
-      buildFloorFocus(project);
-    },
-    updateFloorFocusFloor(project) {
-      if (!floorFocus) return;
-      const tool = floorFocus.tool;
-      disposeFloorFocus();
-      buildFloorFocus(project);
-      if (floorFocus) floorFocus.tool = tool;
-    },
-    setFloorTool(tool) {
-      if (!floorFocus) return;
-      floorFocus.tool = tool;
-    },
-    exitFloorFocus() {
-      if (!floorFocus) return;
-      disposeFloorFocus();
-      for (const child of sceneParts.buildings.children) child.visible = true;
-      cameraParts.setTopdownMode(false);
+    syncFloorFocus(project) {
+      syncFloorFocus(project);
     },
     dispose() {
       canvas.removeEventListener('click', selectAtPointer);
