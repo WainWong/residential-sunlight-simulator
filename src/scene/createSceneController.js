@@ -153,8 +153,8 @@ export function createSceneController(canvas, { onSelect = () => {}, store = nul
       canvas.dataset.buildingCount = String(project.buildings.length);
       canvas.dataset.previewBuildingId = previewBuildingId ?? '';
     },
-    updateSolar(simulationState) {
-      applySunLighting(sceneParts.sunlight, simulationState.solar);
+    updateSolar(simulationState, phase = 'present') {
+      applySunLighting(sceneParts.sunlight, simulationState.solar, { phase });
       const direction = simulationState.solar.direction;
       canvas.dataset.sunDirection = [direction.x, direction.y, direction.z]
         .map(value => value.toFixed(4))

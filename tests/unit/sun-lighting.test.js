@@ -28,4 +28,13 @@ describe('sun lighting', () => {
     expect(light.visible).toBe(false);
     expect(light.castShadow).toBe(false);
   });
+
+  it('uses a neutral non-shadow light in edit phase regardless of solar', () => {
+    const light = new THREE.DirectionalLight();
+    applySunLighting(light, { aboveHorizon: true, altitudeDeg: 60, direction: { x: 1, y: 0.5, z: 0 } }, { phase: 'edit' });
+    expect(light.visible).toBe(true);
+    expect(light.castShadow).toBe(false);
+    expect(light.intensity).toBeGreaterThan(0);
+    expect(light.position.x).toBe(60);
+  });
 });

@@ -1,6 +1,15 @@
 const SUN_DISTANCE = 180;
 
-export function applySunLighting(light, solar) {
+export function applySunLighting(light, solar, { phase = 'present' } = {}) {
+  if (phase === 'edit') {
+    light.visible = true;
+    light.castShadow = false;
+    light.intensity = 2.4;
+    light.position.set(60, 120, 40);
+    light.target.position.set(0, 0, 0);
+    light.target.updateMatrixWorld();
+    return;
+  }
   if (!solar.aboveHorizon) {
     light.visible = false;
     light.castShadow = false;
