@@ -4,72 +4,45 @@ import { createAreaFloorTool } from '../../src/features/areas/createAreaFloorToo
 
 function building() {
   return {
-    id: 'b1',
-    name: '1号楼',
-    params: { floors: 5 },
-    observationAreas: [{ id: 'a1', name: '客厅', floor: 1, rects: [] }]
+    id: 'b1', name: '1号楼', params: { floors: 5 },
+    observationAreas: [{ id: 'a1', floor: 1, rects: [] }]
   };
 }
 
 function fakeStore(state = {}) {
-  const defaults = {
-    view: { areaEditing: null },
-    simulation: { activeAreaId: null },
-    ...state
-  };
-  // Allow test overrides to fully replace `view`/`simulation` if provided.
+  const defaults = { view: { areaEditing: null }, ...state };
   if (state.view) defaults.view = { areaEditing: null, ...state.view };
-  if (state.simulation) defaults.simulation = { activeAreaId: null, ...state.simulation };
   return { execute: vi.fn(), getState: () => defaults };
 }
 
 const q = (el, id) => el.querySelector(`[data-testid="${id}"]`);
 
-describe('createAreaFloorTool', () => {
-  it('shows an empty home state with no selector when there are no areas', () => {
-    const store = fakeStore();
-    const { element, update } = createAreaFloorTool({ store, buildingId: 'b1' });
-    update({ id: 'b1', name: '1号楼', params: { floors: 5 }, observationAreas: [] });
-    expect(q(element, 'area-home')).not.toBeNull();
-    expect(q(element, 'area-select')).toBeNull();
-    expect(q(element, 'area-empty-hint').textContent).toContain('还没有观察区');
-  });
+function session(over = {}) {
+  return { mode: 'create', buildingId: 'b1', areaId: null, floor: 1, rects: [], tool: 'draw', ...over };
+}
 
-  it('starts create session without adding an area', () => {
-    const store = fakeStore();
-    const { element, update } = createAreaFloorTool({ store, buildingId: 'b1' });
-    update({ id: 'b1', name: '1号楼', params: { floors: 5 }, observationAreas: [] });
-    q(element, 'area-create-start').click();
-    expect(store.execute.mock.calls.at(-1)[0].label).toBe('开始新建观察区');
-  });
-
-  it('lists existing areas as cards, not a dropdown', () => {
-    const store = fakeStore();
+describe('createAreaFloorTool (session-only)', () => {
+  it('has no home view, name input, or create-start button', () => {
+    const store = fakeStore({ view: { areaEditing: session() } });
     const { element, update } = createAreaFloorTool({ store, buildingId: 'b1' });
     update(building());
-    expect(q(element, 'area-select')).toBeNull();
-    expect(q(element, 'area-card-a1')).not.toBeNull();
-    expect(q(element, 'area-edit-a1')).not.toBeNull();
+    expect(q(element, 'area-home')).toBeNull();
+    expect(q(element, 'area-create-start')).toBeNull();
+    expect(q(element, 'area-session')).not.toBeNull();
+    expect(element.querySelector('input[aria-label="区域名称"]')).toBeNull();
   });
 
   it('renders create session with disabled save until rects exist', () => {
-    const store = fakeStore({
-      view: { areaEditing: { mode: 'create', buildingId: 'b1', areaId: null, floor: 1, name: '', rects: [], tool: 'draw' } }
-    });
+    const store = fakeStore({ view: { areaEditing: session() } });
     const { element, update } = createAreaFloorTool({ store, buildingId: 'b1' });
     update(building());
     expect(q(element, 'area-session-title').textContent).toContain('新建观察区');
     expect(q(element, 'area-save').disabled).toBe(true);
   });
 
-  it('renders edit session and dispatches save/cancel/update commands', () => {
+  it('dispatches save and cancel commands in an edit session', () => {
     const store = fakeStore({
-      view: {
-        areaEditing: {
-          mode: 'edit', buildingId: 'b1', areaId: 'a1', floor: 2, name: '客厅',
-          rects: [{ x0: 0, z0: 0, x1: 2, z1: 2 }], tool: 'draw'
-        }
-      }
+      view: { areaEditing: session({ mode: 'edit', areaId: 'a1', floor: 2, rects: [{ x0: 0, z0: 0, x1: 2, z1: 2 }] }) }
     });
     const { element, update } = createAreaFloorTool({ store, buildingId: 'b1' });
     update(building());
@@ -80,36 +53,14 @@ describe('createAreaFloorTool', () => {
     expect(store.execute.mock.calls.at(-1)[0].label).toBe('取消观察区编辑');
   });
 
-  it('hides the erase tool in create mode and shows it only for non-empty edit sessions', () => {
-    // Create session: only draw is available.
-    const createStore = fakeStore({
-      view: { areaEditing: { mode: 'create', buildingId: 'b1', areaId: null, floor: 1, name: '', rects: [], tool: 'draw' } }
-    });
+  it('hides erase in create mode, shows it for non-empty edit sessions', () => {
+    const createStore = fakeStore({ view: { areaEditing: session() } });
     const createTool = createAreaFloorTool({ store: createStore, buildingId: 'b1' });
     createTool.update(building());
     expect(q(createTool.element, 'tool-erase').hidden).toBe(true);
 
-    // Edit session with no rects: erase still hidden (nothing to erase).
-    const editEmptyStore = fakeStore({
-      view: {
-        areaEditing: {
-          mode: 'edit', buildingId: 'b1', areaId: 'a1', floor: 1, name: '客厅',
-          rects: [], tool: 'draw'
-        }
-      }
-    });
-    const editEmptyTool = createAreaFloorTool({ store: editEmptyStore, buildingId: 'b1' });
-    editEmptyTool.update(building());
-    expect(q(editEmptyTool.element, 'tool-erase').hidden).toBe(true);
-
-    // Edit session with rects: erase becomes available.
     const editStore = fakeStore({
-      view: {
-        areaEditing: {
-          mode: 'edit', buildingId: 'b1', areaId: 'a1', floor: 2, name: '客厅',
-          rects: [{ x0: 0, z0: 0, x1: 2, z1: 2 }], tool: 'draw'
-        }
-      }
+      view: { areaEditing: session({ mode: 'edit', areaId: 'a1', floor: 2, rects: [{ x0: 0, z0: 0, x1: 2, z1: 2 }] }) }
     });
     const editTool = createAreaFloorTool({ store: editStore, buildingId: 'b1' });
     editTool.update(building());
@@ -117,9 +68,7 @@ describe('createAreaFloorTool', () => {
   });
 
   it('back button cancels an active session before leaving', () => {
-    const store = fakeStore({
-      view: { areaEditing: { mode: 'create', buildingId: 'b1', areaId: null, floor: 1, name: '', rects: [], tool: 'draw' } }
-    });
+    const store = fakeStore({ view: { areaEditing: session() } });
     const { element, update } = createAreaFloorTool({ store, buildingId: 'b1' });
     update(building());
     q(element, 'inspector-back').click();
