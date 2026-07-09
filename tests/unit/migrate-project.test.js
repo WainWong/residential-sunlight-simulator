@@ -15,7 +15,7 @@ describe('migrateProject cells->rects', () => {
     expect(area.cells).toBeUndefined();
     expect(area.openingIds).toBeUndefined();
     expect(area.rects).toEqual([]);
-    expect(area.name).toBe('客厅');
+    expect(area.name).toBeUndefined();
   });
 
   it('keeps existing rects untouched', () => {
@@ -41,5 +41,26 @@ describe('migrateProject areaDraft and areaTool cleanup', () => {
     expect(migrated.view.areaEditing).toBeNull();
     expect(migrated.view.areaDraft).toBeUndefined();
     expect(migrated.view.areaTool).toBeUndefined();
+  });
+});
+
+describe('migrateProject phase and name cleanup', () => {
+  it('drops legacy area.name and ensures view.phase is edit', () => {
+    const raw = {
+      schemaVersion: 1,
+      buildings: [{
+        id: 'b1',
+        observationAreas: [{ id: 'a1', name: '客厅', floor: 1, rects: [] }]
+      }],
+      view: { selectedBuildingId: null, editorMode: 'none' }
+    };
+    const out = migrateProject(raw);
+    expect(out.buildings[0].observationAreas[0].name).toBeUndefined();
+    expect(out.view.phase).toBe('edit');
+  });
+
+  it('preserves an explicit present phase', () => {
+    const out = migrateProject({ schemaVersion: 1, buildings: [], view: { phase: 'present' } });
+    expect(out.view.phase).toBe('present');
   });
 });

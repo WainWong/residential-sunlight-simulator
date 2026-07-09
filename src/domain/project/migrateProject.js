@@ -11,11 +11,13 @@ export function migrateProject(rawProject) {
     for (const area of building.observationAreas ?? []) {
       delete area.cells;
       delete area.openingIds;
+      delete area.name;
       if (!Array.isArray(area.rects)) area.rects = [];
     }
   }
   const view = project.view ?? (project.view = {});
   view.areaEditing = null;
+  if (view.phase !== 'present') view.phase = 'edit';
   delete view.areaDraft;
   delete view.areaTool;
   return project;

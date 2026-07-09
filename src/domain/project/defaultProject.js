@@ -22,6 +22,7 @@ export function createDefaultProject() {
       camera: null,
       activePanel: 'buildings',
       wizardComplete: false,
+      phase: 'edit',
       selectedBuildingId: null,
       editorMode: 'none',
       addingBuildingId: null,
