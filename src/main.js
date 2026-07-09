@@ -77,6 +77,7 @@ export function mountApp(root) {
 
   let prevEditing = store.getState().view.editorMode === 'building';
   let prevAreaEditing = Boolean(store.getState().view.areaEditing);
+  let prevEditingFloor = store.getState().view.areaEditing?.floor ?? null;
   store.subscribe(project => {
     const currentEditing = project.view.editorMode === 'building';
     if (!currentEditing && prevEditing) {
@@ -97,6 +98,7 @@ export function mountApp(root) {
     });
 
     const currentAreaEditing = Boolean(project.view.areaEditing);
+    const currentEditingFloor = project.view.areaEditing?.floor ?? null;
     if (currentAreaEditing !== prevAreaEditing) {
       withController(controller => {
         if (!controller) return;
@@ -104,9 +106,17 @@ export function mountApp(root) {
         else controller.exitFloorFocus();
       });
     } else if (currentAreaEditing) {
-      withController(controller => controller?.setFloorTool(project.view.areaEditing.tool));
+      // When the editing floor (or building) changes mid-session, the scene's
+      // floor focus (camera target, slab, wall outline, drag plane) must move
+      // to the new floor even though areaEditing never disappeared.
+      if (currentEditingFloor !== prevEditingFloor) {
+        withController(controller => controller?.updateFloorFocusFloor(project));
+      } else {
+        withController(controller => controller?.setFloorTool(project.view.areaEditing.tool));
+      }
     }
     prevAreaEditing = currentAreaEditing;
+    prevEditingFloor = currentEditingFloor;
   });
 
   simulationController.subscribe(state => {

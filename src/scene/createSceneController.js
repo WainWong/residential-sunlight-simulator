@@ -55,6 +55,66 @@ export function createSceneController(canvas, { onSelect = () => {}, store = nul
 
   let floorFocus = null;
 
+  function disposeFloorFocus() {
+    if (!floorFocus) return;
+    floorFocus.clearPreview();
+    sceneParts.scene.remove(floorFocus.slab);
+    sceneParts.scene.remove(floorFocus.outline);
+    floorFocus.drag.dispose();
+    floorFocus = null;
+  }
+
+  function buildFloorFocus(project) {
+    const editing = project.view.areaEditing;
+    if (!editing) return;
+    const buildingId = editing.buildingId;
+    const floor = editing.floor;
+    const building = project.buildings.find(b => b.id === buildingId);
+    if (!building) return;
+
+    for (const child of sceneParts.buildings.children) child.visible = false;
+
+    const { target, height } = floorFocusTarget(building, floor);
+    cameraParts.setTopView(target, height);
+    cameraParts.setTopdownMode(true);
+
+    const slab = createFloorSlab(building, floor);
+    const outline = createWallOutline(building, floor);
+    sceneParts.scene.add(slab);
+    sceneParts.scene.add(outline);
+
+    let previewGroup = null;
+    const clearPreview = () => {
+      if (previewGroup) {
+        previewGroup.traverse(c => c.geometry?.dispose());
+        sceneParts.overlays.remove(previewGroup);
+        previewGroup = null;
+      }
+    };
+
+    const getBuilding = () => store.getState().buildings.find(b => b.id === buildingId);
+    const getMode = () => floorFocus?.tool ?? 'draw';
+    const drag = createAreaDrag({
+      canvas, camera: cameraParts.camera, floorY: target.y, getBuilding, getMode,
+      onPreview: rect => {
+        clearPreview();
+        if (!rect) return;
+        previewGroup = createObservationOverlay({ rects: [rect], baseY: target.y, draft: true });
+        applyBuildingTransform(previewGroup, building);
+        sceneParts.overlays.add(previewGroup);
+      },
+      onCommit: (rect, mode) => {
+        clearPreview();
+        if (!store) return;
+        const editingState = store.getState().view.areaEditing;
+        if (!editingState) return;
+        const rects = applyRectEdit(editingState.rects ?? [], rect, mode);
+        store.execute(createUpdateAreaEditingCommand({ rects }));
+      }
+    });
+    floorFocus = { slab, outline, drag, tool: editing.tool ?? 'draw', clearPreview };
+  }
+
   const observer = new ResizeObserver(resize);
   observer.observe(viewport);
   resize();
@@ -98,55 +158,18 @@ export function createSceneController(canvas, { onSelect = () => {}, store = nul
       resize();
     },
     enterFloorFocus(project) {
-      if (floorFocus) return;
-      const editing = project.view.areaEditing;
-      if (!editing) return;
-      const buildingId = editing.buildingId;
-      const floor = editing.floor;
-      const building = project.buildings.find(b => b.id === buildingId);
-      if (!building) return;
-
-      for (const child of sceneParts.buildings.children) child.visible = false;
-
-      const { target, height } = floorFocusTarget(building, floor);
-      cameraParts.setTopView(target, height);
-      cameraParts.setTopdownMode(true);
-
-      const slab = createFloorSlab(building, floor);
-      const outline = createWallOutline(building, floor);
-      sceneParts.scene.add(slab);
-      sceneParts.scene.add(outline);
-
-      let previewGroup = null;
-      const clearPreview = () => {
-        if (previewGroup) {
-          previewGroup.traverse(c => c.geometry?.dispose());
-          sceneParts.overlays.remove(previewGroup);
-          previewGroup = null;
-        }
-      };
-
-      const getBuilding = () => store.getState().buildings.find(b => b.id === buildingId);
-      const getMode = () => floorFocus?.tool ?? 'draw';
-      const drag = createAreaDrag({
-        canvas, camera: cameraParts.camera, floorY: target.y, getBuilding, getMode,
-        onPreview: rect => {
-          clearPreview();
-          if (!rect) return;
-          previewGroup = createObservationOverlay({ rects: [rect], baseY: target.y, draft: true });
-          applyBuildingTransform(previewGroup, building);
-          sceneParts.overlays.add(previewGroup);
-        },
-        onCommit: (rect, mode) => {
-          clearPreview();
-          if (!store) return;
-          const editingState = store.getState().view.areaEditing;
-          if (!editingState) return;
-          const rects = applyRectEdit(editingState.rects ?? [], rect, mode);
-          store.execute(createUpdateAreaEditingCommand({ rects }));
-        }
-      });
-      floorFocus = { slab, outline, drag, tool: editing.tool ?? 'draw', clearPreview };
+      // Idempotent: if already focused (e.g. re-entry triggered by a floor
+      // change while the session stays open), tear down the per-floor objects
+      // first, then rebuild for the new floor.
+      if (floorFocus) disposeFloorFocus();
+      buildFloorFocus(project);
+    },
+    updateFloorFocusFloor(project) {
+      if (!floorFocus) return;
+      const tool = floorFocus.tool;
+      disposeFloorFocus();
+      buildFloorFocus(project);
+      if (floorFocus) floorFocus.tool = tool;
     },
     setFloorTool(tool) {
       if (!floorFocus) return;
@@ -154,13 +177,9 @@ export function createSceneController(canvas, { onSelect = () => {}, store = nul
     },
     exitFloorFocus() {
       if (!floorFocus) return;
-      floorFocus.clearPreview();
-      sceneParts.scene.remove(floorFocus.slab);
-      sceneParts.scene.remove(floorFocus.outline);
-      floorFocus.drag.dispose();
+      disposeFloorFocus();
       for (const child of sceneParts.buildings.children) child.visible = true;
       cameraParts.setTopdownMode(false);
-      floorFocus = null;
     },
     dispose() {
       canvas.removeEventListener('click', selectAtPointer);

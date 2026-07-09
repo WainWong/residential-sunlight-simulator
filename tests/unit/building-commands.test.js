@@ -465,6 +465,20 @@ describe('area editing session commands', () => {
     expect(next.buildings[0].observationAreas[0]).toMatchObject({ id: 'a1', name: '主卧', floor: 4, rects: [{ x0: 2, z0: 2, x1: 4, z1: 4 }] });
     expect(next.simulation.activeAreaId).toBe('a1');
   });
+
+  it('preserves the original area sampleHeight when saving an edit session', () => {
+    const tall = {
+      simulation: { activeAreaId: null },
+      view: { selectedBuildingId: 'b1', editorMode: 'areas', areaEditing: null },
+      buildings: [{
+        id: 'b1', revision: 1, params: { floors: 5 },
+        observationAreas: [{ id: 'a1', name: '客厅', floor: 2, rects: [{ x0: 0, z0: 0, x1: 2, z1: 2 }], sampleHeight: 1.5 }]
+      }]
+    };
+    const editing = createUpdateAreaEditingCommand({ rects: [{ x0: 3, z0: 3, x1: 5, z1: 5 }] }).apply(createStartAreaEditCommand('b1', 'a1').apply(tall));
+    const next = createSaveAreaEditingCommand().apply(editing);
+    expect(next.buildings[0].observationAreas[0].sampleHeight).toBe(1.5);
+  });
 });
 
 describe('building inspector values', () => {

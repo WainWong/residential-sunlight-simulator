@@ -354,7 +354,15 @@ export function createSaveAreaEditingCommand() {
         ? editing.areaId
         : (globalThis.crypto?.randomUUID?.() ?? `area-${Date.now()}`);
       const name = editing.name.trim() || `观察区 ${((state.buildings.find(b => b.id === editing.buildingId)?.observationAreas?.length ?? 0) + 1)}`;
-      const area = { id: areaId, name, floor: editing.floor, rects: editing.rects, sampleHeight: 0 };
+      // The editing session does not track sampleHeight; preserve the original
+      // area's value on edit, default to 0 on create.
+      let sampleHeight = 0;
+      if (editing.mode === 'edit') {
+        const editingBuilding = state.buildings.find(b => b.id === editing.buildingId);
+        const originalArea = editingBuilding?.observationAreas?.find(a => a.id === editing.areaId);
+        sampleHeight = originalArea?.sampleHeight ?? 0;
+      }
+      const area = { id: areaId, name, floor: editing.floor, rects: editing.rects, sampleHeight };
       return {
         ...state,
         buildings: state.buildings.map(b => b.id !== editing.buildingId ? b : {

@@ -169,6 +169,11 @@ export function createAreaFloorTool({ store, buildingId }) {
 
     saveBtn.disabled = session.rects.length === 0;
 
+    // The erase tool is only meaningful in edit mode once rects exist; in
+    // create mode the draw tool is the only option.
+    const eraseBtn = toolButtons.get('erase');
+    if (eraseBtn) eraseBtn.hidden = !(session.mode === 'edit' && session.rects.length > 0);
+
     const nameField = createElement('label', { className: 'field' },
       createElement('span', { className: 'field__label', text: '区域名称' }), nameInput);
     const floorField = createElement('label', { className: 'field' },

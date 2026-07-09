@@ -80,6 +80,42 @@ describe('createAreaFloorTool', () => {
     expect(store.execute.mock.calls.at(-1)[0].label).toBe('取消观察区编辑');
   });
 
+  it('hides the erase tool in create mode and shows it only for non-empty edit sessions', () => {
+    // Create session: only draw is available.
+    const createStore = fakeStore({
+      view: { areaEditing: { mode: 'create', buildingId: 'b1', areaId: null, floor: 1, name: '', rects: [], tool: 'draw' } }
+    });
+    const createTool = createAreaFloorTool({ store: createStore, buildingId: 'b1' });
+    createTool.update(building());
+    expect(q(createTool.element, 'tool-erase').hidden).toBe(true);
+
+    // Edit session with no rects: erase still hidden (nothing to erase).
+    const editEmptyStore = fakeStore({
+      view: {
+        areaEditing: {
+          mode: 'edit', buildingId: 'b1', areaId: 'a1', floor: 1, name: '客厅',
+          rects: [], tool: 'draw'
+        }
+      }
+    });
+    const editEmptyTool = createAreaFloorTool({ store: editEmptyStore, buildingId: 'b1' });
+    editEmptyTool.update(building());
+    expect(q(editEmptyTool.element, 'tool-erase').hidden).toBe(true);
+
+    // Edit session with rects: erase becomes available.
+    const editStore = fakeStore({
+      view: {
+        areaEditing: {
+          mode: 'edit', buildingId: 'b1', areaId: 'a1', floor: 2, name: '客厅',
+          rects: [{ x0: 0, z0: 0, x1: 2, z1: 2 }], tool: 'draw'
+        }
+      }
+    });
+    const editTool = createAreaFloorTool({ store: editStore, buildingId: 'b1' });
+    editTool.update(building());
+    expect(q(editTool.element, 'tool-erase').hidden).toBe(false);
+  });
+
   it('back button cancels an active session before leaving', () => {
     const store = fakeStore({
       view: { areaEditing: { mode: 'create', buildingId: 'b1', areaId: null, floor: 1, name: '', rects: [], tool: 'draw' } }
