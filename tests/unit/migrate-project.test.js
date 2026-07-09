@@ -31,3 +31,15 @@ describe('migrateProject cells->rects', () => {
     expect(() => migrateProject({ schemaVersion: 2 })).toThrow();
   });
 });
+
+describe('migrateProject areaDraft and areaTool cleanup', () => {
+  it('drops a stale areaDraft and areaTool and ensures areaEditing is null', () => {
+    const migrated = migrateProject({
+      schemaVersion: 1, buildings: [],
+      view: { areaDraft: { buildingId: 'b1', areaId: 'a1', rects: [] }, areaTool: 'erase' }
+    });
+    expect(migrated.view.areaEditing).toBeNull();
+    expect(migrated.view.areaDraft).toBeUndefined();
+    expect(migrated.view.areaTool).toBeUndefined();
+  });
+});

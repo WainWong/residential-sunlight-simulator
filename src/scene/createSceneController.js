@@ -4,7 +4,8 @@ import { buildAnalysisOverlays } from './analysisOverlays.js';
 import { createBuildingMesh } from './buildingMesh.js';
 import { createCameraRig } from './createCameraRig.js';
 import { applyRectEdit, createAreaDrag } from './areaDrag.js';
-import { createFloorSlab, floorFocusTarget, floorVisibility } from './floorFocus.js';
+import { createFloorSlab, createWallOutline, floorFocusTarget } from './floorFocus.js';
+import { applyBuildingTransform } from './buildingSceneHelpers.js';
 import { createObservationOverlay } from './observationOverlay.js';
 import { createOpeningOverlay } from './openingOverlay.js';
 import { createRenderer } from './createRenderer.js';
@@ -13,7 +14,7 @@ import { pointerToNdc, resolvePickedEntity } from './picking.js';
 import { deriveScenePreview } from './scenePreview.js';
 import { applySunLighting } from './sunLighting.js';
 import { createSceneSynchronizer } from './syncScene.js';
-import { createUpdateObservationAreaCommand } from '../store/buildingCommands.js';
+import { createUpdateAreaEditingCommand } from '../store/buildingCommands.js';
 
 export function createSceneController(canvas, { onSelect = () => {}, store = null } = {}) {
   const quality = createQualitySettings('medium');
@@ -40,6 +41,7 @@ export function createSceneController(canvas, { onSelect = () => {}, store = nul
   const pointer = new THREE.Vector2();
 
   function selectAtPointer(event) {
+    if (floorFocus) return;
     const rect = canvas.getBoundingClientRect();
     const ndc = pointerToNdc(event, rect);
     pointer.set(ndc.x, ndc.y);
@@ -52,6 +54,89 @@ export function createSceneController(canvas, { onSelect = () => {}, store = nul
   canvas.addEventListener('click', selectAtPointer);
 
   let floorFocus = null;
+
+  function disposeFloorFocus() {
+    if (!floorFocus) return;
+    floorFocus.clearPreview();
+    sceneParts.scene.remove(floorFocus.slab);
+    sceneParts.scene.remove(floorFocus.outline);
+    floorFocus.drag.dispose();
+    floorFocus = null;
+  }
+
+  function buildFloorFocus(project) {
+    const editing = project.view.areaEditing;
+    if (!editing) return;
+    const buildingId = editing.buildingId;
+    const floor = editing.floor;
+    const building = project.buildings.find(b => b.id === buildingId);
+    if (!building) return;
+
+    for (const child of sceneParts.buildings.children) child.visible = false;
+
+    const { target, height } = floorFocusTarget(building, floor);
+    cameraParts.setTopView(target, height);
+    cameraParts.setTopdownMode(true);
+
+    const slab = createFloorSlab(building, floor);
+    const outline = createWallOutline(building, floor);
+    sceneParts.scene.add(slab);
+    sceneParts.scene.add(outline);
+
+    let previewGroup = null;
+    const clearPreview = () => {
+      if (previewGroup) {
+        previewGroup.traverse(c => c.geometry?.dispose());
+        sceneParts.overlays.remove(previewGroup);
+        previewGroup = null;
+      }
+    };
+
+    const getBuilding = () => store.getState().buildings.find(b => b.id === buildingId);
+    const getMode = () => floorFocus?.tool ?? 'draw';
+    const drag = createAreaDrag({
+      canvas, camera: cameraParts.camera, floorY: target.y, getBuilding, getMode,
+      onPreview: rect => {
+        clearPreview();
+        if (!rect) return;
+        previewGroup = createObservationOverlay({ rects: [rect], baseY: target.y, draft: true });
+        applyBuildingTransform(previewGroup, getBuilding());
+        sceneParts.overlays.add(previewGroup);
+      },
+      onCommit: (rect, mode) => {
+        clearPreview();
+        if (!store) return;
+        const editingState = store.getState().view.areaEditing;
+        if (!editingState) return;
+        const rects = applyRectEdit(editingState.rects ?? [], rect, mode);
+        store.execute(createUpdateAreaEditingCommand({ rects }));
+      }
+    });
+    floorFocus = { slab, outline, drag, tool: editing.tool ?? 'draw', clearPreview };
+  }
+
+  // Reconcile floor-focus lifecycle from the editing session. The controller owns
+  // its own diffing (like syncScene does for meshes) so main.js just calls this
+  // unconditionally on every project change.
+  function syncFloorFocus(project) {
+    const editing = project.view.areaEditing;
+    const sig = editing ? `${editing.buildingId}:${editing.floor}` : '';
+    if (!editing) {
+      if (floorFocus) {
+        disposeFloorFocus();
+        for (const child of sceneParts.buildings.children) child.visible = true;
+        cameraParts.setTopdownMode(false);
+      }
+      return;
+    }
+    if (!floorFocus || floorFocus.sig !== sig) {
+      if (floorFocus) disposeFloorFocus();
+      buildFloorFocus(project);
+      if (floorFocus) floorFocus.sig = sig;
+    } else {
+      floorFocus.tool = editing.tool ?? 'draw';
+    }
+  }
 
   const observer = new ResizeObserver(resize);
   observer.observe(viewport);
@@ -81,7 +166,8 @@ export function createSceneController(canvas, { onSelect = () => {}, store = nul
       const overlays = buildAnalysisOverlays(project, simulationState);
       if (!overlays) return;
       const areaGroup = createObservationOverlay({
-        rects: overlays.area.rects, baseY: overlays.area.baseY, lit: overlays.area.lit
+        rects: overlays.area.rects, baseY: overlays.area.baseY,
+        lit: overlays.area.lit, draft: overlays.area.draft
       });
       areaGroup.position.set(overlays.area.group.position.x, 0, overlays.area.group.position.z);
       areaGroup.rotation.y = THREE.MathUtils.degToRad(overlays.area.group.rotationDeg);
@@ -94,54 +180,8 @@ export function createSceneController(canvas, { onSelect = () => {}, store = nul
       quality.setPreviewing(value);
       resize();
     },
-    enterFloorFocus(project, simulationState) {
-      if (floorFocus) return;
-      const buildingId = project.view.selectedBuildingId;
-      const building = project.buildings.find(b => b.id === buildingId);
-      if (!building) return;
-      const areaId = simulationState.activeAreaId;
-      const area = (building.observationAreas ?? []).find(a => a.id === areaId);
-      const floor = area?.floor ?? 1;
-      const isVisible = floorVisibility(project.buildings, buildingId);
-      for (const child of sceneParts.buildings.children) {
-        child.visible = isVisible(child.userData?.entityId);
-      }
-      const { target, height } = floorFocusTarget(building, floor);
-      cameraParts.setTopView(target, height);
-      const initialTool = store.getState().view.areaTool ?? 'move';
-      cameraParts.controls.enabled = initialTool === 'move';
-      const slab = createFloorSlab(building, floor);
-      sceneParts.scene.add(slab);
-      const getBuilding = () => store.getState().buildings.find(b => b.id === buildingId);
-      const getMode = () => floorFocus?.tool ?? 'move';
-      const drag = createAreaDrag({
-        canvas,
-        camera: cameraParts.camera,
-        floorY: target.y,
-        getBuilding,
-        getMode,
-        onCommit: (rect, mode) => {
-          if (!store || !areaId) return;
-          const current = getBuilding();
-          const currentArea = (current.observationAreas ?? []).find(a => a.id === areaId);
-          const rects = applyRectEdit(currentArea?.rects ?? [], rect, mode);
-          store.execute(createUpdateObservationAreaCommand(buildingId, areaId, { rects }));
-        }
-      });
-      floorFocus = { slab, drag, tool: initialTool };
-    },
-    setFloorTool(tool) {
-      if (!floorFocus) return;
-      floorFocus.tool = tool;
-      cameraParts.controls.enabled = tool === 'move';
-    },
-    exitFloorFocus() {
-      if (!floorFocus) return;
-      sceneParts.scene.remove(floorFocus.slab);
-      floorFocus.drag.dispose();
-      for (const child of sceneParts.buildings.children) child.visible = true;
-      cameraParts.controls.enabled = true;
-      floorFocus = null;
+    syncFloorFocus(project) {
+      syncFloorFocus(project);
     },
     dispose() {
       canvas.removeEventListener('click', selectAtPointer);

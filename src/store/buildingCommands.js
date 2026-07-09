@@ -1,3 +1,4 @@
+import { createAreaEditingSession } from '../domain/buildings/areaEditing.js';
 import { normalizeRotation } from '../domain/buildings/editorCoordinates.js';
 
 export const BUILDING_DEFAULTS = Object.freeze({
@@ -21,7 +22,6 @@ function withoutTemplateParams(params) {
 }
 
 const EDITOR_MODES = new Set(['none', 'building', 'areas']);
-const AREA_TOOLS = new Set(['move', 'draw', 'erase']);
 
 function nextBuildingName(buildings) {
   return `住宅 ${buildings.length + 1}`;
@@ -257,6 +257,26 @@ export function createUpdateObservationAreaCommand(buildingId, areaId, patch) {
   };
 }
 
+export function createRemoveObservationAreaCommand(buildingId, areaId) {
+  return {
+    label: '删除观察区',
+    apply(state) {
+      return {
+        ...state,
+        buildings: state.buildings.map(b => b.id !== buildingId ? b : {
+          ...b,
+          revision: (b.revision ?? 0) + 1,
+          observationAreas: b.observationAreas.filter(a => a.id !== areaId)
+        }),
+        simulation: {
+          ...state.simulation,
+          activeAreaId: state.simulation?.activeAreaId === areaId ? null : state.simulation?.activeAreaId
+        }
+      };
+    }
+  };
+}
+
 export function createSetActiveAreaCommand(activeAreaId) {
   return {
     label: '切换观察区',
@@ -269,14 +289,84 @@ export function createSetActiveAreaCommand(activeAreaId) {
   };
 }
 
-export function createSetAreaToolCommand(tool) {
+export function createStartAreaCreateCommand(buildingId) {
   return {
-    label: '切换观察区工具',
+    label: '开始新建观察区',
     apply(state) {
-      if (!AREA_TOOLS.has(tool)) return state;
       return {
         ...state,
-        view: { ...state.view, areaTool: tool }
+        view: {
+          ...state.view,
+          editorMode: 'areas',
+          areaEditing: createAreaEditingSession({ mode: 'create', buildingId })
+        }
+      };
+    }
+  };
+}
+
+export function createStartAreaEditCommand(buildingId, areaId) {
+  return {
+    label: '开始编辑观察区',
+    apply(state) {
+      const building = findBuilding(state, buildingId);
+      const area = (building?.observationAreas ?? []).find(a => a.id === areaId);
+      if (!building || !area) return state;
+      return {
+        ...state,
+        view: {
+          ...state.view,
+          editorMode: 'areas',
+          areaEditing: createAreaEditingSession({ mode: 'edit', buildingId, area })
+        }
+      };
+    }
+  };
+}
+
+export function createUpdateAreaEditingCommand(patch) {
+  return {
+    label: '修改观察区编辑会话',
+    apply(state) {
+      if (!state.view.areaEditing) return state;
+      return { ...state, view: { ...state.view, areaEditing: { ...state.view.areaEditing, ...patch } } };
+    }
+  };
+}
+
+export function createCancelAreaEditingCommand() {
+  return {
+    label: '取消观察区编辑',
+    apply(state) {
+      if (!state.view.areaEditing) return state;
+      return { ...state, view: { ...state.view, areaEditing: null } };
+    }
+  };
+}
+
+export function createSaveAreaEditingCommand() {
+  return {
+    label: '保存观察区',
+    apply(state) {
+      const editing = state.view.areaEditing;
+      if (!editing || editing.rects.length === 0) return state;
+      const building = findBuilding(state, editing.buildingId);
+      const areaId = editing.mode === 'edit'
+        ? editing.areaId
+        : (globalThis.crypto?.randomUUID?.() ?? `area-${Date.now()}`);
+      const name = editing.name.trim() || `观察区 ${((building?.observationAreas?.length ?? 0) + 1)}`;
+      const area = { id: areaId, name, floor: editing.floor, rects: editing.rects, sampleHeight: editing.sampleHeight ?? 0 };
+      return {
+        ...state,
+        buildings: state.buildings.map(b => b.id !== editing.buildingId ? b : {
+          ...b,
+          revision: (b.revision ?? 0) + 1,
+          observationAreas: editing.mode === 'edit'
+            ? b.observationAreas.map(a => a.id !== editing.areaId ? a : { ...a, ...area })
+            : [...b.observationAreas, area]
+        }),
+        simulation: { ...state.simulation, activeAreaId: areaId },
+        view: { ...state.view, areaEditing: null }
       };
     }
   };

@@ -14,5 +14,9 @@ export function migrateProject(rawProject) {
       if (!Array.isArray(area.rects)) area.rects = [];
     }
   }
+  const view = project.view ?? (project.view = {});
+  view.areaEditing = null;
+  delete view.areaDraft;
+  delete view.areaTool;
   return project;
 }

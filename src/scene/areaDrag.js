@@ -36,7 +36,7 @@ export function applyRectEdit(rects, rect, mode) {
   return [...rects, rect];
 }
 
-export function createAreaDrag({ canvas, camera, floorY, getBuilding, getMode, onCommit }) {
+export function createAreaDrag({ canvas, camera, floorY, getBuilding, getMode, onPreview = () => {}, onCommit }) {
   const raycaster = new THREE.Raycaster();
   const plane = new THREE.Plane(new THREE.Vector3(0, 1, 0), -floorY);
   const ndc = new THREE.Vector2();
@@ -51,14 +51,30 @@ export function createAreaDrag({ canvas, camera, floorY, getBuilding, getMode, o
     if (!raycaster.ray.intersectPlane(plane, hit)) return null;
     return worldToLocalFloor([hit.x, hit.z], getBuilding());
   }
-  function onDown(e) { if (getMode() === 'move') return; start = localAt(e); }
+  function onDown(e) {
+    if (e.button !== 0) return;
+    start = localAt(e);
+  }
+  function onMove(e) {
+    if (!start) return;
+    const cur = localAt(e);
+    onPreview(cur ? normalizeRect(start, cur) : null);
+  }
   function onUp(e) {
-    if (!start || getMode() === 'move') { start = null; return; }
+    if (!start || e.button !== 0) { return; }
     const end = localAt(e);
     if (end) onCommit(normalizeRect(start, end), getMode());
     start = null;
+    onPreview(null);
   }
   canvas.addEventListener('pointerdown', onDown);
+  canvas.addEventListener('pointermove', onMove);
   canvas.addEventListener('pointerup', onUp);
-  return { dispose() { canvas.removeEventListener('pointerdown', onDown); canvas.removeEventListener('pointerup', onUp); } };
+  return {
+    dispose() {
+      canvas.removeEventListener('pointerdown', onDown);
+      canvas.removeEventListener('pointermove', onMove);
+      canvas.removeEventListener('pointerup', onUp);
+    }
+  };
 }

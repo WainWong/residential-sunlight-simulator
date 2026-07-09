@@ -46,7 +46,7 @@ describe('BuildingInspector routing', () => {
     store.execute(createFinishBuildingCommand('b1'));
     store.execute(createSetEditorModeCommand('areas'));
     expect(q(el, 'building-overview')).toBeNull();
-    expect(hasText(el, '观察区编辑')).toBe(true);
+    expect(hasText(el, '观察区')).toBe(true);
     expect(q(el, 'inspector-back')).not.toBeNull();
     q(el, 'inspector-back').click();
     expect(q(el, 'building-overview')).not.toBeNull();
@@ -59,5 +59,14 @@ describe('BuildingInspector routing', () => {
     store.execute(createFinishBuildingCommand('b1'));
     store.execute(createSetEditorModeCommand('areas'));
     expect(hasText(el, '建筑长度（米）')).toBe(false);
+  });
+
+  it('overview groups all three actions in one actions container', () => {
+    const { store, el } = mount();
+    store.execute(createAddBuildingCommand({ id: 'b1' }));
+    store.execute(createFinishBuildingCommand('b1'));
+    const actions = el.querySelector('.inspector-actions');
+    expect(actions.querySelector('[data-testid="overview-edit-building"]')).not.toBeNull();
+    expect(actions.querySelector('[data-testid="overview-delete"]')).not.toBeNull();
   });
 });

@@ -27,5 +27,18 @@ export function createCameraRig(canvas, aspect = 1) {
     controls.update();
   }
 
-  return { camera, controls, resize, setTopView, dispose: () => controls.dispose() };
+  function setTopdownMode(enabled) {
+    controls.enabled = true;
+    controls.enableRotate = !enabled;
+    controls.enableZoom = true;
+    if (enabled) {
+      controls.mouseButtons = { LEFT: -1, MIDDLE: THREE.MOUSE.DOLLY, RIGHT: THREE.MOUSE.PAN };
+      controls.touches = { ONE: -1, TWO: THREE.TOUCH.DOLLY_PAN };
+    } else {
+      controls.mouseButtons = { LEFT: THREE.MOUSE.ROTATE, MIDDLE: THREE.MOUSE.DOLLY, RIGHT: THREE.MOUSE.PAN };
+      controls.touches = { ONE: THREE.TOUCH.ROTATE, TWO: THREE.TOUCH.DOLLY_PAN };
+    }
+  }
+
+  return { camera, controls, resize, setTopView, setTopdownMode, dispose: () => controls.dispose() };
 }

@@ -76,7 +76,6 @@ export function mountApp(root) {
   const withController = fn => (sceneController ? fn(sceneController) : sceneReady.then(fn));
 
   let prevEditing = store.getState().view.editorMode === 'building';
-  let prevAreasMode = store.getState().view.editorMode === 'areas';
   store.subscribe(project => {
     const currentEditing = project.view.editorMode === 'building';
     if (!currentEditing && prevEditing) {
@@ -94,19 +93,8 @@ export function mountApp(root) {
     withController(controller => {
       controller?.updateProject(project);
       controller?.updateAnalysis(project, sim);
+      controller?.syncFloorFocus(project);
     });
-
-    const currentAreasMode = project.view.editorMode === 'areas';
-    if (currentAreasMode !== prevAreasMode) {
-      withController(controller => {
-        if (!controller) return;
-        if (currentAreasMode) controller.enterFloorFocus(project, simulationController.getState());
-        else controller.exitFloorFocus();
-      });
-    } else if (currentAreasMode) {
-      withController(controller => controller?.setFloorTool(project.view.areaTool));
-    }
-    prevAreasMode = currentAreasMode;
   });
 
   simulationController.subscribe(state => {

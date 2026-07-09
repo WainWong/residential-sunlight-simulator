@@ -1,6 +1,7 @@
 import * as THREE from 'three';
 import { createFootprint } from '../domain/buildings/createFootprint.js';
 import { floorBaseY, totalBuildingHeight } from '../domain/buildings/floorMath.js';
+import { applyBuildingTransform, getOuterRing } from './buildingSceneHelpers.js';
 
 const buildingMaterial = new THREE.MeshStandardMaterial({
   color: 0xa9b2b2,
@@ -39,7 +40,7 @@ function ringToShape(shape, ring) {
 }
 
 function footprintShape(footprint) {
-  const outer = Array.isArray(footprint) ? footprint : footprint.outer;
+  const outer = getOuterRing(footprint);
   const shape = new THREE.Shape();
   ringToShape(shape, outer);
   for (const hole of Array.isArray(footprint) ? [] : footprint.holes) {
@@ -51,7 +52,7 @@ function footprintShape(footprint) {
 }
 
 function floorLines(footprint, building) {
-  const outer = Array.isArray(footprint) ? footprint : footprint.outer;
+  const outer = getOuterRing(footprint);
   const vertices = [];
   for (let floor = 2; floor <= building.params.floors; floor += 1) {
     const y = floorBaseY({ floor, ...building.params }) + 0.004;
@@ -93,8 +94,7 @@ export function createBuildingMesh(building, { preview = false, highlighted = fa
   group.userData.preview = preview;
   group.userData.highlighted = !preview && highlighted;
   group.userData.totalHeight = height;
-  group.position.set(building.position.x, 0, building.position.z);
-  group.rotation.y = THREE.MathUtils.degToRad(building.rotation);
+  applyBuildingTransform(group, building);
   group.add(solid);
 
   const lines = floorLines(footprint, building);
