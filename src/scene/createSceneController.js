@@ -97,7 +97,7 @@ export function createSceneController(canvas, { onSelect = () => {}, store = nul
       quality.setPreviewing(value);
       resize();
     },
-    enterFloorFocus(project, simulationState) {
+    enterFloorFocus(project) {
       if (floorFocus) return;
       const editing = project.view.areaEditing;
       if (!editing) return;
@@ -105,7 +105,6 @@ export function createSceneController(canvas, { onSelect = () => {}, store = nul
       const floor = editing.floor;
       const building = project.buildings.find(b => b.id === buildingId);
       if (!building) return;
-      const areaId = editing.areaId;
 
       for (const child of sceneParts.buildings.children) child.visible = false;
 

@@ -22,7 +22,6 @@ function withoutTemplateParams(params) {
 }
 
 const EDITOR_MODES = new Set(['none', 'building', 'areas']);
-const AREA_TOOLS = new Set(['draw', 'erase']);
 
 function nextBuildingName(buildings) {
   return `住宅 ${buildings.length + 1}`;
@@ -368,58 +367,6 @@ export function createSaveAreaEditingCommand() {
         simulation: { ...state.simulation, activeAreaId: areaId },
         view: { ...state.view, areaEditing: null }
       };
-    }
-  };
-}
-
-export function createSetAreaToolCommand(tool) {
-  return {
-    label: '切换观察区工具',
-    apply(state) {
-      if (!AREA_TOOLS.has(tool)) return state;
-      return {
-        ...state,
-        view: { ...state.view, areaTool: tool }
-      };
-    }
-  };
-}
-
-export function createUpdateAreaDraftCommand(buildingId, areaId, rects) {
-  return {
-    label: '编辑观察区草稿',
-    apply(state) {
-      return { ...state, view: { ...state.view, areaDraft: { buildingId, areaId, rects } } };
-    }
-  };
-}
-
-export function createApplyAreaDraftCommand() {
-  return {
-    label: '应用观察区草稿',
-    apply(state) {
-      const draft = state.view.areaDraft;
-      if (!draft) return state;
-      return {
-        ...state,
-        buildings: state.buildings.map(b => b.id !== draft.buildingId ? b : {
-          ...b,
-          revision: (b.revision ?? 0) + 1,
-          observationAreas: b.observationAreas.map(a =>
-            a.id !== draft.areaId ? a : { ...a, rects: draft.rects })
-        }),
-        view: { ...state.view, areaDraft: null }
-      };
-    }
-  };
-}
-
-export function createClearAreaDraftCommand() {
-  return {
-    label: '放弃观察区草稿',
-    apply(state) {
-      if (!state.view.areaDraft) return state;
-      return { ...state, view: { ...state.view, areaDraft: null } };
     }
   };
 }

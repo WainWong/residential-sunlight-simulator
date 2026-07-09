@@ -8,7 +8,6 @@ import { createSimulationController } from './features/results/createSimulationC
 import { createAppShell } from './features/shell/AppShell.js';
 import {
   createAddBuildingCommand,
-  createClearAreaDraftCommand,
   createClearBuildingsCommand,
   createSelectBuildingCommand
 } from './store/buildingCommands.js';
@@ -77,7 +76,6 @@ export function mountApp(root) {
   const withController = fn => (sceneController ? fn(sceneController) : sceneReady.then(fn));
 
   let prevEditing = store.getState().view.editorMode === 'building';
-  let prevAreasMode = store.getState().view.editorMode === 'areas';
   let prevAreaEditing = Boolean(store.getState().view.areaEditing);
   store.subscribe(project => {
     const currentEditing = project.view.editorMode === 'building';
@@ -98,12 +96,6 @@ export function mountApp(root) {
       controller?.updateAnalysis(project, sim);
     });
 
-    const currentAreasMode = project.view.editorMode === 'areas';
-    if (currentAreasMode !== prevAreasMode) {
-      if (!currentAreasMode && store.getState().view.areaDraft) {
-        store.execute(createClearAreaDraftCommand());
-      }
-    }
     const currentAreaEditing = Boolean(project.view.areaEditing);
     if (currentAreaEditing !== prevAreaEditing) {
       withController(controller => {
@@ -115,7 +107,6 @@ export function mountApp(root) {
       withController(controller => controller?.setFloorTool(project.view.areaEditing.tool));
     }
     prevAreaEditing = currentAreaEditing;
-    prevAreasMode = currentAreasMode;
   });
 
   simulationController.subscribe(state => {

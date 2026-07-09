@@ -20,16 +20,6 @@ describe('buildAnalysisOverlays', () => {
     expect(out.openings.length).toBeGreaterThan(0);
   });
 
-  it('renders draft rects with a draft flag when a matching draft exists', () => {
-    const withDraft = {
-      ...project,
-      view: { areaDraft: { buildingId: 'b1', areaId: 'a', rects: [{ x0: 0, z0: 0, x1: 1, z1: 1 }] } }
-    };
-    const out = buildAnalysisOverlays(withDraft, { activeAreaId: 'a', litSampleIds: [], noArea: false });
-    expect(out.area.draft).toBe(true);
-    expect(out.area.rects).toEqual([{ x0: 0, z0: 0, x1: 1, z1: 1 }]);
-  });
-
   it('returns null when noArea', () => {
     expect(buildAnalysisOverlays(project, { activeAreaId: null, litSampleIds: [], noArea: true })).toBeNull();
   });

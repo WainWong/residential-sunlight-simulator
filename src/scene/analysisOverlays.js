@@ -1,6 +1,5 @@
 import { floorBaseY } from '../domain/buildings/floorMath.js';
 import { deriveAperturesFromArea } from '../domain/simulation/deriveApertures.js';
-import { isDraftFor, resolveDraftRects } from '../domain/buildings/areaDraft.js';
 
 export function buildAnalysisOverlays(project, simulationState) {
   const editing = project.view?.areaEditing;
@@ -27,17 +26,14 @@ export function buildAnalysisOverlays(project, simulationState) {
   }
   if (!found) return null;
   const { building, area } = found;
-  const draft = project.view?.areaDraft;
-  const usingDraft = isDraftFor(draft, building.id, area.id);
-  const rects = resolveDraftRects(draft, building.id, area.id, area.rects);
   const baseY = floorBaseY({ floor: area.floor, ...building.params }) + (area.sampleHeight ?? 0);
   const { portals } = deriveAperturesFromArea(building, area);
   return {
     area: {
-      rects,
+      rects: area.rects ?? [],
       baseY,
-      lit: !usingDraft && (simulationState.litSampleIds ?? []).length > 0,
-      draft: usingDraft,
+      lit: (simulationState.litSampleIds ?? []).length > 0,
+      draft: false,
       group: { position: { x: building.position.x, z: building.position.z }, rotationDeg: building.rotation }
     },
     openings: portals.map(p => ({

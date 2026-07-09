@@ -13,12 +13,12 @@ function building() {
 
 function fakeStore(state = {}) {
   const defaults = {
-    view: { areaTool: 'draw', areaEditing: null, areaDraft: null },
+    view: { areaEditing: null },
     simulation: { activeAreaId: null },
     ...state
   };
   // Allow test overrides to fully replace `view`/`simulation` if provided.
-  if (state.view) defaults.view = { areaTool: 'draw', areaEditing: null, areaDraft: null, ...state.view };
+  if (state.view) defaults.view = { areaEditing: null, ...state.view };
   if (state.simulation) defaults.simulation = { activeAreaId: null, ...state.simulation };
   return { execute: vi.fn(), getState: () => defaults };
 }

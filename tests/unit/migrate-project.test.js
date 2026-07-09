@@ -32,31 +32,14 @@ describe('migrateProject cells->rects', () => {
   });
 });
 
-describe('migrateProject areaTool and areaDraft', () => {
-  it('normalizes a legacy move tool to draw and ensures areaDraft', () => {
+describe('migrateProject areaDraft and areaTool cleanup', () => {
+  it('drops a stale areaDraft and areaTool and ensures areaEditing is null', () => {
     const migrated = migrateProject({
       schemaVersion: 1, buildings: [],
-      view: { areaTool: 'move' }
-    });
-    expect(migrated.view.areaTool).toBe('draw');
-    expect(migrated.view.areaDraft).toBeUndefined();
-  });
-
-  it('keeps a valid area tool and existing areaDraft untouched', () => {
-    const migrated = migrateProject({
-      schemaVersion: 1, buildings: [],
-      view: { areaTool: 'erase', areaDraft: null }
-    });
-    expect(migrated.view.areaTool).toBe('erase');
-  });
-
-  it('drops stale area draft and ensures areaEditing is null', () => {
-    const migrated = migrateProject({
-      schemaVersion: 1,
-      buildings: [],
       view: { areaDraft: { buildingId: 'b1', areaId: 'a1', rects: [] }, areaTool: 'erase' }
     });
     expect(migrated.view.areaEditing).toBeNull();
     expect(migrated.view.areaDraft).toBeUndefined();
+    expect(migrated.view.areaTool).toBeUndefined();
   });
 });

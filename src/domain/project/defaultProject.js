@@ -25,7 +25,6 @@ export function createDefaultProject() {
       selectedBuildingId: null,
       editorMode: 'none',
       addingBuildingId: null,
-      areaTool: 'draw',
       areaEditing: null
     }
   };
