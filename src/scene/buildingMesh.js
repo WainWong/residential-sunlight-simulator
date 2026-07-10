@@ -4,8 +4,11 @@ import { floorBaseY, totalBuildingHeight } from '../domain/buildings/floorMath.j
 import { applyBuildingTransform, getOuterRing } from './buildingSceneHelpers.js';
 import { buildSegmentMeshes } from './buildSegmentMeshes.js';
 
+// 白底 × 顶点色:顶点色携带最终色调(墙灰、地板/顶面米色,见 buildSegmentMeshes),
+// 所以外墙灰度和以前一致,水平面转米色,室内地板/墙一眼可分。
 const buildingMaterial = new THREE.MeshStandardMaterial({
-  color: 0xa9b2b2,
+  color: 0xffffff,
+  vertexColors: true,
   roughness: 0.82,
   metalness: 0.02
 });
@@ -20,7 +23,8 @@ const blueprintMaterial = new THREE.MeshStandardMaterial({
   depthWrite: false
 });
 const highlightMaterial = new THREE.MeshStandardMaterial({
-  color: 0xa9b2b2,
+  color: 0xffffff,
+  vertexColors: true,
   roughness: 0.82,
   metalness: 0.02,
   emissive: 0x2f6d86,

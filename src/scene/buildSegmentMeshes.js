@@ -15,6 +15,34 @@ const openingFrameMaterial = new THREE.LineBasicMaterial({
   color: 0xf1b746, transparent: true, opacity: 0.95
 });
 
+// 硬边描线:给转角、墙厚、洞口一圈深色轮廓,让相邻同色面之间的棱线读得出
+// (统一几何是整块实体,少了老几何薄墙的受光差,棱线会糊)。三种视角通用。
+const edgeMaterial = new THREE.LineBasicMaterial({
+  color: 0x475154, transparent: true, opacity: 0.55
+});
+
+// 顶点色按面朝向:水平面(地板/天花板/屋顶)米色,竖直面(墙)保持建筑灰。
+// 基础材质用白底 × 顶点色,所以外墙灰度和重构前一致,只是水平面转成米色 ——
+// 室内因此能一眼分出地板与墙,内外剖面也不再糊成一坨。
+const HORIZONTAL_COLOR = new THREE.Color(0xd8d0bf);
+const VERTICAL_COLOR = new THREE.Color(0xa9b2b2);
+
+function paintByOrientation(geometry) {
+  const normal = geometry.getAttribute('normal');
+  const colors = new Float32Array(normal.count * 3);
+  for (let i = 0; i < normal.count; i += 1) {
+    const c = Math.abs(normal.getY(i)) > 0.7 ? HORIZONTAL_COLOR : VERTICAL_COLOR;
+    colors[i * 3] = c.r; colors[i * 3 + 1] = c.g; colors[i * 3 + 2] = c.b;
+  }
+  geometry.setAttribute('color', new THREE.BufferAttribute(colors, 3));
+}
+
+function edgesFor(geometry) {
+  const lines = new THREE.LineSegments(new THREE.EdgesGeometry(geometry, 25), edgeMaterial);
+  lines.userData.kind = 'segment-edges';
+  return lines;
+}
+
 function ringToShape(target, ring, toXY) {
   ring.forEach((p, i) => {
     const [x, y] = toXY(p);
@@ -56,7 +84,11 @@ function extrudeY(shape, fromY, toY) {
 
 function segmentGeometry(spec, footprint, totalH) {
   const shell = extrudeY(footprintShape(footprint), spec.fromY, spec.toY);
-  if (spec.cutters.length === 0) return shell;
+  if (spec.cutters.length === 0) {
+    shell.computeVertexNormals();
+    paintByOrientation(shell);
+    return shell;
+  }
   const evaluator = new Evaluator();
   let brush = new Brush(shell);
   brush.updateMatrixWorld();
@@ -79,6 +111,7 @@ function segmentGeometry(spec, footprint, totalH) {
   }
   const geometry = brush.geometry;
   geometry.computeVertexNormals();
+  paintByOrientation(geometry);
   return geometry;
 }
 
@@ -105,11 +138,14 @@ export function buildSegmentMeshes(building, material) {
   const meshes = [];
   const frames = [];
   for (const spec of specs) {
-    const mesh = new THREE.Mesh(segmentGeometry(spec, footprint, totalH), material);
+    const geometry = segmentGeometry(spec, footprint, totalH);
+    const mesh = new THREE.Mesh(geometry, material);
     mesh.userData = {
       kind: 'building-segment', entityId: building.id,
       fromY: spec.fromY, toY: spec.toY, hasCutters: spec.cutters.length > 0
     };
+    // 描边作为子对象:随段的变换与可见性走,拾取仍解析到父级 entityId。
+    mesh.add(edgesFor(geometry));
     meshes.push(mesh);
     for (const cutter of spec.cutters) {
       for (const edge of cutter.openingEdges ?? []) {
