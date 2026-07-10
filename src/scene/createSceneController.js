@@ -5,6 +5,9 @@ import { createBuildingMesh } from './buildingMesh.js';
 import { createCameraRig } from './createCameraRig.js';
 import { applyRectEdit, createAreaDrag } from './areaDrag.js';
 import { createFloorSlab, createWallOutline, floorFocusTarget } from './floorFocus.js';
+import { createInteriorFloor } from './interiorFloor.js';
+import { createLightMaps } from './interiorLightMaps.js';
+import { createFadeState } from './occlusionFade.js';
 import { applyBuildingTransform } from './buildingSceneHelpers.js';
 import { createObservationOverlay } from './observationOverlay.js';
 import { clipRectToFootprint } from '../domain/buildings/footprintClip.js';
@@ -55,6 +58,53 @@ export function createSceneController(canvas, { onSelect = () => {}, store = nul
   canvas.addEventListener('click', selectAtPointer);
 
   let floorFocus = null;
+
+  let interior = null;
+  const _camToCenter = new THREE.Vector3();
+  const _hit = new THREE.Raycaster();
+
+  function enterInterior({ building, floor, area, surfaces, center, radius }) {
+    if (interior) exitInterior();
+    for (const child of sceneParts.buildings.children) child.visible = false;
+    const group = createInteriorFloor(building, floor, area);
+    sceneParts.scene.add(group);
+    const lightMaps = createLightMaps(group, surfaces);
+    const fades = new Map();
+    group.traverse(m => { if (m.material) fades.set(m, createFadeState()); });
+    cameraParts.flyToArea({ center, radius });
+    interior = { group, lightMaps, fades, center: new THREE.Vector3(center.x, center.y, center.z) };
+  }
+
+  function updateInteriorLight(masks) {
+    interior?.lightMaps.apply(masks);
+  }
+
+  function exitInterior() {
+    if (!interior) return;
+    interior.lightMaps.dispose();
+    interior.group.traverse(c => c.geometry?.dispose());
+    sceneParts.scene.remove(interior.group);
+    for (const child of sceneParts.buildings.children) child.visible = true;
+    cameraParts.setEditControls(null);
+    interior = null;
+  }
+
+  // Fade any face that sits between the camera and the interior focus point so
+  // the user can always see inside. Runs every frame while interior is active.
+  function updateOcclusion() {
+    if (!interior) return;
+    const camPos = cameraParts.camera.position;
+    _camToCenter.copy(interior.center).sub(camPos);
+    const centerDist = _camToCenter.length();
+    _hit.set(camPos, _camToCenter.clone().normalize());
+    const meshes = [];
+    interior.group.traverse(m => { if (m.material && interior.fades.has(m)) meshes.push(m); });
+    const hits = _hit.intersectObjects(meshes, false);
+    const occluders = new Set(hits.filter(h => h.distance < centerDist - 0.5).map(h => h.object));
+    for (const [mesh, fade] of interior.fades) {
+      mesh.material.opacity = fade.update(mesh.material.opacity, occluders.has(mesh));
+    }
+  }
 
   function disposeFloorFocus() {
     if (!floorFocus) return;
@@ -230,6 +280,7 @@ export function createSceneController(canvas, { onSelect = () => {}, store = nul
 
   rendererParts.renderer.setAnimationLoop(() => {
     cameraParts.controls.update();
+    updateOcclusion();
     rendererParts.renderer.render(sceneParts.scene, cameraParts.camera);
     updateCompass();
   });
@@ -271,7 +322,11 @@ export function createSceneController(canvas, { onSelect = () => {}, store = nul
     syncFloorFocus(project) {
       syncFloorFocus(project);
     },
+    enterInterior(payload) { enterInterior(payload); },
+    updateInteriorLight(masks) { updateInteriorLight(masks); },
+    exitInterior() { exitInterior(); },
     dispose() {
+      exitInterior();
       canvas.removeEventListener('click', selectAtPointer);
       observer.disconnect();
       rendererParts.renderer.setAnimationLoop(null);
