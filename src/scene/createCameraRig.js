@@ -39,5 +39,30 @@ export function createCameraRig(canvas, aspect = 1) {
     }
   }
 
-  return { camera, controls, resize, setEditControls, dispose: () => controls.dispose() };
+  // Animate the camera to an oblique overhead framing of an area, then hand
+  // control back to OrbitControls so the user inspects it with the same
+  // orbit/zoom as the editor. `radius` is the area's half-extent.
+  function flyToArea({ center, radius }, { pitch = Math.PI / 4, durationMs = 600 } = {}) {
+    const fov = THREE.MathUtils.degToRad(camera.fov);
+    const dist = Math.max(12, (radius / Math.sin(fov / 2)) * 1.4);
+    const target = new THREE.Vector3(center.x, center.y, center.z);
+    const horiz = Math.cos(pitch) * dist;
+    const dest = new THREE.Vector3(center.x, center.y + Math.sin(pitch) * dist, center.z + horiz);
+    const fromPos = camera.position.clone();
+    const fromTgt = controls.target.clone();
+    const start = performance.now();
+    controls.enabled = false;
+    function tick(now) {
+      const t = Math.min(1, (now - start) / durationMs);
+      const e = t * t * (3 - 2 * t); // smoothstep
+      camera.position.lerpVectors(fromPos, dest, e);
+      controls.target.lerpVectors(fromTgt, target, e);
+      controls.update();
+      if (t < 1) requestAnimationFrame(tick);
+      else { controls.enabled = true; setEditControls(null); }
+    }
+    requestAnimationFrame(tick);
+  }
+
+  return { camera, controls, resize, setEditControls, flyToArea, dispose: () => controls.dispose() };
 }
