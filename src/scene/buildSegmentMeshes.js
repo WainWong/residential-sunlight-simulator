@@ -3,11 +3,13 @@
 // (洞边外扩);这里再让刀的 y 区间超出段端面,保证上下端面也无共面布尔。
 import * as THREE from 'three';
 import { Brush, Evaluator, SUBTRACTION } from 'three-bvh-csg';
-import { buildSegmentSpecs } from '../domain/buildings/segmentBuilding.js';
+import { buildSegmentSpecs, SLAB_THICKNESS } from '../domain/buildings/segmentBuilding.js';
 import { createFootprint } from '../domain/buildings/createFootprint.js';
+import { totalBuildingHeight } from '../domain/buildings/floorMath.js';
 import { getOuterRing } from './buildingSceneHelpers.js';
 
 const CUT_Y_OVERSHOOT = 0.5;
+const EPS = 1e-4;
 
 const openingFrameMaterial = new THREE.LineBasicMaterial({
   color: 0xf1b746, transparent: true, opacity: 0.95
@@ -52,17 +54,21 @@ function extrudeY(shape, fromY, toY) {
   return geometry;
 }
 
-function segmentGeometry(spec, footprint) {
+function segmentGeometry(spec, footprint, totalH) {
   const shell = extrudeY(footprintShape(footprint), spec.fromY, spec.toY);
   if (spec.cutters.length === 0) return shell;
   const evaluator = new Evaluator();
   let brush = new Brush(shell);
   brush.updateMatrixWorld();
+  // 顶层观察层没有上方段兜底,刀若外扩穿顶就把屋顶挖穿了 → 留一层屋顶板
+  // (刀顶停在段顶下方 SLAB_THICKNESS 处;此处是刀与实体的真切割面,不共面)。
+  const atRoof = Math.abs(spec.toY - totalH) < EPS;
+  const knifeTop = atRoof ? spec.toY - SLAB_THICKNESS : spec.toY + CUT_Y_OVERSHOOT;
   for (const cutter of spec.cutters) {
-    // 刀 y 区间上下各超出段端面 CUT_Y_OVERSHOOT:段外没有材料,
-    // 多切的是空气,但消除了刀端面与段端面的共面分类。
+    // 刀 y 区间下端超出段底 CUT_Y_OVERSHOOT:段外没有材料,多切的是空气,
+    // 但消除了刀底面与段底面的共面分类。顶端见上。
     const knife = new Brush(extrudeY(
-      cutterShape(cutter), spec.fromY - CUT_Y_OVERSHOOT, spec.toY + CUT_Y_OVERSHOOT
+      cutterShape(cutter), spec.fromY - CUT_Y_OVERSHOOT, knifeTop
     ));
     knife.updateMatrixWorld();
     const next = evaluator.evaluate(brush, knife, SUBTRACTION);
@@ -95,10 +101,11 @@ function frameForEdge(edge, fromY, toY) {
 export function buildSegmentMeshes(building, material) {
   const specs = buildSegmentSpecs(building);
   const footprint = createFootprint(building.template, building.params);
+  const totalH = totalBuildingHeight(building.params);
   const meshes = [];
   const frames = [];
   for (const spec of specs) {
-    const mesh = new THREE.Mesh(segmentGeometry(spec, footprint), material);
+    const mesh = new THREE.Mesh(segmentGeometry(spec, footprint, totalH), material);
     mesh.userData = {
       kind: 'building-segment', entityId: building.id,
       fromY: spec.fromY, toY: spec.toY, hasCutters: spec.cutters.length > 0

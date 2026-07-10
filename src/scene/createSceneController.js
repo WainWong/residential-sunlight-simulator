@@ -5,7 +5,8 @@ import { createBuildingMesh } from './buildingMesh.js';
 import { createCameraRig } from './createCameraRig.js';
 import { applyRectEdit, createAreaDrag } from './areaDrag.js';
 import { createFloorSlab, floorFocusTarget } from './floorFocus.js';
-import { totalBuildingHeight } from '../domain/buildings/floorMath.js';
+import { floorBaseY, totalBuildingHeight } from '../domain/buildings/floorMath.js';
+import { SLAB_THICKNESS } from '../domain/buildings/segmentBuilding.js';
 import { createFadeState } from './occlusionFade.js';
 import { applyBuildingTransform } from './buildingSceneHelpers.js';
 import { createObservationOverlay } from './observationOverlay.js';
@@ -93,12 +94,17 @@ export function createSceneController(canvas, { onSelect = () => {}, store = nul
   // 统一几何:房间就是建筑本体(CSG 挖好洞/掏好空腔的分段网格),进入
   // 室内只需飞入相机并对宿主建筑的段做遮挡淡出——不再隐藏建筑、不再
   // 另建房间网格或投影替身。
-  function hostSegmentMeshes(buildingId) {
+  // Only the observation floor's segment and everything above it can fade — the
+  // floors BELOW the room must stay fully opaque, otherwise looking into the
+  // room reveals the storeys underneath through a glassy shell. bandFromY marks
+  // the underside of the room; segments ending at or below it are kept solid.
+  function fadeableSegments(buildingId, bandFromY) {
     const meshes = [];
     for (const child of sceneParts.buildings.children) {
       if (child.userData?.entityId !== buildingId) continue;
       child.traverse(m => {
-        if (m.userData?.kind === 'building-segment') meshes.push(m);
+        if (m.userData?.kind === 'building-segment'
+          && m.userData.toY > bandFromY + 0.01) meshes.push(m);
       });
     }
     return meshes;
@@ -125,8 +131,11 @@ export function createSceneController(canvas, { onSelect = () => {}, store = nul
 
   function enterInterior({ building, floor, area, center, radius }) {
     if (interior) exitInterior();
+    // Underside of the observation floor's room: segments ending here or lower
+    // stay solid; only the room's own band and the storeys above it may fade.
+    const bandFromY = floorBaseY({ floor, ...building.params }) + SLAB_THICKNESS;
     const fades = new Map();
-    watchSegments(hostSegmentMeshes(building.id), fades);
+    watchSegments(fadeableSegments(building.id, bandFromY), fades);
     cameraParts.flyToArea({ center, radius });
     // The frustum must contain the whole building AND its shadow throw (a 99m
     // tower at low sun throws ~2× its height) — clipping the caster produces
@@ -142,7 +151,7 @@ export function createSceneController(canvas, { onSelect = () => {}, store = nul
     const hemi = sceneParts.scene.getObjectByName('ambient-sky');
     if (hemi) hemi.intensity = 0.9;
     const ceilingY = center.y + building.params.floorHeight / 2;
-    interior = { buildingId: building.id, fades, shadowHalf, ceilingY, center: new THREE.Vector3(center.x, center.y, center.z) };
+    interior = { buildingId: building.id, bandFromY, fades, shadowHalf, ceilingY, center: new THREE.Vector3(center.x, center.y, center.z) };
     frameShadowsOnInterior();
   }
 
@@ -393,7 +402,7 @@ export function createSceneController(canvas, { onSelect = () => {}, store = nul
       synchronizer.update(project.buildings, { previewBuildingId, highlightBuildingId });
       // revision 变化会重建段网格,fades 里的旧 mesh 随之失效 → 重新挂载。
       if (interior) {
-        const alive = hostSegmentMeshes(interior.buildingId);
+        const alive = fadeableSegments(interior.buildingId, interior.bandFromY);
         const aliveSet = new Set(alive);
         if ([...interior.fades.keys()].some(m => !aliveSet.has(m))) {
           unwatchSegments(interior.fades);

@@ -55,6 +55,17 @@ describe('buildSegmentMeshes', () => {
     expect(hits[0].point.y).toBeCloseTo(18, 2);
   });
 
+  it('keeps a roof cap over a top-floor room (no above segment to seal it)', () => {
+    // floor 6 of a 6-floor building: the band reaches the roof (y=18) with no
+    // segment above → the cutter must stop short of the top so a roof slab remains.
+    const { meshes } = buildSegmentMeshes(bar([
+      { id: 'a1', floor: 6, rects: [{ x0: -8, z0: -6, x1: 8, z1: 6 }] }
+    ]), material);
+    const hits = raycast(meshes, [0, 30, 0], [0, -1, 0]);
+    // 屋顶盖在 y=18;若被穿透,首个命中会变成楼板顶 15.15
+    expect(hits[0].point.y).toBeCloseTo(18, 2);
+  });
+
   it('emits one gold frame per opening edge', () => {
     const { frames } = buildSegmentMeshes(bar([
       { id: 'a1', floor: 2, rects: [{ x0: -8, z0: -9, x1: 8, z1: 0 }] }
