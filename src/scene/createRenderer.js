@@ -12,7 +12,7 @@ export function createRenderer(canvas) {
   renderer.toneMapping = THREE.ACESFilmicToneMapping;
   renderer.toneMappingExposure = 1;
   renderer.shadowMap.enabled = true;
-  renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+  renderer.shadowMap.type = THREE.PCFShadowMap;
 
   function resize(width, height, pixelRatio = window.devicePixelRatio) {
     renderer.setPixelRatio(Math.min(pixelRatio, 2));

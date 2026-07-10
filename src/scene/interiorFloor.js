@@ -1,23 +1,50 @@
 import * as THREE from 'three';
-import { floorBaseY } from '../domain/buildings/floorMath.js';
+import { floorBaseY, totalBuildingHeight } from '../domain/buildings/floorMath.js';
 import { rectUnionToPolygons } from '../domain/buildings/rectUnion.js';
-import { applyBuildingTransform } from './buildingSceneHelpers.js';
+import { createFootprint } from '../domain/buildings/createFootprint.js';
+import { createWallSegments } from '../domain/buildings/createWallSegments.js';
+import { applyBuildingTransform, getOuterRing } from './buildingSceneHelpers.js';
 
-// Bounding box of the area's rects — the shared normalization frame for both
-// the floor mesh UVs and sampleSurfaces' floor u,v.
-function areaBounds(rects) {
-  const xs = rects.flatMap(r => [r.x0, r.x1]);
-  const zs = rects.flatMap(r => [r.z0, r.z1]);
-  const minX = Math.min(...xs, 0), maxX = Math.max(...xs, 1);
-  const minZ = Math.min(...zs, 0), maxZ = Math.max(...zs, 1);
-  return { minX, maxX, minZ, maxZ, spanX: (maxX - minX) || 1, spanZ: (maxZ - minZ) || 1 };
+const EPS = 1e-4;
+
+const openingFrameMaterial = new THREE.LineBasicMaterial({
+  color: 0xf1b746, transparent: true, opacity: 0.95
+});
+
+// Real-lighting interior: the room is lit by the scene's sun (DirectionalLight
+// with shadow map) and sky hemisphere light. Openings are cut in the geometry
+// wherever the area boundary lies on a footprint wall, so sunlight physically
+// enters through the holes; the ceiling and solid walls cast shadows.
+function faceMaterial(color = 0xf2f0ec) {
+  return new THREE.MeshStandardMaterial({
+    color, roughness: 0.92, metalness: 0,
+    transparent: true, opacity: 0.97, side: THREE.DoubleSide
+  });
 }
 
-// Triangulate the area union polygons into a floor plane (shape space x,-z),
-// then assign UVs from world x,z normalized over the area bbox.
-function buildAreaFloorGeometry(polys, bbox) {
-  const geom = new THREE.BufferGeometry();
-  const pos = [];
+// Is the ring edge a-b lying on one of the building's footprint walls?
+// (Both are axis-aligned; collinear + contained ⇒ this boundary edge faces the
+// outside world and is an opening, not a partition.)
+function edgeOnFootprint(a, b, walls) {
+  for (const wall of walls) {
+    const [sx, sz] = wall.start;
+    const [ex, ez] = wall.end;
+    if (Math.abs(sz - ez) < EPS) { // wall runs along x at z = sz
+      if (Math.abs(a.z - sz) > EPS || Math.abs(b.z - sz) > EPS) continue;
+      const lo = Math.min(sx, ex) - EPS, hi = Math.max(sx, ex) + EPS;
+      if (a.x >= lo && a.x <= hi && b.x >= lo && b.x <= hi) return true;
+    } else if (Math.abs(sx - ex) < EPS) { // wall runs along z at x = sx
+      if (Math.abs(a.x - sx) > EPS || Math.abs(b.x - sx) > EPS) continue;
+      const lo = Math.min(sz, ez) - EPS, hi = Math.max(sz, ez) + EPS;
+      if (a.z >= lo && a.z <= hi && b.z >= lo && b.z <= hi) return true;
+    }
+  }
+  return false;
+}
+
+// Triangulate the area union polygons into a horizontal plane mesh.
+function buildAreaPlaneGeometry(polys) {
+  const geoms = [];
   for (const poly of polys) {
     const shape = new THREE.Shape();
     poly.outer.forEach((p, i) => (i === 0 ? shape.moveTo(p.x, -p.z) : shape.lineTo(p.x, -p.z)));
@@ -26,37 +53,21 @@ function buildAreaFloorGeometry(polys, bbox) {
       hole.forEach((p, i) => (i === 0 ? path.moveTo(p.x, -p.z) : path.lineTo(p.x, -p.z)));
       shape.holes.push(path);
     }
-    const g = new THREE.ShapeGeometry(shape);
+    geoms.push(new THREE.ShapeGeometry(shape));
+  }
+  if (geoms.length === 1) return geoms[0];
+  const merged = new THREE.BufferGeometry();
+  const pos = [];
+  for (const g of geoms) {
     const arr = g.getAttribute('position').array;
     const idx = g.index ? g.index.array : null;
     if (idx) for (const i of idx) pos.push(arr[i * 3], arr[i * 3 + 1], arr[i * 3 + 2]);
     else for (let i = 0; i < arr.length; i += 1) pos.push(arr[i]);
     g.dispose();
   }
-  geom.setAttribute('position', new THREE.BufferAttribute(new Float32Array(pos), 3));
-  // Shape space is (x, y=-z). Recover world x,z for UV normalization.
-  const uv = [];
-  for (let i = 0; i < pos.length; i += 3) {
-    const x = pos[i], z = -pos[i + 1];
-    uv.push((x - bbox.minX) / bbox.spanX, (z - bbox.minZ) / bbox.spanZ);
-  }
-  geom.setAttribute('uv', new THREE.BufferAttribute(new Float32Array(uv), 2));
-  return geom;
-}
-
-// Faces that receive a lightmap use a WHITE base so the texture shows at true
-// color (MeshBasicMaterial multiplies map × color; a dark base would crush the
-// lit patches to black). Faces without a lightmap (ceiling) pass their own color.
-function faceMaterial(color = 0xffffff) {
-  const m = new THREE.MeshBasicMaterial({
-    color, transparent: true, opacity: 0.95, side: THREE.DoubleSide,
-    // depthWrite off + explicit renderOrder (set per mesh) keeps the draw order
-    // deterministic, so coincident/near-coplanar faces at openings don't flip
-    // sort order each frame (the flicker).
-    depthWrite: false
-  });
-  m.userData = { baseColor: new THREE.Color(color) };
-  return m;
+  merged.setAttribute('position', new THREE.BufferAttribute(new Float32Array(pos), 3));
+  merged.computeVertexNormals();
+  return merged;
 }
 
 export function createInteriorFloor(building, floor, area) {
@@ -67,50 +78,123 @@ export function createInteriorFloor(building, floor, area) {
   group.name = 'interior-floor';
   group.userData.kind = 'interior-floor';
 
-  // The interior room is the observation area itself (not the whole building
-  // footprint), so its floor/walls align with the sampled lightmap.
   const polys = rectUnionToPolygons(area.rects ?? []);
-  const bbox = areaBounds(area.rects ?? []);
+  const footprintWalls = createWallSegments(createFootprint(building.template, params));
 
-  // Floor built from the area's union polygons, with UVs normalized over the
-  // area bounding box — matching sampleSurfaces' floor u,v so the lightmap
-  // texels land in the right place.
-  const floorMesh = new THREE.Mesh(buildAreaFloorGeometry(polys, bbox), faceMaterial());
+  // Floor: receives the sun patches and shadows.
+  const floorMesh = new THREE.Mesh(buildAreaPlaneGeometry(polys), faceMaterial(0xe9e5dd));
   floorMesh.rotation.x = -Math.PI / 2;
   floorMesh.position.y = baseY + 0.01;
-  floorMesh.renderOrder = 1;
-  floorMesh.userData = { ...floorMesh.userData, surfaceId: 'floor', kind: 'floor' };
+  floorMesh.receiveShadow = true;
+  floorMesh.userData = { ...floorMesh.userData, kind: 'floor' };
   group.add(floorMesh);
 
-  // Ceiling: same shape at topY (no lightmap → keep a plain dim color).
-  const ceiling = new THREE.Mesh(buildAreaFloorGeometry(polys, bbox), faceMaterial(0x2a343e));
+  // Ceiling: blocks overhead sun (casts shadow down onto the room).
+  const ceiling = new THREE.Mesh(buildAreaPlaneGeometry(polys), faceMaterial(0xf4f2ee));
   ceiling.rotation.x = -Math.PI / 2;
   ceiling.position.y = topY;
-  ceiling.renderOrder = 1;
+  ceiling.castShadow = true;
+  ceiling.receiveShadow = true;
   ceiling.userData = { ...ceiling.userData, kind: 'ceiling' };
   group.add(ceiling);
 
-  // Interior walls from the observation-area union polygons.
-  polys.forEach((poly, pi) => {
+  // Walls: solid partitions cast/receive shadows; boundary edges lying on the
+  // building footprint are openings — no geometry there, sunlight pours in.
+  polys.forEach(poly => {
     const rings = [poly.outer, ...(poly.holes ?? [])];
-    rings.forEach((ring, ri) => {
+    rings.forEach(ring => {
       for (let e = 0; e < ring.length; e += 1) {
         const a = ring[e];
         const b = ring[(e + 1) % ring.length];
-        const geom = new THREE.BufferGeometry();
-        const verts = new Float32Array([
-          a.x, baseY, a.z, b.x, baseY, b.z, b.x, topY, b.z,
-          a.x, baseY, a.z, b.x, topY, b.z, a.x, topY, a.z
-        ]);
-        geom.setAttribute('position', new THREE.BufferAttribute(verts, 3));
-        geom.setAttribute('uv', new THREE.BufferAttribute(new Float32Array([0, 0, 1, 0, 1, 1, 0, 0, 1, 1, 0, 1]), 2));
-        const wall = new THREE.Mesh(geom, faceMaterial());
-        wall.renderOrder = 2;
-        wall.userData = { ...wall.userData, surfaceId: `wall:${pi}:${ri}:${e}`, kind: 'wall' };
+        if (edgeOnFootprint(a, b, footprintWalls)) {
+          // Opening: no wall here — outline it in gold so the aperture reads
+          // as an intentional daylight opening, not missing geometry.
+          const frame = new THREE.LineLoop(
+            new THREE.BufferGeometry().setFromPoints([
+              new THREE.Vector3(a.x, baseY + 0.02, a.z),
+              new THREE.Vector3(b.x, baseY + 0.02, b.z),
+              new THREE.Vector3(b.x, topY - 0.02, b.z),
+              new THREE.Vector3(a.x, topY - 0.02, a.z)
+            ]),
+            openingFrameMaterial
+          );
+          frame.userData.kind = 'opening-frame';
+          group.add(frame);
+          continue;
+        }
+        // Thin box instead of a single plane: front-face-only shading avoids
+        // the double-sided shadow acne stripes, and walls read as real walls.
+        const len = Math.hypot(b.x - a.x, b.z - a.z);
+        const wallMat = faceMaterial();
+        wallMat.side = THREE.FrontSide;
+        const wall = new THREE.Mesh(new THREE.BoxGeometry(len, topY - baseY, 0.12), wallMat);
+        wall.position.set((a.x + b.x) / 2, (baseY + topY) / 2, (a.z + b.z) / 2);
+        wall.rotation.y = -Math.atan2(b.z - a.z, b.x - a.x);
+        wall.castShadow = true;
+        wall.receiveShadow = true;
+        wall.userData = { ...wall.userData, kind: 'wall' };
         group.add(wall);
       }
     });
   });
+
+  applyBuildingTransform(group, building);
+  return group;
+}
+
+// Invisible shadow caster standing in for the host building while its render
+// mesh is hidden: the full extrusion MINUS the focused floor's band. Floors
+// below and above keep blocking sunlight (so the room's light and the ground
+// shadow stay physically plausible); the focused floor's walls come from the
+// interior room itself, openings included.
+export function createHostShadowGhost(building, floor, area) {
+  const params = building.params;
+  const baseY = floorBaseY({ floor, ...params });
+  const topY = baseY + params.floorHeight;
+  const totalH = totalBuildingHeight(params);
+  const footprint = createFootprint(building.template, params);
+
+  const footprintShape = () => {
+    const shape = new THREE.Shape();
+    getOuterRing(footprint).forEach(([x, z], i) => (i === 0 ? shape.moveTo(x, -z) : shape.lineTo(x, -z)));
+    shape.closePath();
+    for (const hole of Array.isArray(footprint) ? [] : footprint.holes) {
+      const path = new THREE.Path();
+      hole.forEach(([x, z], i) => (i === 0 ? path.moveTo(x, -z) : path.lineTo(x, -z)));
+      shape.holes.push(path);
+    }
+    return shape;
+  };
+  const shape = footprintShape();
+
+  const ghostMaterial = new THREE.MeshStandardMaterial({ colorWrite: false, depthWrite: false });
+  const group = new THREE.Group();
+  group.name = 'host-shadow-ghost';
+
+  const addSlab = (slabShape, fromY, toY) => {
+    if (toY - fromY <= 0.01) return;
+    const geom = new THREE.ExtrudeGeometry(slabShape, { depth: toY - fromY, steps: 1, bevelEnabled: false });
+    geom.rotateX(-Math.PI / 2);
+    const mesh = new THREE.Mesh(geom, ghostMaterial);
+    mesh.position.y = fromY;
+    mesh.castShadow = true;
+    group.add(mesh);
+  };
+  addSlab(shape, 0, baseY);        // floors below
+  addSlab(shape, topY, totalH);    // floors above
+
+  // Same-floor band OUTSIDE the observation area: the room supplies its own
+  // walls, but the rest of this floor must still block light (otherwise the
+  // ground shadow shows a bright slit through the building). Footprint minus
+  // the area's outer rings; a ring-shaped area's inner island is a rare case
+  // the Shape API can't express and is accepted as a small light leak.
+  const midShape = footprintShape();
+  for (const poly of rectUnionToPolygons(area?.rects ?? [])) {
+    const path = new THREE.Path();
+    poly.outer.forEach((p, i) => (i === 0 ? path.moveTo(p.x, -p.z) : path.lineTo(p.x, -p.z)));
+    midShape.holes.push(path);
+  }
+  addSlab(midShape, baseY, topY);
 
   applyBuildingTransform(group, building);
   return group;

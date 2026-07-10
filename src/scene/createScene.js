@@ -28,6 +28,9 @@ export function createScene() {
   sunlight.position.set(80, 120, -60);
   sunlight.castShadow = true;
   sunlight.shadow.mapSize.set(2048, 2048);
+  // Push shadow lookups off the surface along the normal — kills the striped
+  // self-shadowing (acne) on lit interior walls without peter-panning.
+  sunlight.shadow.normalBias = 0.5;
   sunlight.shadow.camera.near = 1;
   sunlight.shadow.camera.far = 400;
   sunlight.shadow.camera.left = -120;

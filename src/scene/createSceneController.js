@@ -5,8 +5,8 @@ import { createBuildingMesh } from './buildingMesh.js';
 import { createCameraRig } from './createCameraRig.js';
 import { applyRectEdit, createAreaDrag } from './areaDrag.js';
 import { createFloorSlab, floorFocusTarget } from './floorFocus.js';
-import { createInteriorFloor } from './interiorFloor.js';
-import { createLightMaps } from './interiorLightMaps.js';
+import { createInteriorFloor, createHostShadowGhost } from './interiorFloor.js';
+import { totalBuildingHeight } from '../domain/buildings/floorMath.js';
 import { createFadeState } from './occlusionFade.js';
 import { applyBuildingTransform } from './buildingSceneHelpers.js';
 import { createObservationOverlay } from './observationOverlay.js';
@@ -64,43 +64,80 @@ export function createSceneController(canvas, { onSelect = () => {}, store = nul
   const _camToCenter = new THREE.Vector3();
   const _hit = new THREE.Raycaster();
 
-  function enterInterior({ building, floor, area, surfaces, center, radius, openingMarkers = [] }) {
+  // The interior room is lit by the scene's real sun light + shadow map;
+  // openings are cut in the geometry so sunlight enters physically. The host
+  // building's meshes are hidden (replaced by the room); other buildings stay
+  // visible and keep casting their shadows.
+  // Focus the sun's shadow camera on the interior room so shadow texels are
+  // dense there (crisp edges); applySunLighting re-targets the light at the
+  // origin every solar update, so this runs after each of those too.
+  function frameShadowsOnInterior() {
+    if (!interior) return;
+    const light = sceneParts.sunlight;
+    light.target.position.set(interior.center.x, 0, interior.center.z);
+    light.target.updateMatrixWorld();
+    const cam = light.shadow.camera;
+    const half = interior.shadowHalf;
+    cam.left = -half; cam.right = half; cam.top = half; cam.bottom = -half;
+    cam.updateProjectionMatrix();
+    light.shadow.needsUpdate = true;
+  }
+
+  function restoreShadowFrame() {
+    const light = sceneParts.sunlight;
+    const cam = light.shadow.camera;
+    cam.left = -120; cam.right = 120; cam.top = 120; cam.bottom = -120;
+    cam.updateProjectionMatrix();
+    light.shadow.mapSize.set(2048, 2048);
+    light.shadow.map?.dispose();
+    light.shadow.map = null;
+    light.shadow.needsUpdate = true;
+  }
+
+  function enterInterior({ building, floor, area, center, radius }) {
     if (interior) exitInterior();
-    for (const child of sceneParts.buildings.children) child.visible = false;
+    for (const child of sceneParts.buildings.children) {
+      if (child.userData?.entityId === building.id) child.visible = false;
+    }
     const group = createInteriorFloor(building, floor, area);
     sceneParts.scene.add(group);
-    // Highlight each opening so it's clear where sunlight can enter. Portals
-    // are in world coordinates, so they go on the scene root (not the
-    // building-transformed group).
-    const openings = new THREE.Group();
-    openings.name = 'interior-openings';
-    for (const marker of openingMarkers) {
-      const overlay = createOpeningOverlay(marker);
-      overlay.renderOrder = 3;
-      openings.add(overlay);
-    }
-    sceneParts.scene.add(openings);
-    const lightMaps = createLightMaps(group, surfaces);
+    // Invisible stand-in keeps the hidden host building casting real shadows
+    // (floors above/below still block sunlight; ground shadow stays whole).
+    const ghost = createHostShadowGhost(building, floor, area);
+    sceneParts.scene.add(ghost);
     const fades = new Map();
     group.traverse(m => { if (m.material) fades.set(m, createFadeState()); });
     cameraParts.flyToArea({ center, radius });
-    interior = { group, openings, lightMaps, fades, center: new THREE.Vector3(center.x, center.y, center.z) };
-  }
-
-  function updateInteriorLight(masks) {
-    interior?.lightMaps.apply(masks);
+    // The frustum must contain the whole ghost building AND its shadow throw
+    // (a 99m tower at low sun throws ~2× its height) — clipping the caster
+    // produces spike artifacts on the ground. Precision is recovered by
+    // raising the map size while inside (restored on exit).
+    const totalH = totalBuildingHeight(building.params);
+    const shadowHalf = Math.max(60, radius * 3, totalH * 1.6);
+    const light = sceneParts.sunlight;
+    light.shadow.mapSize.set(4096, 4096);
+    light.shadow.map?.dispose();
+    light.shadow.map = null;
+    // Dim the sky ambient so sun patches vs shadow read with more contrast.
+    const hemi = sceneParts.scene.getObjectByName('ambient-sky');
+    if (hemi) hemi.intensity = 0.9;
+    const ceilingY = center.y + building.params.floorHeight / 2;
+    interior = { group, ghost, fades, shadowHalf, ceilingY, center: new THREE.Vector3(center.x, center.y, center.z) };
+    frameShadowsOnInterior();
   }
 
   function exitInterior() {
     if (!interior) return;
-    interior.lightMaps.dispose();
     interior.group.traverse(c => c.geometry?.dispose());
     sceneParts.scene.remove(interior.group);
-    interior.openings?.traverse(c => c.geometry?.dispose());
-    if (interior.openings) sceneParts.scene.remove(interior.openings);
+    interior.ghost.traverse(c => c.geometry?.dispose());
+    sceneParts.scene.remove(interior.ghost);
     for (const child of sceneParts.buildings.children) child.visible = true;
+    const hemi = sceneParts.scene.getObjectByName('ambient-sky');
+    if (hemi) hemi.intensity = 1.5;
     cameraParts.setEditControls(null);
     interior = null;
+    restoreShadowFrame();
   }
 
   // Fade any face that sits between the camera and the interior focus point so
@@ -115,8 +152,17 @@ export function createSceneController(canvas, { onSelect = () => {}, store = nul
     interior.group.traverse(m => { if (m.material && interior.fades.has(m)) meshes.push(m); });
     const hits = _hit.intersectObjects(meshes, false);
     const occluders = new Set(hits.filter(h => h.distance < centerDist - 0.5).map(h => h.object));
+    // The ceiling gets a continuous rule instead of the raycast: camera above
+    // the ceiling plane → lift the roof entirely; below → show it. Raycasts
+    // flip at grazing angles on a large horizontal face, which reads as the
+    // roof blinking in and out.
+    const aboveCeiling = camPos.y > interior.ceilingY;
     for (const [mesh, fade] of interior.fades) {
-      mesh.material.opacity = fade.update(mesh.material.opacity, occluders.has(mesh));
+      const isCeiling = mesh.userData?.kind === 'ceiling';
+      const occluding = isCeiling ? aboveCeiling : occluders.has(mesh);
+      const next = fade.update(mesh.material.opacity, occluding);
+      // Fully lift the roof once faded, instead of leaving a ghost sheet.
+      mesh.material.opacity = isCeiling && occluding && next <= 0.16 ? 0 : next;
     }
   }
 
@@ -337,6 +383,7 @@ export function createSceneController(canvas, { onSelect = () => {}, store = nul
     },
     updateSolar(simulationState, phase = 'present') {
       applySunLighting(sceneParts.sunlight, simulationState.solar, { phase });
+      frameShadowsOnInterior();
       const direction = simulationState.solar.direction;
       canvas.dataset.sunDirection = [direction.x, direction.y, direction.z]
         .map(value => value.toFixed(4))
@@ -367,7 +414,6 @@ export function createSceneController(canvas, { onSelect = () => {}, store = nul
       syncFloorFocus(project);
     },
     enterInterior(payload) { enterInterior(payload); },
-    updateInteriorLight(masks) { updateInteriorLight(masks); },
     exitInterior() { exitInterior(); },
     dispose() {
       exitInterior();
