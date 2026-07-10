@@ -61,6 +61,8 @@ export function mountApp(root) {
     ? import('./scene/createSceneController.js').then(({ createSceneController }) => {
         sceneController = createSceneController(canvas, {
           store,
+          compassNeedle: shell.querySelector('[data-testid="compass-needle"]'),
+          compassReadout: shell.querySelector('[data-testid="compass-readout"]'),
           onSelect: buildingId => {
             store.execute(createSelectBuildingCommand(buildingId));
           }

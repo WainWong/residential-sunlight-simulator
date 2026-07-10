@@ -113,29 +113,93 @@
   height: 100%;
 }
 
-.viewport__compass {
+.viewport__compass-wrap {
   position: absolute;
   top: 16px;
   right: 16px;
-  display: grid;
-  width: 64px;
-  height: 64px;
-  place-items: center;
-  border: 2px solid var(--ink-800);
-  border-radius: 50%;
-  background: rgb(255 255 255 / 82%);
-  color: #b43e36;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+  z-index: 6;
   pointer-events: none;
 }
 
-.viewport__compass strong {
-  position: absolute;
-  top: 5px;
-  font-size: 11px;
+.viewport__compass {
+  position: relative;
+  width: 58px;
+  height: 58px;
+  display: grid;
+  place-items: center;
+  border: 2px solid var(--ink-800);
+  border-radius: 50%;
+  background: rgb(255 255 255 / 85%);
+  pointer-events: none;
 }
 
-.viewport__compass span {
-  transform: translateY(-5px);
+.viewport__compass-readout {
+  width: 78px;
+  padding: 3px 9px;
+  border-radius: 999px;
+  background: rgb(255 255 255 / 90%);
+  border: 1px solid var(--line);
+  font-size: 11px;
+  font-weight: 700;
+  color: var(--ink-900);
+  text-align: center;
+  white-space: nowrap;
+  box-sizing: border-box;
+}
+
+.viewport__compass-needle {
+  position: relative;
+  width: 100%;
+  height: 100%;
+  transform-origin: center;
+}
+
+.viewport__compass-cardinal {
+  position: absolute;
+  font-size: 9px;
+  font-weight: 700;
+  color: var(--ink-600);
+}
+
+.viewport__compass-cardinal--n {
+  top: 2px;
+  left: 50%;
+  transform: translateX(-50%);
+  color: #b43e36;
+}
+
+.viewport__compass-cardinal--e {
+  top: 50%;
+  right: 3px;
+  transform: translateY(-50%);
+}
+
+.viewport__compass-cardinal--s {
+  bottom: 2px;
+  left: 50%;
+  transform: translateX(-50%);
+}
+
+.viewport__compass-cardinal--w {
+  top: 50%;
+  left: 3px;
+  transform: translateY(-50%);
+}
+
+.viewport__compass-tip {
+  position: absolute;
+  top: 14px;
+  left: 50%;
+  transform: translateX(-50%);
+  width: 0;
+  height: 0;
+  border-right: 4px solid transparent;
+  border-left: 4px solid transparent;
+  border-bottom: 10px solid #b43e36;
 }
 
 .viewport__scale {

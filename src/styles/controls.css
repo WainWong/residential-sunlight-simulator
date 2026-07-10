@@ -55,6 +55,167 @@
   color: #9a6410;
 }
 
+/* Building→area hierarchy tree */
+.tree-actions {
+  display: flex;
+  gap: 8px;
+  margin-bottom: 8px;
+}
+
+.tree-actions .button {
+  flex: 1 1 0;
+}
+
+.tree-node {
+  display: block;
+  margin-bottom: 2px;
+}
+
+.tree-row--building {
+  font-weight: 600;
+}
+
+.tree-area-row {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.tree-row--area {
+  position: relative;
+  flex: 1 1 auto;
+  padding: 0 10px 0 32px;
+  min-height: 30px;
+  border: 0;
+  border-radius: var(--radius-sm);
+  background: transparent;
+  text-align: left;
+  cursor: pointer;
+  font-size: 12.5px;
+  font-weight: 600;
+  color: var(--ink-800);
+}
+
+.tree-row__del {
+  flex: 0 0 auto;
+  width: 26px;
+  min-height: 26px;
+  border: 0;
+  border-radius: var(--radius-sm);
+  background: transparent;
+  color: var(--ink-500);
+  cursor: pointer;
+  font-size: 11px;
+}
+
+.tree-row__del:hover:not(:disabled) {
+  background: #f6dcd8;
+  color: #b43e36;
+}
+
+.tree-row__del:disabled {
+  opacity: 0.3;
+  cursor: default;
+}
+
+.tree-row--area::before {
+  content: '';
+  position: absolute;
+  left: 16px;
+  top: 50%;
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--line);
+  transform: translateY(-50%);
+}
+
+.tree-row--area:hover {
+  background: var(--paper-200);
+  color: var(--ink-950);
+}
+
+.tree-row--area.is-active {
+  background: var(--paper-200);
+  color: var(--ink-950);
+  font-weight: 700;
+}
+
+.tree-row--area.is-active::before {
+  background: var(--sun-500);
+}
+
+/* 编辑 / 展示 segmented toggle */
+.phase-toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+  padding: 3px;
+  border-radius: 999px;
+  background: rgb(255 255 255 / 10%);
+}
+
+.phase-toggle__btn {
+  min-height: 32px;
+  padding: 0 18px;
+  border: 0;
+  border-radius: 999px;
+  background: transparent;
+  color: rgb(255 255 255 / 70%);
+  font-size: 12px;
+  font-weight: 650;
+  cursor: pointer;
+  transition: background-color 160ms ease, color 160ms ease;
+}
+
+.phase-toggle__btn:hover {
+  color: white;
+}
+
+.phase-toggle__btn.is-active {
+  background: var(--sun-500);
+  color: var(--ink-950);
+}
+
+/* 顶栏地点选择（低频，浮层） */
+.location-control {
+  position: relative;
+}
+
+.location-control__popover {
+  position: absolute;
+  top: calc(100% + 8px);
+  right: 0;
+  z-index: 20;
+  min-width: 248px;
+  padding: 12px 14px;
+  background: white;
+  color: var(--ink-950);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-md);
+  box-shadow: var(--shadow-soft);
+}
+
+.location-control__popover .field {
+  margin-top: 8px;
+}
+
+.location-picker__custom {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 8px;
+}
+
+.location-picker__custom .input {
+  flex: 1 1 100px;
+}
+
+.location-picker__confirm {
+  flex: 1 0 auto;
+  min-height: 36px;
+}
+
 .status-pill {
   display: inline-flex;
   margin-top: 16px;

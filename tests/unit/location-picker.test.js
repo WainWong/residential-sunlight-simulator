@@ -54,4 +54,19 @@ describe('createLocationPicker', () => {
       timeZone: 'Asia/Shanghai'
     });
   });
+
+  it('commits custom coordinates on the 确认 button click', () => {
+    const store = { execute: vi.fn(), getState: () => createDefaultProject() };
+    const { element, update } = createLocationPicker({ store });
+    update(createDefaultProject());
+    const select = q(element, 'location-city');
+    select.value = 'custom';
+    select.dispatchEvent(new Event('change'));
+    q(element, 'location-lat').value = '29.5';
+    q(element, 'location-lon').value = '106.5';
+    q(element, 'location-custom-confirm').click();
+    const cmd = store.execute.mock.calls.at(-1)[0];
+    const loc = cmd.apply(createDefaultProject()).location;
+    expect(loc).toMatchObject({ cityId: 'custom', latitude: 29.5, longitude: 106.5 });
+  });
 });

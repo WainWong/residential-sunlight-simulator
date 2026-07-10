@@ -2,6 +2,12 @@
   box-sizing: border-box;
 }
 
+/* Guarantee [hidden] always hides, even when a component's own rule sets an
+   explicit display (e.g. .timeline { display: grid }, .field { display: flex }). */
+[hidden] {
+  display: none !important;
+}
+
 html,
 body {
   min-height: 100%;

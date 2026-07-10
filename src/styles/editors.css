@@ -281,18 +281,6 @@
   margin-bottom: 14px;
 }
 
-.area-card {
-  padding: 14px;
-  border: 1px solid var(--line);
-  border-radius: 12px;
-  background: var(--paper-100, #faf9f7);
-  margin-bottom: 10px;
-}
-
-.area-card__header {
-  margin-bottom: 12px;
-}
-
 .opening-list {
   margin-top: 10px;
   display: grid;
@@ -348,20 +336,28 @@
   }
 }
 
-.area-draft-bar {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  margin-top: 12px;
-}
-.area-draft-bar .draft-status {
-  flex: 1;
-  font-size: 12px;
-  color: var(--ink-600);
-}
 .area-tool-buttons .template-card.is-active {
   border-color: var(--sun-500);
   background: #fff5d9;
   box-shadow: inset 0 0 0 1px var(--sun-500);
   color: var(--ink-950);
+}
+
+.area-session {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.area-tool-buttons {
+  display: flex;
+  gap: 10px;
+}
+
+.area-tool-buttons .template-card {
+  flex: 1 1 0;
+  min-height: 40px;
+  padding: 0 14px;
+  font-size: 13px;
+  border-radius: var(--radius-sm);
 }

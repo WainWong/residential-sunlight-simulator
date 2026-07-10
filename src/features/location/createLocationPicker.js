@@ -65,6 +65,14 @@ export function createLocationPicker({ store }) {
   latInput.addEventListener('change', onCustomChange);
   lonInput.addEventListener('change', onCustomChange);
 
+  const confirmBtn = createElement('button', {
+    className: 'button button--primary location-picker__confirm',
+    text: '确认', testId: 'location-custom-confirm',
+    attributes: { type: 'button' }
+  });
+  confirmBtn.addEventListener('click', onCustomChange);
+  customWrapper.append(confirmBtn);
+
   const element = createElement('div', { className: 'location-picker field', testId: 'location-picker' },
     createElement('span', { className: 'field__label', text: '地点' }),
     citySelect,

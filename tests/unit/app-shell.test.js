@@ -60,13 +60,24 @@ describe('AppShell mobile phase gating', () => {
 });
 
 describe('AppShell phase toggle', () => {
-  it('hides timeline and location picker in edit phase; shows them in present', () => {
+  it('hides timeline in edit phase and shows it in present; location button always present', () => {
     const { store, shell } = mount();
     expect(shell.querySelector('[data-testid="timeline"]').hidden).toBe(true);
-    expect(shell.querySelector('[data-testid="location-picker"]').hidden).toBe(true);
+    // Location is a low-frequency control in the header, available in both phases.
+    expect(shell.querySelector('[data-testid="location-button"]')).not.toBeNull();
+    expect(shell.querySelector('[data-testid="location-popover"]').hidden).toBe(true);
     store.execute(createSetPhaseCommand('present'));
     expect(shell.querySelector('[data-testid="timeline"]').hidden).toBe(false);
-    expect(shell.querySelector('[data-testid="location-picker"]').hidden).toBe(false);
+    expect(shell.querySelector('[data-testid="location-button"]')).not.toBeNull();
+  });
+
+  it('opens the location popover on button click', () => {
+    const { shell } = mount();
+    const button = shell.querySelector('[data-testid="location-button"]');
+    const popover = shell.querySelector('[data-testid="location-popover"]');
+    expect(popover.hidden).toBe(true);
+    button.click();
+    expect(popover.hidden).toBe(false);
   });
 
   it('forces results panel over inspector in present phase even when a building is selected', () => {

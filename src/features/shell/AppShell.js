@@ -2,20 +2,22 @@ import { createElement } from '../../ui/createElement.js';
 import { createBuildingInspector } from '../buildings/BuildingInspector.js';
 import { createResultsPanel } from '../results/ResultsPanel.js';
 import { createTimeline } from '../timeline/Timeline.js';
-import { createLocationPicker } from '../location/createLocationPicker.js';
+import { createLocationControl } from '../location/createLocationControl.js';
 import { createProjectTree } from './DesktopShell.js';
 import { createMobileControls } from './MobileShell.js';
 import { createSetPhaseCommand } from '../../store/buildingCommands.js';
 import { showToast } from '../../ui/Toast.js';
 
-function createHeader({ onClearSandbox, onSetPhase }) {
+function createHeader({ onClearSandbox, onSetPhase, locationControl }) {
   const editBtn = createElement('button', {
-    className: 'button button--ghost phase-toggle__btn is-active',
-    text: '编辑', testId: 'phase-edit', attributes: { type: 'button' }
+    className: 'phase-toggle__btn is-active',
+    text: '编辑', testId: 'phase-edit',
+    attributes: { type: 'button', 'aria-pressed': 'true' }
   });
   const presentBtn = createElement('button', {
-    className: 'button button--ghost phase-toggle__btn',
-    text: '展示', testId: 'phase-present', attributes: { type: 'button' }
+    className: 'phase-toggle__btn',
+    text: '展示', testId: 'phase-present',
+    attributes: { type: 'button', 'aria-pressed': 'false' }
   });
   editBtn.addEventListener('click', () => onSetPhase('edit'));
   presentBtn.addEventListener('click', () => onSetPhase('present'));
@@ -30,6 +32,7 @@ function createHeader({ onClearSandbox, onSetPhase }) {
         createElement('h1', { className: 'brand__title', text: '住宅采光模拟器' }))),
     toggle,
     createElement('div', { className: 'header-actions' },
+      locationControl,
       createElement('button', { className: 'button button--ghost', text: '清空沙盘',
         attributes: { type: 'button', 'data-action': 'clear-sandbox' } }),
       createElement('button', { className: 'button button--ghost button--import', text: '导入',
@@ -50,11 +53,16 @@ function createViewport() {
       className: 'scene-canvas',
       attributes: { id: 'scene-canvas', 'aria-label': '三维采光场景' }
     }),
-    createElement(
-      'div',
-      { className: 'viewport__compass', attributes: { 'aria-label': '北向指南针' } },
-      createElement('strong', { text: 'N' }),
-      createElement('span', { text: '▲' })
+    createElement('div', { className: 'viewport__compass-wrap' },
+      createElement('div',
+        { className: 'viewport__compass', attributes: { 'aria-label': '北向指南针' } },
+        createElement('div', { className: 'viewport__compass-needle', testId: 'compass-needle' },
+          createElement('span', { className: 'viewport__compass-cardinal viewport__compass-cardinal--n', text: 'N' }),
+          createElement('span', { className: 'viewport__compass-cardinal viewport__compass-cardinal--e', text: 'E' }),
+          createElement('span', { className: 'viewport__compass-cardinal viewport__compass-cardinal--s', text: 'S' }),
+          createElement('span', { className: 'viewport__compass-cardinal viewport__compass-cardinal--w', text: 'W' }),
+          createElement('span', { className: 'viewport__compass-tip', attributes: { 'aria-hidden': 'true' } }))),
+      createElement('div', { className: 'viewport__compass-readout', testId: 'compass-readout', text: '正北 0°' })
     ),
     createElement('div', {
       className: 'viewport__scale',
@@ -83,30 +91,33 @@ export function createAppShell({
     confirmDelete: confirmDeleteBuilding
   });
   const resultsPanel = createResultsPanel(simulationController);
-  const locationPicker = createLocationPicker({ store });
+  const locationControl = createLocationControl({ store });
   const timeline = createTimeline(simulationController);
   const inspectorHost = createElement(
     'aside',
     { className: 'inspector-host panel', testId: 'inspector' },
     buildingInspector,
-    locationPicker.element,
     resultsPanel
   );
 
-  const header = createHeader({ onClearSandbox, onSetPhase: trySetPhase });
+  const header = createHeader({ onClearSandbox, onSetPhase: trySetPhase, locationControl: locationControl.element });
   header.querySelector('[data-action="clear-sandbox"]').addEventListener('click', onClearSandbox);
 
   function setPhaseUI(project) {
     const present = project.view.phase === 'present';
     timeline.hidden = !present;
-    locationPicker.element.hidden = !present;
-    if (present) locationPicker.update(project);
     navigation.querySelector('[data-panel="simulation"]')?.toggleAttribute('hidden', !present);
     navigation.querySelector('[data-panel="results"]')?.toggleAttribute('hidden', !present);
     const editBtn = header.querySelector('[data-testid="phase-edit"]');
     const presentBtn = header.querySelector('[data-testid="phase-present"]');
-    if (editBtn) editBtn.classList.toggle('is-active', !present);
-    if (presentBtn) presentBtn.classList.toggle('is-active', present);
+    if (editBtn) {
+      editBtn.classList.toggle('is-active', !present);
+      editBtn.setAttribute('aria-pressed', String(!present));
+    }
+    if (presentBtn) {
+      presentBtn.classList.toggle('is-active', present);
+      presentBtn.setAttribute('aria-pressed', String(present));
+    }
   }
 
   function trySetPhase(phase) {
