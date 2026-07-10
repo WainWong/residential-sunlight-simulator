@@ -12,6 +12,13 @@ import {
   createSelectBuildingCommand
 } from './store/buildingCommands.js';
 import { createStore } from './store/createStore.js';
+import { createInteriorLightController } from './features/interior/createInteriorLightController.js';
+import { createAnalysisClient } from './workers/createAnalysisClient.js';
+import { sampleSurfaces } from './domain/simulation/sampleSurfaces.js';
+import { floorBaseY } from './domain/buildings/floorMath.js';
+import { rotateLocalToWorld } from './domain/buildings/wallGeometry.js';
+import { buildObstacles } from './domain/simulation/buildObstacles.js';
+import { deriveAperturesFromArea } from './domain/simulation/deriveApertures.js';
 import { createElement } from './ui/createElement.js';
 import { showToast } from './ui/Toast.js';
 
@@ -79,6 +86,77 @@ export function mountApp(root) {
 
   const withController = fn => (sceneController ? fn(sceneController) : sceneReady.then(fn));
 
+  // --- Interior daylight lifecycle (present-phase "enter observation area") ---
+  let analysisClient = null;
+  let interiorCtrl = null;
+  let interiorKey = null;
+
+  function areaWorldTransform(building, area) {
+    const baseY = floorBaseY({ floor: area.floor, ...building.params }) + (area.sampleHeight ?? 0);
+    return {
+      baseY,
+      transform: ([lx, , lz]) => {
+        const [wx, wz] = rotateLocalToWorld([lx, lz], building.rotation);
+        return [wx + building.position.x, baseY, wz + building.position.z];
+      }
+    };
+  }
+
+  function interiorPayload(project, building, area, solar) {
+    const { transform } = areaWorldTransform(building, area);
+    const { surfaces } = sampleSurfaces(area, { floorHeight: building.params.floorHeight }, transform);
+    const { portals, apertureWallIds } = deriveAperturesFromArea(building, area);
+    const obstacles = buildObstacles(project.buildings, { excludeWallIds: apertureWallIds });
+    return {
+      surfaces,
+      openings: portals,
+      obstacles,
+      sunDirection: [solar.direction.x, solar.direction.y, solar.direction.z]
+    };
+  }
+
+  function teardownInterior() {
+    interiorCtrl?.dispose(); interiorCtrl = null;
+    analysisClient?.dispose(); analysisClient = null;
+    withController(controller => controller?.exitInterior());
+  }
+
+  function syncInterior(project, sim) {
+    const it = project.view.interior;
+    const key = it ? `${it.buildingId}:${it.areaId}` : null;
+    const building = it ? project.buildings.find(b => b.id === it.buildingId) : null;
+    const area = building?.observationAreas?.find(a => a.id === it.areaId) ?? null;
+
+    if (key === interiorKey) {
+      if (it && building && area) interiorCtrl?.request(interiorPayload(project, building, area, sim.solar));
+      return;
+    }
+
+    if (interiorKey) teardownInterior();
+    interiorKey = key;
+    if (!it || !building || !area) { interiorKey = null; return; }
+
+    const { transform, baseY } = areaWorldTransform(building, area);
+    const { surfaces } = sampleSurfaces(area, { floorHeight: building.params.floorHeight }, transform);
+    const xs = surfaces.flatMap(s => s.samples.map(p => p.position[0]));
+    const zs = surfaces.flatMap(s => s.samples.map(p => p.position[2]));
+    const cx = (Math.min(...xs) + Math.max(...xs)) / 2;
+    const cz = (Math.min(...zs) + Math.max(...zs)) / 2;
+    const radius = Math.max(6, Math.hypot(Math.max(...xs) - Math.min(...xs), Math.max(...zs) - Math.min(...zs)) / 2);
+
+    withController(controller => controller?.enterInterior({
+      building, floor: area.floor, area, surfaces,
+      center: { x: cx, y: baseY + building.params.floorHeight / 2, z: cz }, radius
+    }));
+
+    analysisClient = createAnalysisClient();
+    interiorCtrl = createInteriorLightController({
+      analyze: payload => analysisClient.analyzeInterior(payload),
+      onMasks: masks => withController(controller => controller?.updateInteriorLight(masks))
+    });
+    interiorCtrl.request(interiorPayload(project, building, area, sim.solar));
+  }
+
   let prevEditing = store.getState().view.editorMode === 'building';
   store.subscribe(project => {
     const currentEditing = project.view.editorMode === 'building';
@@ -100,6 +178,7 @@ export function mountApp(root) {
       controller?.updateAnalysis(project, sim, project.view.phase);
       controller?.syncFloorFocus(project);
     });
+    syncInterior(project, sim);
   });
 
   simulationController.subscribe(state => {
@@ -107,6 +186,7 @@ export function mountApp(root) {
       controller?.updateSolar(state, store.getState().view.phase);
       controller?.updateAnalysis(store.getState(), state, store.getState().view.phase);
     });
+    syncInterior(store.getState(), state);
   });
 
   shell.querySelector('[data-action="save-project"]')?.addEventListener('click', () => {
