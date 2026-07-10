@@ -1,37 +1,48 @@
 import { expect, test } from '@playwright/test';
 
-// Build a building + observation area (via the left-tree create flow used in
-// area-topdown.spec.js), switch to present phase, then enter the area's
-// interior view. Asserts the enter button reflects the entered state.
-
-async function addBuildingWithArea(page) {
-  await page.goto('/');
-  await page.getByRole('button', { name: '添加建筑' }).click();
-  await page.getByRole('button', { name: '完成' }).click();
-  await expect(page.getByTestId('building-overview')).toBeVisible();
-  await page.getByTestId('area-create-start').click();
-  await expect(page.getByTestId('area-session-title')).toHaveText('新建观察区');
-
-  const canvas = page.locator('#scene-canvas');
-  const box = await canvas.boundingBox();
-  await page.mouse.move(box.x + box.width * 0.3, box.y + box.height * 0.3);
-  await page.mouse.down();
-  await page.mouse.move(box.x + box.width * 0.7, box.y + box.height * 0.7, { steps: 5 });
-  await page.mouse.up();
-
-  await expect(page.getByTestId('area-save')).toBeEnabled();
-  await page.getByTestId('area-save').click();
-  await expect(page.locator('[data-testid^="area-tree-"]')).toHaveCount(1);
-}
+// Seed a project (a building with one observation area) directly into the
+// localStorage draft so the test targets the interior-enter behaviour rather
+// than the canvas drag-to-draw flow (which is exercised by area-topdown.spec).
+const SEED = {
+  schemaVersion: 1,
+  id: 'seed-project',
+  name: '室内测试项目',
+  location: { cityId: 'shenzhen', latitude: 22.5431, longitude: 114.0579, timeZone: 'Asia/Shanghai' },
+  buildings: [{
+    id: 'b1',
+    revision: 1,
+    name: '住宅 1',
+    template: 'bar',
+    position: { x: 0, z: 0 },
+    rotation: 0,
+    params: { length: 60, depth: 18, floors: 6, floorHeight: 3 },
+    observationAreas: [{ id: 'a1', floor: 2, rects: [{ x0: -8, z0: -6, x1: 8, z1: 6 }], sampleHeight: 0 }],
+    openings: []
+  }],
+  simulation: { date: '2026-12-21', time: '09:30', activeAreaId: 'a1', sampleHeight: 0 },
+  view: {
+    camera: null, activePanel: 'buildings', wizardComplete: true, phase: 'edit',
+    selectedBuildingId: 'b1', editorMode: 'none', addingBuildingId: null, areaEditing: null, interior: null
+  }
+};
 
 test('enter an observation area interior in present phase', async ({ page }) => {
-  await addBuildingWithArea(page);
+  await page.addInitScript(seed => {
+    localStorage.setItem('residential-sunlight-simulator:draft:v1', JSON.stringify(seed));
+  }, SEED);
+  await page.goto('/');
 
+  // The seeded area appears in the tree.
+  await expect(page.getByTestId('area-tree-a1')).toBeVisible();
+
+  // Switch to present phase — the enter button becomes visible.
   await page.getByTestId('phase-present').click();
-
-  const enter = page.locator('[data-testid^="area-enter-"]').first();
+  const enter = page.getByTestId('area-enter-a1');
   await expect(enter).toBeVisible();
   await expect(enter).toHaveText('进入');
+
+  // Enter the interior — button reflects the entered state.
   await enter.click();
   await expect(enter).toHaveText('已进入');
+  await expect(enter).toHaveAttribute('aria-pressed', 'true');
 });
