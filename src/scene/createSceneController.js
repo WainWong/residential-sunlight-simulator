@@ -4,13 +4,14 @@ import { buildAnalysisOverlays } from './analysisOverlays.js';
 import { createBuildingMesh } from './buildingMesh.js';
 import { createCameraRig } from './createCameraRig.js';
 import { applyRectEdit, createAreaDrag } from './areaDrag.js';
-import { createFloorSlab, createWallOutline, floorFocusTarget } from './floorFocus.js';
+import { createFloorSlab, floorFocusTarget } from './floorFocus.js';
 import { createInteriorFloor } from './interiorFloor.js';
 import { createLightMaps } from './interiorLightMaps.js';
 import { createFadeState } from './occlusionFade.js';
 import { applyBuildingTransform } from './buildingSceneHelpers.js';
 import { createObservationOverlay } from './observationOverlay.js';
 import { clipRectToFootprint } from '../domain/buildings/footprintClip.js';
+import { rotateLocalToWorld } from '../domain/buildings/wallGeometry.js';
 import { createOpeningOverlay } from './openingOverlay.js';
 import { createRenderer } from './createRenderer.js';
 import { createScene } from './createScene.js';
@@ -63,16 +64,27 @@ export function createSceneController(canvas, { onSelect = () => {}, store = nul
   const _camToCenter = new THREE.Vector3();
   const _hit = new THREE.Raycaster();
 
-  function enterInterior({ building, floor, area, surfaces, center, radius }) {
+  function enterInterior({ building, floor, area, surfaces, center, radius, openingMarkers = [] }) {
     if (interior) exitInterior();
     for (const child of sceneParts.buildings.children) child.visible = false;
     const group = createInteriorFloor(building, floor, area);
     sceneParts.scene.add(group);
+    // Highlight each opening so it's clear where sunlight can enter. Portals
+    // are in world coordinates, so they go on the scene root (not the
+    // building-transformed group).
+    const openings = new THREE.Group();
+    openings.name = 'interior-openings';
+    for (const marker of openingMarkers) {
+      const overlay = createOpeningOverlay(marker);
+      overlay.renderOrder = 3;
+      openings.add(overlay);
+    }
+    sceneParts.scene.add(openings);
     const lightMaps = createLightMaps(group, surfaces);
     const fades = new Map();
     group.traverse(m => { if (m.material) fades.set(m, createFadeState()); });
     cameraParts.flyToArea({ center, radius });
-    interior = { group, lightMaps, fades, center: new THREE.Vector3(center.x, center.y, center.z) };
+    interior = { group, openings, lightMaps, fades, center: new THREE.Vector3(center.x, center.y, center.z) };
   }
 
   function updateInteriorLight(masks) {
@@ -84,6 +96,8 @@ export function createSceneController(canvas, { onSelect = () => {}, store = nul
     interior.lightMaps.dispose();
     interior.group.traverse(c => c.geometry?.dispose());
     sceneParts.scene.remove(interior.group);
+    interior.openings?.traverse(c => c.geometry?.dispose());
+    if (interior.openings) sceneParts.scene.remove(interior.openings);
     for (const child of sceneParts.buildings.children) child.visible = true;
     cameraParts.setEditControls(null);
     interior = null;
@@ -109,8 +123,8 @@ export function createSceneController(canvas, { onSelect = () => {}, store = nul
   function disposeFloorFocus() {
     if (!floorFocus) return;
     floorFocus.clearPreview();
+    floorFocus.dimLabel?.remove();
     sceneParts.scene.remove(floorFocus.slab);
-    sceneParts.scene.remove(floorFocus.outline);
     for (const overlay of floorFocus.existing) {
       overlay.traverse(c => c.geometry?.dispose());
       sceneParts.scene.remove(overlay);
@@ -136,9 +150,7 @@ export function createSceneController(canvas, { onSelect = () => {}, store = nul
     cameraParts.setEditControls(editing.tool);
 
     const slab = createFloorSlab(building, floor);
-    const outline = createWallOutline(building, floor);
     sceneParts.scene.add(slab);
-    sceneParts.scene.add(outline);
 
     // Show this floor's other observation areas (already saved) as solid
     // overlays so the user can see existing rooms while drawing a new one.
@@ -150,6 +162,33 @@ export function createSceneController(canvas, { onSelect = () => {}, store = nul
         sceneParts.scene.add(overlay);
         return overlay;
       });
+
+    // Floating dimension readout shown next to the rect while dragging.
+    const dimLabel = document.createElement('div');
+    dimLabel.className = 'area-dim-label';
+    dimLabel.hidden = true;
+    viewport.appendChild(dimLabel);
+    const _dimVec = new THREE.Vector3();
+    function showDimLabel(rect) {
+      if (!rect) { dimLabel.hidden = true; return; }
+      const width = Math.abs(rect.x1 - rect.x0);
+      const depth = Math.abs(rect.z1 - rect.z0);
+      if (width < 1e-6 && depth < 1e-6) { dimLabel.hidden = true; return; }
+      dimLabel.textContent = `${width.toFixed(2)} × ${depth.toFixed(2)} 米`;
+      // Project the rect center (local floor coords) to screen space.
+      const b = getBuilding();
+      const cx = (rect.x0 + rect.x1) / 2;
+      const cz = (rect.z0 + rect.z1) / 2;
+      const [wx, wz] = b ? rotateLocalToWorld([cx, cz], b.rotation) : [cx, cz];
+      _dimVec.set(wx + (b?.position.x ?? 0), target.y, wz + (b?.position.z ?? 0));
+      _dimVec.project(cameraParts.camera);
+      const rectPx = canvas.getBoundingClientRect();
+      const px = (_dimVec.x * 0.5 + 0.5) * rectPx.width;
+      const py = (-_dimVec.y * 0.5 + 0.5) * rectPx.height;
+      dimLabel.style.left = `${px}px`;
+      dimLabel.style.top = `${py}px`;
+      dimLabel.hidden = false;
+    }
 
     let previewGroup = null;
     const clearPreview = () => {
@@ -185,6 +224,7 @@ export function createSceneController(canvas, { onSelect = () => {}, store = nul
       canvas, camera: cameraParts.camera, floorY: target.y, getBuilding, getMode,
       onPreview: rect => {
         clearPreview();
+        showDimLabel(rect);
         if (!rect) return;
         const pieces = clipDrawable(rect, getBuilding());
         if (pieces.length === 0) return;
@@ -206,7 +246,7 @@ export function createSceneController(canvas, { onSelect = () => {}, store = nul
         store.execute(createUpdateAreaEditingCommand({ rects }));
       }
     });
-    floorFocus = { slab, outline, existing, drag, tool: editing.tool ?? null, clearPreview };
+    floorFocus = { slab, existing, drag, tool: editing.tool ?? null, clearPreview, dimLabel };
   }
 
   // Reconcile floor-focus lifecycle from the editing session. The controller owns
@@ -228,6 +268,9 @@ export function createSceneController(canvas, { onSelect = () => {}, store = nul
       buildFloorFocus(project);
       if (floorFocus) floorFocus.sig = sig;
     } else {
+      // A building mesh may have been rebuilt (e.g. revision bump on save),
+      // which re-adds it visible. Keep other buildings hidden while focused.
+      for (const child of sceneParts.buildings.children) child.visible = false;
       const nextTool = editing.tool ?? null;
       if (floorFocus.tool !== nextTool) {
         floorFocus.tool = nextTool;
@@ -306,7 +349,8 @@ export function createSceneController(canvas, { onSelect = () => {}, store = nul
       if (!overlays) return;
       const areaGroup = createObservationOverlay({
         rects: overlays.area.rects, baseY: overlays.area.baseY,
-        lit: overlays.area.lit, draft: overlays.area.draft
+        lit: overlays.area.lit, draft: overlays.area.draft,
+        wallHeight: overlays.area.wallHeight ?? 0
       });
       areaGroup.position.set(overlays.area.group.position.x, 0, overlays.area.group.position.z);
       areaGroup.rotation.y = THREE.MathUtils.degToRad(overlays.area.group.rotationDeg);

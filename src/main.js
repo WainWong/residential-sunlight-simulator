@@ -18,6 +18,7 @@ import { sampleSurfaces } from './domain/simulation/sampleSurfaces.js';
 import { floorBaseY } from './domain/buildings/floorMath.js';
 import { rotateLocalToWorld } from './domain/buildings/wallGeometry.js';
 import { buildObstacles } from './domain/simulation/buildObstacles.js';
+import { buildAreaWallQuads } from './domain/simulation/buildAreaWallQuads.js';
 import { deriveAperturesFromArea } from './domain/simulation/deriveApertures.js';
 import { createElement } from './ui/createElement.js';
 import { showToast } from './ui/Toast.js';
@@ -105,8 +106,13 @@ export function mountApp(root) {
   function interiorPayload(project, building, area, solar) {
     const { transform } = areaWorldTransform(building, area);
     const { surfaces } = sampleSurfaces(area, { floorHeight: building.params.floorHeight }, transform);
-    const { portals, apertureWallIds } = deriveAperturesFromArea(building, area);
-    const obstacles = buildObstacles(project.buildings, { excludeWallIds: apertureWallIds });
+    const { portals } = deriveAperturesFromArea(building, area);
+    // Walls stay in the obstacle set; only portal openings let light through.
+    // The area's own partition walls block light too.
+    const obstacles = [
+      ...buildObstacles(project.buildings),
+      ...buildAreaWallQuads(building, area)
+    ];
     return {
       surfaces,
       openings: portals,
@@ -144,8 +150,19 @@ export function mountApp(root) {
     const cz = (Math.min(...zs) + Math.max(...zs)) / 2;
     const radius = Math.max(6, Math.hypot(Math.max(...xs) - Math.min(...xs), Math.max(...zs) - Math.min(...zs)) / 2);
 
+    // Mark each opening (where the area meets an exterior wall) so it's
+    // obvious where the sunlight can enter.
+    const { portals } = deriveAperturesFromArea(building, area);
+    const openingMarkers = portals.map(p => ({
+      id: p.id,
+      width: p.bounds.maxU - p.bounds.minU,
+      height: p.bounds.maxV - p.bounds.minV,
+      center: [p.plane.point[0], (p.bounds.minV + p.bounds.maxV) / 2, p.plane.point[2]],
+      normal: p.plane.normal
+    }));
+
     withController(controller => controller?.enterInterior({
-      building, floor: area.floor, area, surfaces,
+      building, floor: area.floor, area, surfaces, openingMarkers,
       center: { x: cx, y: baseY + building.params.floorHeight / 2, z: cz }, radius
     }));
 
