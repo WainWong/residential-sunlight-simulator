@@ -7,7 +7,6 @@ import { applyRectEdit, createAreaDrag } from './areaDrag.js';
 import { createFloorSlab, floorFocusTarget } from './floorFocus.js';
 import { floorBaseY, totalBuildingHeight } from '../domain/buildings/floorMath.js';
 import { SLAB_THICKNESS } from '../domain/buildings/segmentBuilding.js';
-import { createFadeState } from './occlusionFade.js';
 import { applyBuildingTransform } from './buildingSceneHelpers.js';
 import { createObservationOverlay } from './observationOverlay.js';
 import { clipRectToFootprint } from '../domain/buildings/footprintClip.js';
@@ -60,8 +59,6 @@ export function createSceneController(canvas, { onSelect = () => {}, store = nul
   let floorFocus = null;
 
   let interior = null;
-  const _camToCenter = new THREE.Vector3();
-  const _hit = new THREE.Raycaster();
 
   // The room is the building itself — openings are cut in the geometry so the
   // scene's real sun light + shadow map pours in physically. No mesh is hidden.
@@ -91,58 +88,44 @@ export function createSceneController(canvas, { onSelect = () => {}, store = nul
     light.shadow.needsUpdate = true;
   }
 
-  // 统一几何:房间就是建筑本体(CSG 挖好洞/掏好空腔的分段网格),进入
-  // 室内只需飞入相机并对宿主建筑的段做遮挡淡出——不再隐藏建筑、不再
-  // 另建房间网格或投影替身。
-  // Only the observation floor's segment and everything above it can fade — the
-  // floors BELOW the room must stay fully opaque, otherwise looking into the
-  // room reveals the storeys underneath through a glassy shell. bandFromY marks
-  // the underside of the room; segments ending at or below it are kept solid.
-  function fadeableSegments(buildingId, bandFromY) {
+  // 统一几何:房间就是建筑本体(CSG 挖好洞/掏好空腔的分段网格)。进入室内
+  // 只飞入相机;墙体始终实心可见。相机升到天花板以上时,把"盖子"(房间上方
+  // 的顶盖 mesh + 所有更高的楼层段)整块隐藏 —— 单块 mesh 的 visible 开关,
+  // 没有淡出/背面剔除/剖切那些和实心网格较劲的毛病。
+  //
+  // 盖子 = 观察层顶面(bandToY)及以上的东西:顶层房间的独立顶盖 mesh,或
+  // 非顶层时上方的整段楼层。楼下段、观察层墙身不在其中,始终可见。
+  function lidAndAbove(buildingId, bandToY) {
     const meshes = [];
     for (const child of sceneParts.buildings.children) {
       if (child.userData?.entityId !== buildingId) continue;
       child.traverse(m => {
-        if (m.userData?.kind === 'building-segment'
-          && m.userData.toY > bandFromY + 0.01) meshes.push(m);
+        const kind = m.userData?.kind;
+        if (kind !== 'building-segment' && kind !== 'building-lid') return;
+        // 顶盖(fromY≈bandToY-SLAB)与上方段(fromY≈bandToY)都归"盖子";
+        // 观察层墙身 fromY < bandToY,楼下段更低,都留下。
+        if (m.userData.fromY > bandToY - SLAB_THICKNESS - 0.01) meshes.push(m);
       });
     }
     return meshes;
   }
 
-  // 段网格共享建筑材质;室内观感需要逐段独立控制(观察层剖切、上方段淡出)
-  // → 克隆一份,退出恢复。
-  function watchSegments(meshes, fades) {
-    for (const mesh of meshes) {
-      mesh.userData.sharedMaterial = mesh.material;
-      mesh.material = mesh.material.clone();
-      mesh.material.transparent = true;
-      fades.set(mesh, createFadeState());
-    }
-  }
-
-  function unwatchSegments(fades) {
-    for (const [mesh] of fades) {
-      if (!mesh.userData.sharedMaterial) continue;
-      mesh.material.dispose();
-      mesh.material = mesh.userData.sharedMaterial;
-      delete mesh.userData.sharedMaterial;
-    }
-  }
-
   function enterInterior({ building, floor, area, center, radius }) {
     if (interior) exitInterior();
-    // Underside of the observation floor's room: segments ending here or lower
-    // stay solid; only the room's own band and the storeys above it may fade.
-    const bandFromY = floorBaseY({ floor, ...building.params }) + SLAB_THICKNESS;
-    const fades = new Map();
-    watchSegments(fadeableSegments(building.id, bandFromY), fades);
+    const params = building.params;
+    const totalH = totalBuildingHeight(params);
+    // 房间顶面高度:顶层是屋顶板底,其余层是上一层楼板底(即上方段的 fromY)。
+    const bandToY = floor >= params.floors ? totalH : floorBaseY({ floor: floor + 1, ...params });
+    // "揭盖"触发高度:相机升到房间中段以上就掀盖(轨道很容易到,且此时视线
+    // 确实在往房间里俯瞰);低于此为第一人称,盖子回位。
+    const liftY = center.y + params.floorHeight * 0.5;
+    const lid = lidAndAbove(building.id, bandToY);
+
     cameraParts.flyToArea({ center, radius });
     // The frustum must contain the whole building AND its shadow throw (a 99m
     // tower at low sun throws ~2× its height) — clipping the caster produces
     // spike artifacts on the ground. Precision is recovered by raising the map
     // size while inside (restored on exit).
-    const totalH = totalBuildingHeight(building.params);
     const shadowHalf = Math.max(60, radius * 3, totalH * 1.6);
     const light = sceneParts.sunlight;
     light.shadow.mapSize.set(4096, 4096);
@@ -151,14 +134,16 @@ export function createSceneController(canvas, { onSelect = () => {}, store = nul
     // Dim the sky ambient so sun patches vs shadow read with more contrast.
     const hemi = sceneParts.scene.getObjectByName('ambient-sky');
     if (hemi) hemi.intensity = 0.9;
-    const ceilingY = center.y + building.params.floorHeight / 2;
-    interior = { buildingId: building.id, bandFromY, fades, shadowHalf, ceilingY, center: new THREE.Vector3(center.x, center.y, center.z) };
+    interior = {
+      buildingId: building.id, bandToY, liftY, lid,
+      shadowHalf, center: new THREE.Vector3(center.x, center.y, center.z)
+    };
     frameShadowsOnInterior();
   }
 
   function exitInterior() {
     if (!interior) return;
-    unwatchSegments(interior.fades);
+    for (const mesh of interior.lid) mesh.visible = true;
     const hemi = sceneParts.scene.getObjectByName('ambient-sky');
     if (hemi) hemi.intensity = 1.5;
     cameraParts.setEditControls(null);
@@ -166,26 +151,12 @@ export function createSceneController(canvas, { onSelect = () => {}, store = nul
     restoreShadowFrame();
   }
 
-  // 室内观感随相机高度切换,而不是逐面射线淡出(观察层是一整块 CSG 网格,
-  // 射线一命中就整层墙全没了)。
-  //   · 相机在天花板以下 → 第一人称:观察层正面渲染、四周墙实心可见;
-  //   · 相机升到天花板以上 → 娃娃屋:观察层切成背面渲染,近墙与屋顶盖被
-  //     剔除,只留远墙内壁 + 地板,一眼看清房间与光斑;上方楼层整段淡出。
+  // 相机在房间中段以下 → 第一人称(盖子在位,四周墙+天花板完整);升到以上
+  // → 揭盖:顶盖与上方楼层整块隐藏,露出房间地板与墙,看清光斑分布。
   function updateOcclusion() {
     if (!interior) return;
-    const aboveCeiling = cameraParts.camera.position.y > interior.ceilingY;
-    for (const [mesh, fade] of interior.fades) {
-      const isAbove = mesh.userData.fromY >= interior.ceilingY - 0.5;
-      if (isAbove) {
-        // 观察层之上的楼层:相机钻到它下面时整段淡出,别挡视线。
-        const next = fade.update(mesh.material.opacity, aboveCeiling);
-        mesh.material.opacity = aboveCeiling && next <= 0.16 ? 0 : next;
-        continue;
-      }
-      // 观察层本身:高度切换正/背面。背面剔除即"剖开"效果。
-      mesh.material.opacity = 1;
-      mesh.material.side = aboveCeiling ? THREE.BackSide : THREE.FrontSide;
-    }
+    const lifted = cameraParts.camera.position.y > interior.liftY;
+    for (const mesh of interior.lid) mesh.visible = !lifted;
   }
 
   function disposeFloorFocus() {
@@ -400,14 +371,15 @@ export function createSceneController(canvas, { onSelect = () => {}, store = nul
     updateProject(project) {
       const { previewBuildingId, highlightBuildingId } = deriveScenePreview(project.view);
       synchronizer.update(project.buildings, { previewBuildingId, highlightBuildingId });
-      // revision 变化会重建段网格,fades 里的旧 mesh 随之失效 → 重新挂载。
+      // revision 变化会重建段网格,interior.lid 里的旧 mesh 随之失效 →
+      // 按最新网格重新收集"盖子",并立即按当前相机高度决定其可见性。
       if (interior) {
-        const alive = fadeableSegments(interior.buildingId, interior.bandFromY);
+        const alive = lidAndAbove(interior.buildingId, interior.bandToY);
         const aliveSet = new Set(alive);
-        if ([...interior.fades.keys()].some(m => !aliveSet.has(m))) {
-          unwatchSegments(interior.fades);
-          interior.fades = new Map();
-          watchSegments(alive, interior.fades);
+        if (interior.lid.some(m => !aliveSet.has(m)) || alive.some(m => !new Set(interior.lid).has(m))) {
+          interior.lid = alive;
+          const lifted = cameraParts.camera.position.y > interior.liftY;
+          for (const mesh of alive) mesh.visible = !lifted;
         }
       }
       canvas.dataset.buildingCount = String(project.buildings.length);

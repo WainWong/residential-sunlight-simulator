@@ -13,7 +13,7 @@ const bar = (areas = []) => ({
 describe('buildSegmentSpecs', () => {
   it('building without areas yields one full-height segment, no cutters', () => {
     const specs = buildSegmentSpecs(bar());
-    expect(specs).toEqual([{ fromY: 0, toY: 18, cutters: [] }]);
+    expect(specs).toEqual([{ fromY: 0, toY: 18, cutters: [], rooms: [] }]);
   });
 
   it('splits into below / band / above around the occupied floor', () => {

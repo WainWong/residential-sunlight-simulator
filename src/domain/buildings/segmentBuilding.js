@@ -114,17 +114,20 @@ export function buildSegmentSpecs(building) {
       const cutters = areas.flatMap(area =>
         rectUnionToPolygons(area.rects).map(poly => toCutter(poly, footprint, walls))
       );
-      return { fromY, toY: nextBase, cutters };
+      // 房间多边形(未外凸,即刀在 footprint 内挖出的真实空腔轮廓):顶层房间
+      // 用它单独造顶盖 mesh,好让"揭盖"能把顶盖整块隐藏。
+      const rooms = areas.flatMap(area => rectUnionToPolygons(area.rects));
+      return { fromY, toY: nextBase, cutters, rooms };
     })
     .sort((a, b) => a.fromY - b.fromY);
 
   const specs = [];
   let cursor = 0;
   for (const band of bands) {
-    if (band.fromY - cursor > EPS) specs.push({ fromY: cursor, toY: band.fromY, cutters: [] });
+    if (band.fromY - cursor > EPS) specs.push({ fromY: cursor, toY: band.fromY, cutters: [], rooms: [] });
     specs.push(band);
     cursor = band.toY;
   }
-  if (totalH - cursor > EPS) specs.push({ fromY: cursor, toY: totalH, cutters: [] });
+  if (totalH - cursor > EPS) specs.push({ fromY: cursor, toY: totalH, cutters: [], rooms: [] });
   return specs;
 }

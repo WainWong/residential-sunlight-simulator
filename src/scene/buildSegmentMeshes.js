@@ -82,7 +82,7 @@ function extrudeY(shape, fromY, toY) {
   return geometry;
 }
 
-function segmentGeometry(spec, footprint, totalH) {
+function segmentGeometry(spec, footprint) {
   const shell = extrudeY(footprintShape(footprint), spec.fromY, spec.toY);
   if (spec.cutters.length === 0) {
     shell.computeVertexNormals();
@@ -92,15 +92,12 @@ function segmentGeometry(spec, footprint, totalH) {
   const evaluator = new Evaluator();
   let brush = new Brush(shell);
   brush.updateMatrixWorld();
-  // 顶层观察层没有上方段兜底,刀若外扩穿顶就把屋顶挖穿了 → 留一层屋顶板
-  // (刀顶停在段顶下方 SLAB_THICKNESS 处;此处是刀与实体的真切割面,不共面)。
-  const atRoof = Math.abs(spec.toY - totalH) < EPS;
-  const knifeTop = atRoof ? spec.toY - SLAB_THICKNESS : spec.toY + CUT_Y_OVERSHOOT;
   for (const cutter of spec.cutters) {
-    // 刀 y 区间下端超出段底 CUT_Y_OVERSHOOT:段外没有材料,多切的是空气,
-    // 但消除了刀底面与段底面的共面分类。顶端见上。
+    // 刀 y 区间上下都超出段端面 CUT_Y_OVERSHOOT:观察层永远"开顶"——房间的
+    // 顶盖由独立 mesh 提供(见 lidGeometry),以便"揭盖"时整块隐藏。段外无
+    // 材料,多切的是空气,同时消除了刀端面与段端面的共面分类。
     const knife = new Brush(extrudeY(
-      cutterShape(cutter), spec.fromY - CUT_Y_OVERSHOOT, knifeTop
+      cutterShape(cutter), spec.fromY - CUT_Y_OVERSHOOT, spec.toY + CUT_Y_OVERSHOOT
     ));
     knife.updateMatrixWorld();
     const next = evaluator.evaluate(brush, knife, SUBTRACTION);
@@ -110,6 +107,15 @@ function segmentGeometry(spec, footprint, totalH) {
     brush.updateMatrixWorld();
   }
   const geometry = brush.geometry;
+  geometry.computeVertexNormals();
+  paintByOrientation(geometry);
+  return geometry;
+}
+
+// 顶层房间的顶盖:一块贴着房间轮廓的薄板(厚 SLAB_THICKNESS),独立成 mesh
+// 以便相机升高"揭盖"时整块隐藏。非顶层房间的顶盖 = 上方段的底面,不需要它。
+function lidGeometry(room, toY) {
+  const geometry = extrudeY(cutterShape(room), toY - SLAB_THICKNESS, toY);
   geometry.computeVertexNormals();
   paintByOrientation(geometry);
   return geometry;
@@ -138,7 +144,7 @@ export function buildSegmentMeshes(building, material) {
   const meshes = [];
   const frames = [];
   for (const spec of specs) {
-    const geometry = segmentGeometry(spec, footprint, totalH);
+    const geometry = segmentGeometry(spec, footprint);
     const mesh = new THREE.Mesh(geometry, material);
     mesh.userData = {
       kind: 'building-segment', entityId: building.id,
@@ -147,6 +153,22 @@ export function buildSegmentMeshes(building, material) {
     // 描边作为子对象:随段的变换与可见性走,拾取仍解析到父级 entityId。
     mesh.add(edgesFor(geometry));
     meshes.push(mesh);
+
+    // 顶层房间没有上方段当顶,补一块独立顶盖 mesh(可被"揭盖"整块隐藏)。
+    const atRoof = Math.abs(spec.toY - totalH) < EPS;
+    if (atRoof) {
+      for (const room of spec.rooms ?? []) {
+        const lidGeom = lidGeometry(room, spec.toY);
+        const lid = new THREE.Mesh(lidGeom, material);
+        lid.userData = {
+          kind: 'building-lid', entityId: building.id,
+          fromY: spec.toY - SLAB_THICKNESS, toY: spec.toY
+        };
+        lid.add(edgesFor(lidGeom));
+        meshes.push(lid);
+      }
+    }
+
     for (const cutter of spec.cutters) {
       for (const edge of cutter.openingEdges ?? []) {
         frames.push(frameForEdge(edge, spec.fromY, spec.toY));

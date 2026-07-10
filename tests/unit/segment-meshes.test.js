@@ -55,14 +55,17 @@ describe('buildSegmentMeshes', () => {
     expect(hits[0].point.y).toBeCloseTo(18, 2);
   });
 
-  it('keeps a roof cap over a top-floor room (no above segment to seal it)', () => {
-    // floor 6 of a 6-floor building: the band reaches the roof (y=18) with no
-    // segment above → the cutter must stop short of the top so a roof slab remains.
+  it('covers a top-floor room with a separate lid mesh (hideable for cutaway)', () => {
+    // floor 6 of a 6-floor building: the band is open-topped (no above segment),
+    // so a distinct lid mesh seals the room roof and can be hidden on its own.
     const { meshes } = buildSegmentMeshes(bar([
       { id: 'a1', floor: 6, rects: [{ x0: -8, z0: -6, x1: 8, z1: 6 }] }
     ]), material);
+    const lid = meshes.find(m => m.userData.kind === 'building-lid');
+    expect(lid).toBeTruthy();
+    expect(lid.userData.toY).toBeCloseTo(18, 2);
+    // 顶盖封住房间:从天空垂直向下,首个命中是顶盖顶面 y=18(不穿透)。
     const hits = raycast(meshes, [0, 30, 0], [0, -1, 0]);
-    // 屋顶盖在 y=18;若被穿透,首个命中会变成楼板顶 15.15
     expect(hits[0].point.y).toBeCloseTo(18, 2);
   });
 
