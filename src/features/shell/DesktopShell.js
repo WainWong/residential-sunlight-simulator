@@ -2,7 +2,8 @@ import {
   createSelectBuildingCommand,
   createStartAreaCreateCommand,
   createStartAreaEditCommand,
-  createRemoveObservationAreaCommand
+  createRemoveObservationAreaCommand,
+  createEnterInteriorCommand
 } from '../../store/buildingCommands.js';
 import { createElement } from '../../ui/createElement.js';
 import { areaLabel } from '../../domain/buildings/areaEditing.js';
@@ -85,7 +86,19 @@ export function createProjectTree({ store, onAdd }) {
         del.addEventListener('click', () => {
           store.execute(createRemoveObservationAreaCommand(building.id, area.id));
         });
-        return createElement('div', { className: 'tree-area-row' }, label, del);
+        const entered = project.view.interior?.areaId === area.id;
+        const enter = createElement('button', {
+          className: 'button button--ghost tree-row__enter',
+          text: entered ? '已进入' : '进入',
+          testId: `area-enter-${area.id}`,
+          attributes: { type: 'button' }
+        });
+        enter.hidden = !present;
+        if (entered) enter.setAttribute('aria-pressed', 'true');
+        enter.addEventListener('click', () => {
+          store.execute(createEnterInteriorCommand({ buildingId: building.id, areaId: area.id }));
+        });
+        return createElement('div', { className: 'tree-area-row' }, label, del, enter);
       });
 
       return createElement('div', { className: 'tree-node' }, row, ...children);

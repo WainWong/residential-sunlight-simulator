@@ -281,3 +281,5 @@
     animation-iteration-count: 1 !important;
   }
 }
+
+.tree-row__enter { padding: 2px 8px; font-size: 12px; }
