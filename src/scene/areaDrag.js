@@ -2,7 +2,7 @@ import * as THREE from 'three';
 import { rotateLocalToWorld } from '../domain/buildings/wallGeometry.js';
 import { pointerToNdc } from './picking.js';
 
-const GRID_STEP = 1; // meters; matches the floor-focus grid so draws align to it.
+const GRID_STEP = 0.1; // meters (10cm) snapping granularity for area drawing.
 
 export function snapToGrid(value, step = GRID_STEP) {
   return Math.round(value / step) * step;

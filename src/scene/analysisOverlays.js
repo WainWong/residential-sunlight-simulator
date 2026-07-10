@@ -2,6 +2,10 @@ import { floorBaseY } from '../domain/buildings/floorMath.js';
 import { deriveAperturesFromArea } from '../domain/simulation/deriveApertures.js';
 
 export function buildAnalysisOverlays(project, simulationState, phase = 'present') {
+  // Inside the interior view the per-sample lightmap shows exactly which spots
+  // are sunlit — the coarse whole-area overlay would paint the entire floor
+  // one binary color on top of it, so skip it.
+  if (project.view?.interior) return null;
   const editing = project.view?.areaEditing;
   if (editing) {
     const building = project.buildings.find(b => b.id === editing.buildingId);
@@ -13,6 +17,7 @@ export function buildAnalysisOverlays(project, simulationState, phase = 'present
         baseY,
         lit: false,
         draft: true,
+        wallHeight: building.params.floorHeight,
         group: { position: { x: building.position.x, z: building.position.z }, rotationDeg: building.rotation }
       },
       openings: []

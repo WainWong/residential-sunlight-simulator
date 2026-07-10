@@ -113,6 +113,21 @@
   height: 100%;
 }
 
+.area-dim-label {
+  position: absolute;
+  transform: translate(-50%, -140%);
+  padding: 2px 8px;
+  border-radius: var(--radius-sm);
+  background: rgb(17 24 28 / 82%);
+  color: #fff;
+  font-size: 12px;
+  font-weight: 650;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+  pointer-events: none;
+  z-index: 5;
+}
+
 .viewport__compass-wrap {
   position: absolute;
   top: 16px;

@@ -382,7 +382,10 @@ export function createUpdateAreaEditingCommand(patch) {
     label: '修改观察区编辑会话',
     apply(state) {
       if (!state.view.areaEditing) return state;
-      return { ...state, view: { ...state.view, areaEditing: { ...state.view.areaEditing, ...patch } } };
+      // Editing the rects invalidates a prior save, re-enabling the save button.
+      const next = { ...state.view.areaEditing, ...patch };
+      if ('rects' in patch) next.saved = false;
+      return { ...state, view: { ...state.view, areaEditing: next } };
     }
   };
 }
@@ -418,8 +421,13 @@ export function createSaveAreaEditingCommand() {
             : [...b.observationAreas, area]
         }),
         simulation: { ...state.simulation, activeAreaId: areaId },
-        // Saving returns to the building overview.
-        view: { ...state.view, areaEditing: null, editorMode: 'none' }
+        // Saving keeps the floor-focus session open in view mode (tool off) so
+        // the camera stays put; the session now tracks the saved area for edit.
+        // `saved: true` greys the save button until the next rect change.
+        view: {
+          ...state.view,
+          areaEditing: { ...editing, mode: 'edit', areaId, tool: null, saved: true }
+        }
       };
     }
   };

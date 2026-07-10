@@ -459,8 +459,8 @@ describe('area editing session commands', () => {
   it('saving a create session adds the area and selects it for results', () => {
     const editing = createUpdateAreaEditingCommand({ floor: 3, rects: [{ x0: 1, z0: 1, x1: 2, z1: 2 }] }).apply(createStartAreaCreateCommand('b1').apply(base));
     const next = createSaveAreaEditingCommand().apply(editing);
-    expect(next.view.areaEditing).toBeNull();
-    expect(next.view.editorMode).toBe('none');
+    // Saving keeps the session open in view mode (edit, tool off, saved).
+    expect(next.view.areaEditing).toMatchObject({ mode: 'edit', tool: null, saved: true });
     expect(next.buildings[0].observationAreas).toHaveLength(2);
     expect(next.buildings[0].observationAreas[1]).toMatchObject({ floor: 3, rects: [{ x0: 1, z0: 1, x1: 2, z1: 2 }], sampleHeight: 0 });
     expect(next.buildings[0].observationAreas[1].name).toBeUndefined();
@@ -470,7 +470,7 @@ describe('area editing session commands', () => {
   it('saving an edit session updates the official area', () => {
     const editing = createUpdateAreaEditingCommand({ floor: 4, rects: [{ x0: 2, z0: 2, x1: 4, z1: 4 }] }).apply(createStartAreaEditCommand('b1', 'a1').apply(base));
     const next = createSaveAreaEditingCommand().apply(editing);
-    expect(next.view.areaEditing).toBeNull();
+    expect(next.view.areaEditing).toMatchObject({ mode: 'edit', areaId: 'a1', tool: null, saved: true });
     expect(next.buildings[0].observationAreas[0]).toMatchObject({ id: 'a1', floor: 4, rects: [{ x0: 2, z0: 2, x1: 4, z1: 4 }] });
     expect(next.buildings[0].observationAreas[0].name).toBeUndefined();
     expect(next.simulation.activeAreaId).toBe('a1');

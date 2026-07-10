@@ -88,7 +88,7 @@ export function createProjectTree({ store, onAdd }) {
         });
         const entered = project.view.interior?.areaId === area.id;
         const enter = createElement('button', {
-          className: 'button button--ghost tree-row__enter',
+          className: `tree-row__enter ${entered ? 'is-entered' : ''}`,
           text: entered ? '已进入' : '进入',
           testId: `area-enter-${area.id}`,
           attributes: { type: 'button' }

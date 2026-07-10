@@ -85,14 +85,16 @@ export function createAreaFloorTool({ store, buildingId }) {
     const activeTool = session.tool ?? null;
     applyToolUI(activeTool);
     const size = rectArea(session.rects).toFixed(1);
-    if (!activeTool) {
+    if (session.saved && session.rects.length > 0) {
+      rectSummary.textContent = `已保存 ${session.rects.length} 块，共 ${size} m²`;
+    } else if (!activeTool) {
       rectSummary.textContent = '查看模式：拖拽可旋转视角，选择「画区」开始绘制';
     } else if (session.rects.length > 0) {
       rectSummary.textContent = `已绘制 ${session.rects.length} 块，共 ${size} m²`;
     } else {
       rectSummary.textContent = '在画面中拖拽画出观察区';
     }
-    saveBtn.disabled = session.rects.length === 0;
+    saveBtn.disabled = session.rects.length === 0 || session.saved === true;
     const eraseBtn = toolButtons.get('erase');
     if (eraseBtn) eraseBtn.hidden = !(session.mode === 'edit' && session.rects.length > 0);
   }
