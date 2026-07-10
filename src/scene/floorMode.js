@@ -10,22 +10,26 @@ function removeActiveFloor(group) {
 
 export function setBuildingFloorMode(group, selection) {
   removeActiveFloor(group);
-  const solid = group.children.find(child => child.userData.kind === 'building-solid');
-  if (!solid) return;
+  const segments = group.children.filter(child => child.userData.kind === 'building-segment');
+  if (segments.length === 0) return;
 
-  if (!solid.userData.floorModeMaterial) {
-    solid.material = solid.material.clone();
-    solid.userData.floorModeMaterial = true;
+  const bounds = new THREE.Box3();
+  for (const segment of segments) {
+    if (!segment.userData.floorModeMaterial) {
+      segment.material = segment.material.clone();
+      segment.userData.floorModeMaterial = true;
+    }
+    segment.material.transparent = Boolean(selection);
+    segment.material.opacity = selection ? 0.18 : 1;
+    segment.material.depthWrite = !selection;
+    segment.material.needsUpdate = true;
+    segment.geometry.computeBoundingBox();
+    bounds.union(segment.geometry.boundingBox);
   }
-  solid.material.transparent = Boolean(selection);
-  solid.material.opacity = selection ? 0.18 : 1;
-  solid.material.depthWrite = !selection;
-  solid.material.needsUpdate = true;
   if (!selection) return;
 
-  solid.geometry.computeBoundingBox();
   const size = new THREE.Vector3();
-  solid.geometry.boundingBox.getSize(size);
+  bounds.getSize(size);
   const geometry = new THREE.BoxGeometry(size.x, selection.height - 0.08, size.z);
   const material = new THREE.MeshStandardMaterial({
     color: 0xe7a52d,

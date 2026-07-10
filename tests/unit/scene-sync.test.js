@@ -11,7 +11,7 @@ describe('selection highlight', () => {
 
   it('rebuilds with highlight material when selected but not editing', () => {
     const group = createBuildingMesh(barBuilding, { highlighted: true });
-    const solid = group.children.find(c => c.userData.kind === 'building-solid');
+    const solid = group.children.find(c => c.userData.kind === 'building-segment');
     expect(group.userData.highlighted).toBe(true);
     expect(solid.material.emissiveIntensity).toBeGreaterThan(0);
   });
@@ -55,7 +55,7 @@ describe('building scene mesh', () => {
     expect(group.position.toArray()).toEqual([4, 0, -6]);
     expect(group.rotation.y).toBeCloseTo(Math.PI / 6);
     expect(group.userData.totalHeight).toBe(10.5);
-    expect(group.children.some(child => child.userData.kind === 'building-solid')).toBe(true);
+    expect(group.children.some(child => child.userData.kind === 'building-segment')).toBe(true);
   });
 });
 
@@ -76,7 +76,7 @@ describe('scene synchronization', () => {
 
   it('uses a translucent blueprint material while editing', () => {
     const group = createBuildingMesh(barBuilding, { preview: true });
-    const solid = group.children.find(child => child.userData.kind === 'building-solid');
+    const solid = group.children.find(child => child.userData.kind === 'building-segment');
 
     expect(solid.material.transparent).toBe(true);
     expect(solid.material.opacity).toBeLessThan(1);

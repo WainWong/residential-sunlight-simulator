@@ -2,6 +2,7 @@ import * as THREE from 'three';
 import { createFootprint } from '../domain/buildings/createFootprint.js';
 import { floorBaseY, totalBuildingHeight } from '../domain/buildings/floorMath.js';
 import { applyBuildingTransform, getOuterRing } from './buildingSceneHelpers.js';
+import { buildSegmentMeshes } from './buildSegmentMeshes.js';
 
 const buildingMaterial = new THREE.MeshStandardMaterial({
   color: 0xa9b2b2,
@@ -31,26 +32,6 @@ const floorLineMaterial = new THREE.LineBasicMaterial({
   opacity: 0.52
 });
 
-function ringToShape(shape, ring) {
-  ring.forEach(([x, z], index) => {
-    const method = index === 0 ? 'moveTo' : 'lineTo';
-    shape[method](x, -z);
-  });
-  shape.closePath();
-}
-
-function footprintShape(footprint) {
-  const outer = getOuterRing(footprint);
-  const shape = new THREE.Shape();
-  ringToShape(shape, outer);
-  for (const hole of Array.isArray(footprint) ? [] : footprint.holes) {
-    const path = new THREE.Path();
-    ringToShape(path, hole);
-    shape.holes.push(path);
-  }
-  return shape;
-}
-
 function floorLines(footprint, building) {
   const outer = getOuterRing(footprint);
   const vertices = [];
@@ -72,20 +53,7 @@ function floorLines(footprint, building) {
 export function createBuildingMesh(building, { preview = false, highlighted = false } = {}) {
   const footprint = createFootprint(building.template, building.params);
   const height = totalBuildingHeight(building.params);
-  const geometry = new THREE.ExtrudeGeometry(footprintShape(footprint), {
-    depth: height,
-    steps: 1,
-    bevelEnabled: false
-  });
-  geometry.rotateX(-Math.PI / 2);
-  geometry.computeVertexNormals();
-
   const material = preview ? blueprintMaterial : (highlighted ? highlightMaterial : buildingMaterial);
-  const solid = new THREE.Mesh(geometry, material);
-  solid.castShadow = !preview;
-  solid.receiveShadow = !preview;
-  solid.userData.kind = 'building-solid';
-  solid.userData.entityId = building.id;
 
   const group = new THREE.Group();
   group.name = `building:${building.id}`;
@@ -95,7 +63,14 @@ export function createBuildingMesh(building, { preview = false, highlighted = fa
   group.userData.highlighted = !preview && highlighted;
   group.userData.totalHeight = height;
   applyBuildingTransform(group, building);
-  group.add(solid);
+
+  const { meshes, frames } = buildSegmentMeshes(building, material);
+  for (const mesh of meshes) {
+    mesh.castShadow = !preview;
+    mesh.receiveShadow = !preview;
+    group.add(mesh);
+  }
+  for (const frame of frames) group.add(frame);
 
   const lines = floorLines(footprint, building);
   if (lines) group.add(lines);
