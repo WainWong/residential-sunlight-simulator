@@ -110,7 +110,8 @@ export function createSceneController(canvas, { onSelect = () => {}, store = nul
     return meshes;
   }
 
-  // 段网格共享建筑材质;淡出需要逐段独立的 opacity → 克隆一份,退出恢复。
+  // 段网格共享建筑材质;室内观感需要逐段独立控制(观察层剖切、上方段淡出)
+  // → 克隆一份,退出恢复。
   function watchSegments(meshes, fades) {
     for (const mesh of meshes) {
       mesh.userData.sharedMaterial = mesh.material;
@@ -165,26 +166,25 @@ export function createSceneController(canvas, { onSelect = () => {}, store = nul
     restoreShadowFrame();
   }
 
-  // Fade any face that sits between the camera and the interior focus point so
-  // the user can always see inside. Runs every frame while interior is active.
+  // 室内观感随相机高度切换,而不是逐面射线淡出(观察层是一整块 CSG 网格,
+  // 射线一命中就整层墙全没了)。
+  //   · 相机在天花板以下 → 第一人称:观察层正面渲染、四周墙实心可见;
+  //   · 相机升到天花板以上 → 娃娃屋:观察层切成背面渲染,近墙与屋顶盖被
+  //     剔除,只留远墙内壁 + 地板,一眼看清房间与光斑;上方楼层整段淡出。
   function updateOcclusion() {
     if (!interior) return;
-    const camPos = cameraParts.camera.position;
-    _camToCenter.copy(interior.center).sub(camPos);
-    const centerDist = _camToCenter.length();
-    _hit.set(camPos, _camToCenter.clone().normalize());
-    const meshes = [...interior.fades.keys()];
-    const hits = _hit.intersectObjects(meshes, false);
-    const occluders = new Set(hits.filter(h => h.distance < centerDist - 0.5).map(h => h.object));
-    // 天花板及以上的段用连续的相机高度规则,而不是 raycast:大水平面在
-    // 掠射角下 raycast 会抖动,表现为屋顶时有时无。
-    const aboveCeiling = camPos.y > interior.ceilingY;
+    const aboveCeiling = cameraParts.camera.position.y > interior.ceilingY;
     for (const [mesh, fade] of interior.fades) {
       const isAbove = mesh.userData.fromY >= interior.ceilingY - 0.5;
-      const occluding = isAbove ? aboveCeiling : occluders.has(mesh);
-      const next = fade.update(mesh.material.opacity, occluding);
-      // 淡到接近透明时干脆整段抬走,不留一层幽灵薄膜。
-      mesh.material.opacity = isAbove && occluding && next <= 0.16 ? 0 : next;
+      if (isAbove) {
+        // 观察层之上的楼层:相机钻到它下面时整段淡出,别挡视线。
+        const next = fade.update(mesh.material.opacity, aboveCeiling);
+        mesh.material.opacity = aboveCeiling && next <= 0.16 ? 0 : next;
+        continue;
+      }
+      // 观察层本身:高度切换正/背面。背面剔除即"剖开"效果。
+      mesh.material.opacity = 1;
+      mesh.material.side = aboveCeiling ? THREE.BackSide : THREE.FrontSide;
     }
   }
 
