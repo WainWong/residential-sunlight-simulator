@@ -2,6 +2,7 @@ import { getSolarPosition } from '../../domain/solar/getSolarPosition.js';
 import { floorBaseY } from '../../domain/buildings/floorMath.js';
 import { rotateLocalToWorld } from '../../domain/buildings/wallGeometry.js';
 import { buildObstacles } from '../../domain/simulation/buildObstacles.js';
+import { buildAreaWallQuads } from '../../domain/simulation/buildAreaWallQuads.js';
 import { deriveAperturesFromArea } from '../../domain/simulation/deriveApertures.js';
 import { evaluateDirectSun } from '../../domain/simulation/evaluateDirectSun.js';
 import { areaLabel } from '../../domain/buildings/areaEditing.js';
@@ -34,8 +35,14 @@ function resolveDirectSun({ project, building, area }) {
     const [wx, wz] = rotateLocalToWorld([lx, lz], building.rotation);
     return [wx + building.position.x, baseY, wz + building.position.z];
   };
-  const { portals, apertureWallIds } = deriveAperturesFromArea(building, area);
-  const obstacles = buildObstacles(project.buildings, { excludeWallIds: apertureWallIds });
+  const { portals } = deriveAperturesFromArea(building, area);
+  // All walls stay in the obstacle set — light passes only through the portal
+  // openings (firstBlockingDistance excuses hits inside a portal). The area's
+  // own partition walls block light too.
+  const obstacles = [
+    ...buildObstacles(project.buildings),
+    ...buildAreaWallQuads(building, area)
+  ];
 
   return { transform, portals, obstacles };
 }

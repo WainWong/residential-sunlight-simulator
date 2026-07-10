@@ -1,7 +1,10 @@
 import { intersectOpening } from './intersectOpening.js';
-import { firstObstacleDistance } from './intersectObstacles.js';
+import { firstBlockingDistance } from './intersectObstacles.js';
 import { normalize } from './vector.js';
 
+// A sample is lit when its ray to the sun exits through an opening AND no
+// obstacle blocks the ray anywhere along it — walls remain obstacles; only
+// hits landing inside an opening are pass-throughs.
 export function evaluateInteriorSun({ surfaces, openings, obstacles, sunDirection }) {
   const direction = normalize(sunDirection);
   const masks = {};
@@ -10,12 +13,12 @@ export function evaluateInteriorSun({ surfaces, openings, obstacles, sunDirectio
     const lit = [];
     if (!belowHorizon) {
       for (const sample of surface.samples) {
-        for (const opening of openings) {
-          const portal = intersectOpening(sample.position, direction, opening);
-          if (!portal) continue;
-          const blocker = firstObstacleDistance(sample.position, direction, obstacles, portal.distance);
-          if (blocker == null) { lit.push(sample.id); break; }
-        }
+        const throughOpening = openings.some(
+          opening => intersectOpening(sample.position, direction, opening) != null
+        );
+        if (!throughOpening) continue;
+        const blocker = firstBlockingDistance(sample.position, direction, obstacles, openings);
+        if (blocker == null) lit.push(sample.id);
       }
     }
     masks[surface.surfaceId] = lit;

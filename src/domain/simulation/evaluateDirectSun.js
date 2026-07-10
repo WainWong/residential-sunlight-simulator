@@ -1,5 +1,5 @@
 import { intersectOpening } from './intersectOpening.js';
-import { firstObstacleDistance } from './intersectObstacles.js';
+import { firstBlockingDistance } from './intersectObstacles.js';
 import { sampleArea } from './sampleArea.js';
 import { normalize } from './vector.js';
 
@@ -28,12 +28,9 @@ export function evaluateDirectSun({
     for (const opening of openings) {
       const portal = intersectOpening(sample.position, direction, opening);
       if (!portal) continue;
-      const blocker = firstObstacleDistance(
-        sample.position,
-        direction,
-        obstacles,
-        portal.distance
-      );
+      // Walls stay in the obstacle set; a hit is excused only when it lands
+      // inside one of the openings (a hole in the wall).
+      const blocker = firstBlockingDistance(sample.position, direction, obstacles, openings);
       if (blocker == null) {
         litSampleIds.push(sample.id);
         openingHits[opening.id] += 1;

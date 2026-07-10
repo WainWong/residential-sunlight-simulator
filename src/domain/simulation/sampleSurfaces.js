@@ -5,16 +5,19 @@ const identity = p => p;
 
 function floorSurface(area, spacing, transform) {
   const pts = rectsToSamplePoints(area.rects ?? [], spacing, area.sampleHeight ?? 0);
-  const xs = pts.map(p => p.position[0]);
-  const zs = pts.map(p => p.position[2]);
-  const minX = Math.min(...xs, 0), maxX = Math.max(...xs, 1);
-  const minZ = Math.min(...zs, 0), maxZ = Math.max(...zs, 1);
+  // Normalize u,v over the rects' bounding box (not the sample-point extent,
+  // which is inset by half a spacing) so texels align with the floor mesh UVs.
+  const rxs = (area.rects ?? []).flatMap(r => [r.x0, r.x1]);
+  const rzs = (area.rects ?? []).flatMap(r => [r.z0, r.z1]);
+  const minX = Math.min(...rxs, 0), maxX = Math.max(...rxs, 1);
+  const minZ = Math.min(...rzs, 0), maxZ = Math.max(...rzs, 1);
   const spanX = maxX - minX || 1, spanZ = maxZ - minZ || 1;
   return {
     surfaceId: 'floor',
     kind: 'floor',
     width: spanX,
     height: spanZ,
+    spacing,
     samples: pts.map(p => ({
       id: `floor:${p.id}`,
       position: transform(p.position),
@@ -58,6 +61,7 @@ function wallSurfaces(area, floorHeight, baseY, spacing, transform) {
           kind: 'wall',
           width: len,
           height: floorHeight,
+          spacing,
           samples
         });
       }
@@ -66,7 +70,7 @@ function wallSurfaces(area, floorHeight, baseY, spacing, transform) {
   return out;
 }
 
-export function sampleSurfaces(area, { floorHeight = 3, wallSpacing = 1, floorSpacing = 1 } = {}, transform = identity) {
+export function sampleSurfaces(area, { floorHeight = 3, wallSpacing = 0.15, floorSpacing = 0.1 } = {}, transform = identity) {
   const baseY = area.sampleHeight ?? 0;
   const surfaces = [
     floorSurface(area, floorSpacing, transform),

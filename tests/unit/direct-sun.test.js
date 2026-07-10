@@ -68,6 +68,46 @@ describe('direct sunlight', () => {
     expect(result.openingHits['window-1']).toBe(1);
   });
 
+  it('keeps the opening wall blocking outside the opening bounds', () => {
+    // The wall carrying the opening is an obstacle quad on the same plane.
+    // The ray passes INSIDE the opening bounds → the wall hit is excused.
+    const wallQuad = {
+      a: [-10, 0, -2], b: [10, 0, -2], c: [10, 10, -2], d: [-10, 10, -2]
+    };
+    const lit = evaluateDirectSun({
+      area,
+      openings: [southWindow],
+      obstacles: [wallQuad],
+      sunDirection: winterSun
+    });
+    expect(lit.hasDirectSun).toBe(true);
+
+    // Shrink the opening so the ray exits OUTSIDE its bounds → wall blocks.
+    const tinyWindow = { ...southWindow, bounds: { minU: -1, maxU: 1, minV: 5, maxV: 6 } };
+    const dark = evaluateDirectSun({
+      area,
+      openings: [tinyWindow],
+      obstacles: [wallQuad],
+      sunDirection: winterSun
+    });
+    expect(dark.hasDirectSun).toBe(false);
+  });
+
+  it('blocks light beyond the opening (opposite wing of the building)', () => {
+    // Ray passes the opening but a far wall (e.g. the courtyard's opposite
+    // wing) stands beyond it — the sample must NOT be lit.
+    const oppositeWing = {
+      a: [-10, 0, -6], b: [10, 0, -6], c: [10, 30, -6], d: [-10, 30, -6]
+    };
+    const result = evaluateDirectSun({
+      area,
+      openings: [southWindow],
+      obstacles: [oppositeWing],
+      sunDirection: winterSun
+    });
+    expect(result.hasDirectSun).toBe(false);
+  });
+
   it('returns no direct sun below the horizon', () => {
     const result = evaluateDirectSun({
       area,

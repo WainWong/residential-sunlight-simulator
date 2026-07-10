@@ -63,3 +63,43 @@ export function firstObstacleDistance(origin, direction, obstacles, afterDistanc
   }
   return Number.isFinite(nearest) ? nearest : null;
 }
+
+const PORTAL_PLANE_TOL = 0.05; // meters: hit counts as "at the portal plane"
+
+// Does a world point (an obstacle hit) fall inside one of the portal openings?
+// Openings are holes in walls: a wall hit inside a portal lets the ray through.
+function pointInsideAPortal(point, portals) {
+  for (const portal of portals) {
+    const { plane, bounds } = portal;
+    const rel = [point[0] - plane.point[0], point[1] - plane.point[1], point[2] - plane.point[2]];
+    const off = rel[0] * plane.normal[0] + rel[1] * plane.normal[1] + rel[2] * plane.normal[2];
+    if (Math.abs(off) > PORTAL_PLANE_TOL) continue;
+    const u = rel[0] * plane.tangent[0] + rel[1] * plane.tangent[1] + rel[2] * plane.tangent[2];
+    const v = point[1];
+    if (u >= bounds.minU && u <= bounds.maxU && v >= bounds.minV && v <= bounds.maxV) return true;
+  }
+  return false;
+}
+
+// First obstacle hit along the whole ray that is NOT excused by passing
+// through a portal opening. Walls stay in the obstacle set (they block light);
+// only hits landing inside a portal's bounds are treated as pass-throughs.
+export function firstBlockingDistance(origin, direction, obstacles, portals = []) {
+  const hits = [];
+  for (const obstacle of obstacles) {
+    const distance = obstacle.a
+      ? intersectRayQuad(origin, direction, obstacle)
+      : intersectRayAabb(origin, direction, obstacle);
+    if (distance != null) hits.push(distance);
+  }
+  hits.sort((a, b) => a - b);
+  for (const distance of hits) {
+    const point = [
+      origin[0] + direction[0] * distance,
+      origin[1] + direction[1] * distance,
+      origin[2] + direction[2] * distance
+    ];
+    if (!pointInsideAPortal(point, portals)) return distance;
+  }
+  return null;
+}
