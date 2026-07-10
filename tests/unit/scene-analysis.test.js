@@ -11,13 +11,12 @@ const project = {
 };
 
 describe('buildAnalysisOverlays', () => {
-  it('returns area rects + derived aperture openings for the active area', () => {
+  it('returns area rects for the active area', () => {
     const out = buildAnalysisOverlays(project, { activeAreaId: 'a', litSampleIds: ['1:1'], noArea: false });
     expect(out.area.rects).toEqual([{ x0: -3, z0: -11, x1: 3, z1: -4 }]);
     expect(out.area.draft).toBe(false);
     expect(out.area.lit).toBe(true);
     expect(out.area.group).toMatchObject({ position: { x: 0, z: 0 }, rotationDeg: 0 });
-    expect(out.openings.length).toBeGreaterThan(0);
   });
 
   it('returns null when noArea', () => {

@@ -2,7 +2,6 @@ import { describe, expect, it } from 'vitest';
 import { createBuildingMesh } from '../../src/scene/buildingMesh.js';
 import { setBuildingFloorMode } from '../../src/scene/floorMode.js';
 import { createObservationOverlay } from '../../src/scene/observationOverlay.js';
-import { createOpeningOverlay } from '../../src/scene/openingOverlay.js';
 import { pointerToNdc, resolvePickedEntity } from '../../src/scene/picking.js';
 import { createSunOverlay } from '../../src/scene/sunOverlay.js';
 
@@ -45,25 +44,17 @@ describe('editing overlays', () => {
     expect(group.getObjectByName('active-floor')).toBeUndefined();
   });
 
-  it('creates tagged observation, opening, and sun overlays', () => {
+  it('creates tagged observation and sun overlays', () => {
     const area = createObservationOverlay({
       rects: [{ x0: 0, z0: 0, x1: 1, z1: 1 }, { x0: 1, z0: 0, x1: 2, z1: 1 }],
       baseY: 6,
       lit: false
-    });
-    const opening = createOpeningOverlay({
-      id: 'window-a',
-      width: 2,
-      height: 1.5,
-      center: [0, 7.5, -5],
-      normal: [0, 0, -1]
     });
     const sun = createSunOverlay({ direction: [0.2, 0.8, -0.5] });
 
     // The two adjacent rects merge into one polygonal shape (one mesh).
     expect(area.children).toHaveLength(1);
     expect(area.userData.kind).toBe('observation-overlay');
-    expect(opening.userData.entityId).toBe('window-a');
     expect(sun.userData.kind).toBe('sun-overlay');
   });
 

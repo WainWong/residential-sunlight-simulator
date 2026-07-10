@@ -5,14 +5,12 @@ import { createBuildingMesh } from './buildingMesh.js';
 import { createCameraRig } from './createCameraRig.js';
 import { applyRectEdit, createAreaDrag } from './areaDrag.js';
 import { createFloorSlab, floorFocusTarget } from './floorFocus.js';
-import { createInteriorFloor, createHostShadowGhost } from './interiorFloor.js';
 import { totalBuildingHeight } from '../domain/buildings/floorMath.js';
 import { createFadeState } from './occlusionFade.js';
 import { applyBuildingTransform } from './buildingSceneHelpers.js';
 import { createObservationOverlay } from './observationOverlay.js';
 import { clipRectToFootprint } from '../domain/buildings/footprintClip.js';
 import { rotateLocalToWorld } from '../domain/buildings/wallGeometry.js';
-import { createOpeningOverlay } from './openingOverlay.js';
 import { createRenderer } from './createRenderer.js';
 import { createScene } from './createScene.js';
 import { pointerToNdc, resolvePickedEntity } from './picking.js';
@@ -64,10 +62,8 @@ export function createSceneController(canvas, { onSelect = () => {}, store = nul
   const _camToCenter = new THREE.Vector3();
   const _hit = new THREE.Raycaster();
 
-  // The interior room is lit by the scene's real sun light + shadow map;
-  // openings are cut in the geometry so sunlight enters physically. The host
-  // building's meshes are hidden (replaced by the room); other buildings stay
-  // visible and keep casting their shadows.
+  // The room is the building itself — openings are cut in the geometry so the
+  // scene's real sun light + shadow map pours in physically. No mesh is hidden.
   // Focus the sun's shadow camera on the interior room so shadow texels are
   // dense there (crisp edges); applySunLighting re-targets the light at the
   // origin every solar update, so this runs after each of those too.
@@ -94,24 +90,48 @@ export function createSceneController(canvas, { onSelect = () => {}, store = nul
     light.shadow.needsUpdate = true;
   }
 
+  // 统一几何:房间就是建筑本体(CSG 挖好洞/掏好空腔的分段网格),进入
+  // 室内只需飞入相机并对宿主建筑的段做遮挡淡出——不再隐藏建筑、不再
+  // 另建房间网格或投影替身。
+  function hostSegmentMeshes(buildingId) {
+    const meshes = [];
+    for (const child of sceneParts.buildings.children) {
+      if (child.userData?.entityId !== buildingId) continue;
+      child.traverse(m => {
+        if (m.userData?.kind === 'building-segment') meshes.push(m);
+      });
+    }
+    return meshes;
+  }
+
+  // 段网格共享建筑材质;淡出需要逐段独立的 opacity → 克隆一份,退出恢复。
+  function watchSegments(meshes, fades) {
+    for (const mesh of meshes) {
+      mesh.userData.sharedMaterial = mesh.material;
+      mesh.material = mesh.material.clone();
+      mesh.material.transparent = true;
+      fades.set(mesh, createFadeState());
+    }
+  }
+
+  function unwatchSegments(fades) {
+    for (const [mesh] of fades) {
+      if (!mesh.userData.sharedMaterial) continue;
+      mesh.material.dispose();
+      mesh.material = mesh.userData.sharedMaterial;
+      delete mesh.userData.sharedMaterial;
+    }
+  }
+
   function enterInterior({ building, floor, area, center, radius }) {
     if (interior) exitInterior();
-    for (const child of sceneParts.buildings.children) {
-      if (child.userData?.entityId === building.id) child.visible = false;
-    }
-    const group = createInteriorFloor(building, floor, area);
-    sceneParts.scene.add(group);
-    // Invisible stand-in keeps the hidden host building casting real shadows
-    // (floors above/below still block sunlight; ground shadow stays whole).
-    const ghost = createHostShadowGhost(building, floor, area);
-    sceneParts.scene.add(ghost);
     const fades = new Map();
-    group.traverse(m => { if (m.material) fades.set(m, createFadeState()); });
+    watchSegments(hostSegmentMeshes(building.id), fades);
     cameraParts.flyToArea({ center, radius });
-    // The frustum must contain the whole ghost building AND its shadow throw
-    // (a 99m tower at low sun throws ~2× its height) — clipping the caster
-    // produces spike artifacts on the ground. Precision is recovered by
-    // raising the map size while inside (restored on exit).
+    // The frustum must contain the whole building AND its shadow throw (a 99m
+    // tower at low sun throws ~2× its height) — clipping the caster produces
+    // spike artifacts on the ground. Precision is recovered by raising the map
+    // size while inside (restored on exit).
     const totalH = totalBuildingHeight(building.params);
     const shadowHalf = Math.max(60, radius * 3, totalH * 1.6);
     const light = sceneParts.sunlight;
@@ -122,17 +142,13 @@ export function createSceneController(canvas, { onSelect = () => {}, store = nul
     const hemi = sceneParts.scene.getObjectByName('ambient-sky');
     if (hemi) hemi.intensity = 0.9;
     const ceilingY = center.y + building.params.floorHeight / 2;
-    interior = { group, ghost, fades, shadowHalf, ceilingY, center: new THREE.Vector3(center.x, center.y, center.z) };
+    interior = { buildingId: building.id, fades, shadowHalf, ceilingY, center: new THREE.Vector3(center.x, center.y, center.z) };
     frameShadowsOnInterior();
   }
 
   function exitInterior() {
     if (!interior) return;
-    interior.group.traverse(c => c.geometry?.dispose());
-    sceneParts.scene.remove(interior.group);
-    interior.ghost.traverse(c => c.geometry?.dispose());
-    sceneParts.scene.remove(interior.ghost);
-    for (const child of sceneParts.buildings.children) child.visible = true;
+    unwatchSegments(interior.fades);
     const hemi = sceneParts.scene.getObjectByName('ambient-sky');
     if (hemi) hemi.intensity = 1.5;
     cameraParts.setEditControls(null);
@@ -148,21 +164,18 @@ export function createSceneController(canvas, { onSelect = () => {}, store = nul
     _camToCenter.copy(interior.center).sub(camPos);
     const centerDist = _camToCenter.length();
     _hit.set(camPos, _camToCenter.clone().normalize());
-    const meshes = [];
-    interior.group.traverse(m => { if (m.material && interior.fades.has(m)) meshes.push(m); });
+    const meshes = [...interior.fades.keys()];
     const hits = _hit.intersectObjects(meshes, false);
     const occluders = new Set(hits.filter(h => h.distance < centerDist - 0.5).map(h => h.object));
-    // The ceiling gets a continuous rule instead of the raycast: camera above
-    // the ceiling plane → lift the roof entirely; below → show it. Raycasts
-    // flip at grazing angles on a large horizontal face, which reads as the
-    // roof blinking in and out.
+    // 天花板及以上的段用连续的相机高度规则,而不是 raycast:大水平面在
+    // 掠射角下 raycast 会抖动,表现为屋顶时有时无。
     const aboveCeiling = camPos.y > interior.ceilingY;
     for (const [mesh, fade] of interior.fades) {
-      const isCeiling = mesh.userData?.kind === 'ceiling';
-      const occluding = isCeiling ? aboveCeiling : occluders.has(mesh);
+      const isAbove = mesh.userData.fromY >= interior.ceilingY - 0.5;
+      const occluding = isAbove ? aboveCeiling : occluders.has(mesh);
       const next = fade.update(mesh.material.opacity, occluding);
-      // Fully lift the roof once faded, instead of leaving a ghost sheet.
-      mesh.material.opacity = isCeiling && occluding && next <= 0.16 ? 0 : next;
+      // 淡到接近透明时干脆整段抬走,不留一层幽灵薄膜。
+      mesh.material.opacity = isAbove && occluding && next <= 0.16 ? 0 : next;
     }
   }
 
@@ -378,6 +391,16 @@ export function createSceneController(canvas, { onSelect = () => {}, store = nul
     updateProject(project) {
       const { previewBuildingId, highlightBuildingId } = deriveScenePreview(project.view);
       synchronizer.update(project.buildings, { previewBuildingId, highlightBuildingId });
+      // revision 变化会重建段网格,fades 里的旧 mesh 随之失效 → 重新挂载。
+      if (interior) {
+        const alive = hostSegmentMeshes(interior.buildingId);
+        const aliveSet = new Set(alive);
+        if ([...interior.fades.keys()].some(m => !aliveSet.has(m))) {
+          unwatchSegments(interior.fades);
+          interior.fades = new Map();
+          watchSegments(alive, interior.fades);
+        }
+      }
       canvas.dataset.buildingCount = String(project.buildings.length);
       canvas.dataset.previewBuildingId = previewBuildingId ?? '';
     },
@@ -402,9 +425,6 @@ export function createSceneController(canvas, { onSelect = () => {}, store = nul
       areaGroup.position.set(overlays.area.group.position.x, 0, overlays.area.group.position.z);
       areaGroup.rotation.y = THREE.MathUtils.degToRad(overlays.area.group.rotationDeg);
       sceneParts.overlays.add(areaGroup);
-      for (const opening of overlays.openings) {
-        sceneParts.overlays.add(createOpeningOverlay(opening));
-      }
     },
     setPreviewing(value) {
       quality.setPreviewing(value);
