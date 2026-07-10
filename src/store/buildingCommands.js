@@ -146,8 +146,33 @@ export function createSetPhaseCommand(phase) {
       if (phase === 'present') {
         view.areaEditing = null;
         view.editorMode = 'none';
+      } else {
+        view.interior = null;
       }
       return { ...state, view };
+    }
+  };
+}
+
+export function createEnterInteriorCommand({ buildingId, areaId }) {
+  return {
+    label: '进入观察区',
+    apply(state) {
+      if (state.view.phase !== 'present') return state;
+      const building = findBuilding(state, buildingId);
+      const area = (building?.observationAreas ?? []).find(a => a.id === areaId);
+      if (!building || !area) return state;
+      return { ...state, view: { ...state.view, interior: { buildingId, areaId } } };
+    }
+  };
+}
+
+export function createExitInteriorCommand() {
+  return {
+    label: '退出观察区',
+    apply(state) {
+      if (!state.view.interior) return state;
+      return { ...state, view: { ...state.view, interior: null } };
     }
   };
 }

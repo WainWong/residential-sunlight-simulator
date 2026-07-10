@@ -26,7 +26,8 @@ export function createDefaultProject() {
       selectedBuildingId: null,
       editorMode: 'none',
       addingBuildingId: null,
-      areaEditing: null
+      areaEditing: null,
+      interior: null
     }
   };
 }

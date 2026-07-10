@@ -17,6 +17,7 @@ export function migrateProject(rawProject) {
   }
   const view = project.view ?? (project.view = {});
   view.areaEditing = null;
+  view.interior = null;
   if (view.phase !== 'present') view.phase = 'edit';
   delete view.areaDraft;
   delete view.areaTool;
