@@ -1,6 +1,8 @@
 import { describe, expect, it } from 'vitest';
 import { buildAreaWallQuads } from '../../src/domain/simulation/buildAreaWallQuads.js';
-import { evaluateInteriorSun } from '../../src/domain/simulation/evaluateInteriorSun.js';
+import { firstBlockingDistance } from '../../src/domain/simulation/intersectObstacles.js';
+import { intersectOpening } from '../../src/domain/simulation/intersectOpening.js';
+import { normalize } from '../../src/domain/simulation/vector.js';
 
 const building = {
   id: 'b1', template: 'bar', position: { x: 0, z: 0 }, rotation: 0,
@@ -20,8 +22,8 @@ const opening = {
   plane: { point: [8, 0, 2], normal: [1, 0, 0], tangent: [0, 0, 1] },
   bounds: { minU: -2, maxU: 2, minV: 0, maxV: 3 }
 };
-// Sun to the east, low: direction from sample toward sun.
-const sunDirection = [1, 0.3, -0.5];
+// Direction from sample toward a low eastern sun.
+const sunDirection = normalize([1, 0.3, -0.5]);
 
 describe('buildAreaWallQuads', () => {
   it('builds one full-height quad per boundary edge', () => {
@@ -35,27 +37,18 @@ describe('buildAreaWallQuads', () => {
 
   it('lets light through the opening but blocks it behind the partition', () => {
     const quads = buildAreaWallQuads(building, area);
-    const surfaces = [{
-      surfaceId: 'floor',
-      kind: 'floor',
-      samples: [
-        // South strip, clear line to the opening → lit (boundary hit at the
-        // opening is excused by the portal pass-through).
-        { id: 'open', position: [6, 0, 2] },
-        // North-west lobe: its ray to the sun crosses the lobe's east
-        // boundary wall (x=4, z4..8) before reaching the opening → dark.
-        { id: 'hidden', position: [2, 0, 6] }
-      ]
-    }];
 
-    // Sanity: WITHOUT partition quads the hidden sample would be lit — the
-    // ray does reach the opening geometrically.
-    const noWalls = evaluateInteriorSun({ surfaces, openings: [opening], obstacles: [], sunDirection });
-    expect(noWalls.masks.floor).toContain('hidden');
+    // South strip sample: its ray exits through the opening; the boundary
+    // wall hit lands inside the portal bounds and is excused → clear.
+    const open = [6, 0, 2];
+    expect(intersectOpening(open, sunDirection, opening)).not.toBeNull();
+    expect(firstBlockingDistance(open, sunDirection, quads, [opening])).toBeNull();
 
-    // WITH the area walls as obstacles, the partition blocks it.
-    const withWalls = evaluateInteriorSun({ surfaces, openings: [opening], obstacles: quads, sunDirection });
-    expect(withWalls.masks.floor).toContain('open');
-    expect(withWalls.masks.floor).not.toContain('hidden');
+    // North-west lobe sample: geometrically the ray still reaches the
+    // opening, but it first crosses the lobe's east boundary wall (x=4,
+    // z4..8) — a partition, not an opening → blocked.
+    const hidden = [2, 0, 6];
+    expect(intersectOpening(hidden, sunDirection, opening)).not.toBeNull();
+    expect(firstBlockingDistance(hidden, sunDirection, quads, [opening])).not.toBeNull();
   });
 });

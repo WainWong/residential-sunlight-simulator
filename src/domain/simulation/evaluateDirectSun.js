@@ -25,17 +25,18 @@ export function evaluateDirectSun({
 
   const litSampleIds = [];
   for (const sample of samples) {
-    for (const opening of openings) {
-      const portal = intersectOpening(sample.position, direction, opening);
-      if (!portal) continue;
-      // Walls stay in the obstacle set; a hit is excused only when it lands
-      // inside one of the openings (a hole in the wall).
-      const blocker = firstBlockingDistance(sample.position, direction, obstacles, openings);
-      if (blocker == null) {
-        litSampleIds.push(sample.id);
-        openingHits[opening.id] += 1;
-        break;
-      }
+    // The blocking test is opening-independent (it excuses hits inside ANY
+    // opening), so find the exit opening first, then test blocking once.
+    const exit = openings.find(
+      opening => intersectOpening(sample.position, direction, opening) != null
+    );
+    if (!exit) continue;
+    // Walls stay in the obstacle set; a hit is excused only when it lands
+    // inside one of the openings (a hole in the wall).
+    const blocker = firstBlockingDistance(sample.position, direction, obstacles, openings);
+    if (blocker == null) {
+      litSampleIds.push(sample.id);
+      openingHits[exit.id] += 1;
     }
   }
 

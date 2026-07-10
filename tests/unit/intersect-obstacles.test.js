@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { intersectRayQuad, firstObstacleDistance } from '../../src/domain/simulation/intersectObstacles.js';
+import { intersectRayQuad, firstBlockingDistance } from '../../src/domain/simulation/intersectObstacles.js';
 import { buildObstacles } from '../../src/domain/simulation/buildObstacles.js';
 
 const wallQuad = {
@@ -16,10 +16,10 @@ describe('intersectRayQuad', () => {
   });
 });
 
-describe('firstObstacleDistance mixed shapes', () => {
+describe('firstBlockingDistance mixed shapes', () => {
   it('still supports legacy AABB obstacles', () => {
-    const d = firstObstacleDistance([0, 1, 0], [0, 0, -1],
-      [{ id: 'x', min: [-3, 0, -20], max: [3, 20, -5] }], 0);
+    const d = firstBlockingDistance([0, 1, 0], [0, 0, -1],
+      [{ id: 'x', min: [-3, 0, -20], max: [3, 20, -5] }]);
     expect(d).toBeCloseTo(5, 6);
   });
 });

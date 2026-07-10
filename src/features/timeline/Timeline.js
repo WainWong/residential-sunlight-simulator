@@ -33,7 +33,7 @@ function timelineRow({ kind, button, range, labels, input }) {
       createElement(
         'div',
         { className: 'timeline__labels' },
-        ...labels.map(text => createElement('span', { text }))
+        ...labels.map(item => (typeof item === 'string' ? createElement('span', { text: item }) : item))
       ),
       range
     ),
@@ -43,6 +43,9 @@ function timelineRow({ kind, button, range, labels, input }) {
 
 export function createTimeline(controller) {
   let state = controller.getState();
+
+  const sunriseLabel = createElement('span', { text: '日出' });
+  const sunsetLabel = createElement('span', { text: '日落' });
 
   const dateRange = createElement('input', {
     className: 'timeline__range timeline__range--date',
@@ -110,6 +113,8 @@ export function createTimeline(controller) {
     timeRange.max = String(daylight.sunsetMinute);
     timeRange.value = String(next.minute);
     timeInput.value = next.time;
+    sunriseLabel.textContent = `日出 ${minuteToTime(daylight.sunriseMinute)}`;
+    sunsetLabel.textContent = `日落 ${minuteToTime(daylight.sunsetMinute)}`;
   }
 
   controller.subscribe(render);
@@ -129,7 +134,7 @@ export function createTimeline(controller) {
       kind: 'time',
       button: playButton('播放一天时间', timePlayback),
       range: timeRange,
-      labels: ['日出', state.time, '日落'],
+      labels: [sunriseLabel, sunsetLabel],
       input: timeInput
     })
   );

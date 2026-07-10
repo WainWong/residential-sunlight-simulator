@@ -14,6 +14,21 @@
   border-top: 1px solid var(--line);
 }
 
+.timeline__track-wrap {
+  display: grid;
+  gap: 3px;
+  min-width: 0;
+}
+
+.timeline__labels {
+  display: flex;
+  justify-content: space-between;
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--ink-500);
+  line-height: 1;
+}
+
 .timeline__range {
   width: 100%;
   height: 8px;

@@ -51,19 +51,6 @@ export function intersectRayQuad(origin, direction, quad) {
   return distance;
 }
 
-export function firstObstacleDistance(origin, direction, obstacles, afterDistance = 0) {
-  let nearest = Number.POSITIVE_INFINITY;
-  for (const obstacle of obstacles) {
-    const distance = obstacle.a
-      ? intersectRayQuad(origin, direction, obstacle)
-      : intersectRayAabb(origin, direction, obstacle);
-    if (distance != null && distance > afterDistance + EPSILON && distance < nearest) {
-      nearest = distance;
-    }
-  }
-  return Number.isFinite(nearest) ? nearest : null;
-}
-
 const PORTAL_PLANE_TOL = 0.05; // meters: hit counts as "at the portal plane"
 
 // Does a world point (an obstacle hit) fall inside one of the portal openings?
