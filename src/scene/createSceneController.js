@@ -7,6 +7,7 @@ import { applyRectEdit, createAreaDrag } from './areaDrag.js';
 import { createFloorSlab, createWallOutline, floorFocusTarget } from './floorFocus.js';
 import { applyBuildingTransform } from './buildingSceneHelpers.js';
 import { createObservationOverlay } from './observationOverlay.js';
+import { clipRectToFootprint } from '../domain/buildings/footprintClip.js';
 import { createOpeningOverlay } from './openingOverlay.js';
 import { createRenderer } from './createRenderer.js';
 import { createScene } from './createScene.js';
@@ -16,7 +17,7 @@ import { applySunLighting } from './sunLighting.js';
 import { createSceneSynchronizer } from './syncScene.js';
 import { createUpdateAreaEditingCommand } from '../store/buildingCommands.js';
 
-export function createSceneController(canvas, { onSelect = () => {}, store = null } = {}) {
+export function createSceneController(canvas, { onSelect = () => {}, store = null, compassNeedle = null, compassReadout = null } = {}) {
   const quality = createQualitySettings('medium');
   const sceneParts = createScene();
   const rendererParts = createRenderer(canvas);
@@ -60,6 +61,10 @@ export function createSceneController(canvas, { onSelect = () => {}, store = nul
     floorFocus.clearPreview();
     sceneParts.scene.remove(floorFocus.slab);
     sceneParts.scene.remove(floorFocus.outline);
+    for (const overlay of floorFocus.existing) {
+      overlay.traverse(c => c.geometry?.dispose());
+      sceneParts.scene.remove(overlay);
+    }
     floorFocus.drag.dispose();
     floorFocus = null;
   }
@@ -74,14 +79,27 @@ export function createSceneController(canvas, { onSelect = () => {}, store = nul
 
     for (const child of sceneParts.buildings.children) child.visible = false;
 
-    const { target, height } = floorFocusTarget(building, floor);
-    cameraParts.setTopView(target, height);
-    cameraParts.setTopdownMode(true);
+    // Keep the current camera angle when entering area editing — don't snap to
+    // top-down. `target` is still used for the draw plane height and overlay
+    // baseY. The user can orbit freely (view mode) until they pick a tool.
+    const { target } = floorFocusTarget(building, floor);
+    cameraParts.setEditControls(editing.tool);
 
     const slab = createFloorSlab(building, floor);
     const outline = createWallOutline(building, floor);
     sceneParts.scene.add(slab);
     sceneParts.scene.add(outline);
+
+    // Show this floor's other observation areas (already saved) as solid
+    // overlays so the user can see existing rooms while drawing a new one.
+    const existing = (building.observationAreas ?? [])
+      .filter(a => a.floor === floor && a.id !== editing.areaId)
+      .map(a => {
+        const overlay = createObservationOverlay({ rects: a.rects, baseY: target.y, draft: false });
+        applyBuildingTransform(overlay, building);
+        sceneParts.scene.add(overlay);
+        return overlay;
+      });
 
     let previewGroup = null;
     const clearPreview = () => {
@@ -93,13 +111,34 @@ export function createSceneController(canvas, { onSelect = () => {}, store = nul
     };
 
     const getBuilding = () => store.getState().buildings.find(b => b.id === buildingId);
-    const getMode = () => floorFocus?.tool ?? 'draw';
+    const getMode = () => floorFocus?.tool ?? null;
+
+    // Rects already claimed by other observation areas on this floor — a new
+    // draw must not overlap them (keeps floor regions disjoint for later
+    // hole/analysis handling). The area being edited is excluded because its
+    // working rects live in the session, not in the saved building.
+    function existingRectsOnFloor(b) {
+      const st = store?.getState()?.view?.areaEditing;
+      return (b?.observationAreas ?? [])
+        .filter(a => a.floor === st?.floor && a.id !== st?.areaId)
+        .flatMap(a => a.rects ?? []);
+    }
+    function clipDrawable(rect, b) {
+      let pieces = b ? clipRectToFootprint(rect, b.template, b.params) : [rect];
+      for (const claimed of existingRectsOnFloor(b)) {
+        pieces = applyRectEdit(pieces, claimed, 'erase');
+      }
+      return pieces;
+    }
+
     const drag = createAreaDrag({
       canvas, camera: cameraParts.camera, floorY: target.y, getBuilding, getMode,
       onPreview: rect => {
         clearPreview();
         if (!rect) return;
-        previewGroup = createObservationOverlay({ rects: [rect], baseY: target.y, draft: true });
+        const pieces = clipDrawable(rect, getBuilding());
+        if (pieces.length === 0) return;
+        previewGroup = createObservationOverlay({ rects: pieces, baseY: target.y, draft: true });
         applyBuildingTransform(previewGroup, getBuilding());
         sceneParts.overlays.add(previewGroup);
       },
@@ -108,11 +147,16 @@ export function createSceneController(canvas, { onSelect = () => {}, store = nul
         if (!store) return;
         const editingState = store.getState().view.areaEditing;
         if (!editingState) return;
-        const rects = applyRectEdit(editingState.rects ?? [], rect, mode);
+        const b = getBuilding();
+        const pieces = mode === 'draw' ? clipDrawable(rect, b) : [rect];
+        const rects = pieces.reduce(
+          (acc, r) => applyRectEdit(acc, r, mode),
+          editingState.rects ?? []
+        );
         store.execute(createUpdateAreaEditingCommand({ rects }));
       }
     });
-    floorFocus = { slab, outline, drag, tool: editing.tool ?? 'draw', clearPreview };
+    floorFocus = { slab, outline, existing, drag, tool: editing.tool ?? null, clearPreview };
   }
 
   // Reconcile floor-focus lifecycle from the editing session. The controller owns
@@ -125,7 +169,7 @@ export function createSceneController(canvas, { onSelect = () => {}, store = nul
       if (floorFocus) {
         disposeFloorFocus();
         for (const child of sceneParts.buildings.children) child.visible = true;
-        cameraParts.setTopdownMode(false);
+        cameraParts.setEditControls(null);
       }
       return;
     }
@@ -134,16 +178,60 @@ export function createSceneController(canvas, { onSelect = () => {}, store = nul
       buildFloorFocus(project);
       if (floorFocus) floorFocus.sig = sig;
     } else {
-      floorFocus.tool = editing.tool ?? 'draw';
+      const nextTool = editing.tool ?? null;
+      if (floorFocus.tool !== nextTool) {
+        floorFocus.tool = nextTool;
+        // Re-apply control mode: an active edit tool locks rotation for
+        // left-drag drawing; no tool selected unlocks orbiting.
+        cameraParts.setEditControls(nextTool);
+      }
     }
   }
 
   const observer = new ResizeObserver(resize);
   observer.observe(viewport);
   resize();
+
+  const _north = new THREE.Vector3();
+  const _center = new THREE.Vector3();
+  const _fwd = new THREE.Vector3();
+  function cardinalName(deg) {
+    const d = ((deg % 360) + 360) % 360;
+    if (d < 22.5 || d >= 337.5) return '正北';
+    if (d < 67.5) return '东北';
+    if (d < 112.5) return '正东';
+    if (d < 157.5) return '东南';
+    if (d < 202.5) return '正南';
+    if (d < 247.5) return '西南';
+    if (d < 292.5) return '正西';
+    return '西北';
+  }
+  function updateCompass() {
+    if (!compassNeedle && !compassReadout) return;
+    const target = cameraParts.controls.target;
+    if (compassNeedle) {
+      // Project the target and a point one unit north (+Z) of it to screen
+      // space; the resulting screen direction is where the needle must point.
+      _center.copy(target).project(cameraParts.camera);
+      _north.set(target.x, target.y, target.z + 1).project(cameraParts.camera);
+      const dx = _north.x - _center.x;
+      const dy = -(_north.y - _center.y); // screen y grows downward
+      const angle = Math.atan2(dx, dy) * 180 / Math.PI;
+      compassNeedle.style.transform = `rotate(${angle}deg)`;
+    }
+    if (compassReadout) {
+      // Readout = the direction the camera is facing (forward = target - camera).
+      _fwd.copy(target).sub(cameraParts.camera.position);
+      let deg = Math.atan2(_fwd.x, _fwd.z) * 180 / Math.PI;
+      deg = ((deg % 360) + 360) % 360;
+      compassReadout.textContent = `${cardinalName(deg)} ${Math.round(deg)}°`;
+    }
+  }
+
   rendererParts.renderer.setAnimationLoop(() => {
     cameraParts.controls.update();
     rendererParts.renderer.render(sceneParts.scene, cameraParts.camera);
+    updateCompass();
   });
 
   return {

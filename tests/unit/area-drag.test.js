@@ -36,6 +36,38 @@ describe('areaDrag pure helpers', () => {
     const out = applyRectEdit([{ x0: 0, z0: 0, x1: 3, z1: 1 }], { x0: 1, z0: -1, x1: 2, z1: 2 }, 'erase');
     expect(out).toHaveLength(2);
   });
+  it('merges two horizontally adjacent rects into one on draw', () => {
+    const out = applyRectEdit(
+      [{ x0: 0, z0: 0, x1: 2, z1: 2 }],
+      { x0: 2, z0: 0, x1: 4, z1: 2 },
+      'draw'
+    );
+    expect(out).toEqual([{ x0: 0, z0: 0, x1: 4, z1: 2 }]);
+  });
+  it('merges two vertically stacked rects into one on draw', () => {
+    const out = applyRectEdit(
+      [{ x0: 0, z0: 0, x1: 3, z1: 2 }],
+      { x0: 0, z0: 2, x1: 3, z1: 4 },
+      'draw'
+    );
+    expect(out).toEqual([{ x0: 0, z0: 0, x1: 3, z1: 4 }]);
+  });
+  it('does not merge rects that do not share a full edge', () => {
+    const out = applyRectEdit(
+      [{ x0: 0, z0: 0, x1: 2, z1: 2 }],
+      { x0: 2, z0: 1, x1: 4, z1: 3 },
+      'draw'
+    );
+    expect(out).toHaveLength(2);
+  });
+  it('merges overlapping rects', () => {
+    const out = applyRectEdit(
+      [{ x0: 0, z0: 0, x1: 3, z1: 3 }],
+      { x0: 2, z0: 0, x1: 5, z1: 3 },
+      'draw'
+    );
+    expect(out).toEqual([{ x0: 0, z0: 0, x1: 5, z1: 3 }]);
+  });
 });
 
 describe('createAreaDrag interaction', () => {

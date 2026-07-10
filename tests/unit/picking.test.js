@@ -60,7 +60,8 @@ describe('editing overlays', () => {
     });
     const sun = createSunOverlay({ direction: [0.2, 0.8, -0.5] });
 
-    expect(area.children).toHaveLength(2);
+    // The two adjacent rects merge into one polygonal shape (one mesh).
+    expect(area.children).toHaveLength(1);
     expect(area.userData.kind).toBe('observation-overlay');
     expect(opening.userData.entityId).toBe('window-a');
     expect(sun.userData.kind).toBe('sun-overlay');

@@ -20,25 +20,24 @@ export function createCameraRig(canvas, aspect = 1) {
     camera.updateProjectionMatrix();
   }
 
-  function setTopView(target, height = 120) {
-    controls.target.set(target.x, target.y, target.z);
-    camera.position.set(target.x, target.y + height, target.z + 0.001);
-    camera.lookAt(controls.target);
-    controls.update();
-  }
-
-  function setTopdownMode(enabled) {
+  // Configure controls for area editing. An edit tool ('draw'/'erase') reserves
+  // left-drag for editing and locks rotation; with no tool selected (null) the
+  // user can orbit to inspect orientation. Passing null also restores the
+  // normal building-view controls when leaving area editing.
+  function setEditControls(tool) {
     controls.enabled = true;
-    controls.enableRotate = !enabled;
     controls.enableZoom = true;
-    if (enabled) {
+    controls.enablePan = true;
+    if (tool === 'draw' || tool === 'erase') {
+      controls.enableRotate = false;
       controls.mouseButtons = { LEFT: -1, MIDDLE: THREE.MOUSE.DOLLY, RIGHT: THREE.MOUSE.PAN };
       controls.touches = { ONE: -1, TWO: THREE.TOUCH.DOLLY_PAN };
     } else {
+      controls.enableRotate = true;
       controls.mouseButtons = { LEFT: THREE.MOUSE.ROTATE, MIDDLE: THREE.MOUSE.DOLLY, RIGHT: THREE.MOUSE.PAN };
       controls.touches = { ONE: THREE.TOUCH.ROTATE, TWO: THREE.TOUCH.DOLLY_PAN };
     }
   }
 
-  return { camera, controls, resize, setTopView, setTopdownMode, dispose: () => controls.dispose() };
+  return { camera, controls, resize, setEditControls, dispose: () => controls.dispose() };
 }

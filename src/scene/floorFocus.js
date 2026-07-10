@@ -5,8 +5,7 @@ import { applyBuildingTransform, getOuterRing } from './buildingSceneHelpers.js'
 
 export function floorFocusTarget(building, floor) {
   const y = floorBaseY({ floor, ...building.params });
-  const span = Math.max(building.params.length, building.params.depth);
-  return { target: { x: building.position.x, y, z: building.position.z }, height: span * 1.2 + 60 };
+  return { target: { x: building.position.x, y, z: building.position.z } };
 }
 
 const slabMaterial = new THREE.MeshBasicMaterial({

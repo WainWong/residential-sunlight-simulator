@@ -2,11 +2,18 @@ import * as THREE from 'three';
 import { rotateLocalToWorld } from '../domain/buildings/wallGeometry.js';
 import { pointerToNdc } from './picking.js';
 
+const GRID_STEP = 1; // meters; matches the floor-focus grid so draws align to it.
+
+export function snapToGrid(value, step = GRID_STEP) {
+  return Math.round(value / step) * step;
+}
+
 export function worldToLocalFloor([wx, wz], building) {
   const dx = wx - building.position.x;
   const dz = wz - building.position.z;
   // world -> local is the inverse rotation, i.e. rotateLocalToWorld at -rotation
-  return rotateLocalToWorld([dx, dz], -building.rotation);
+  const [lx, lz] = rotateLocalToWorld([dx, dz], -building.rotation);
+  return [snapToGrid(lx), snapToGrid(lz)];
 }
 
 export function normalizeRect(p0, p1) {
@@ -31,9 +38,46 @@ function subtractRect(r, cut) {
   return parts;
 }
 
+function norm(r) {
+  return { x0: Math.min(r.x0, r.x1), z0: Math.min(r.z0, r.z1), x1: Math.max(r.x0, r.x1), z1: Math.max(r.z0, r.z1) };
+}
+
+// Two axis-aligned rects merge into one when they share a full edge and touch
+// or overlap along the perpendicular axis.
+function tryMerge(a, b) {
+  if (a.z0 === b.z0 && a.z1 === b.z1 && a.x1 >= b.x0 && b.x1 >= a.x0) {
+    return { x0: Math.min(a.x0, b.x0), x1: Math.max(a.x1, b.x1), z0: a.z0, z1: a.z1 };
+  }
+  if (a.x0 === b.x0 && a.x1 === b.x1 && a.z1 >= b.z0 && b.z1 >= a.z0) {
+    return { x0: a.x0, x1: a.x1, z0: Math.min(a.z0, b.z0), z1: Math.max(a.z1, b.z1) };
+  }
+  return null;
+}
+
+export function mergeRects(input) {
+  const rects = input.map(norm);
+  let changed = true;
+  while (changed) {
+    changed = false;
+    for (let i = 0; i < rects.length; i++) {
+      for (let j = i + 1; j < rects.length; j++) {
+        const merged = tryMerge(rects[i], rects[j]);
+        if (merged) {
+          rects.splice(j, 1);
+          rects[i] = merged;
+          changed = true;
+          break;
+        }
+      }
+      if (changed) break;
+    }
+  }
+  return rects;
+}
+
 export function applyRectEdit(rects, rect, mode) {
-  if (mode === 'erase') return rects.flatMap(r => subtractRect(r, rect));
-  return [...rects, rect];
+  if (mode === 'erase') return mergeRects(rects.flatMap(r => subtractRect(r, rect)));
+  return mergeRects([...rects, rect]);
 }
 
 export function createAreaDrag({ canvas, camera, floorY, getBuilding, getMode, onPreview = () => {}, onCommit }) {
@@ -53,6 +97,9 @@ export function createAreaDrag({ canvas, camera, floorY, getBuilding, getMode, o
   }
   function onDown(e) {
     if (e.button !== 0) return;
+    // With no active edit tool the left button orbits the camera, so don't
+    // start a draw/erase drag.
+    if (!getMode()) return;
     start = localAt(e);
   }
   function onMove(e) {
