@@ -31,13 +31,11 @@ describe('BuildingOverview', () => {
     expect(store.execute.mock.calls[0][0].label).toBe('切换编辑模式');
   });
 
-  it('starts an area create session on 新建观察区', () => {
+  it('has no create-area button (areas are created from the left tree)', () => {
     const store = { execute: vi.fn(), getState: () => ({ view: { phase: 'edit' } }) };
     const { element, update } = createBuildingOverview({ store, confirmDelete: () => true });
     update(building());
-    element.querySelector('[data-testid="overview-edit-areas"]').click();
-    expect(store.execute).toHaveBeenCalledTimes(1);
-    expect(store.execute.mock.calls[0][0].label).toBe('开始新建观察区');
+    expect(element.querySelector('[data-testid="overview-edit-areas"]')).toBeNull();
   });
 
   it('disables editing actions in present phase', () => {
@@ -45,7 +43,6 @@ describe('BuildingOverview', () => {
     const { element, update } = createBuildingOverview({ store, confirmDelete: () => true });
     update(building());
     expect(element.querySelector('[data-testid="overview-edit-building"]').disabled).toBe(true);
-    expect(element.querySelector('[data-testid="overview-edit-areas"]').disabled).toBe(true);
   });
 
   it('deletes only after confirm', () => {

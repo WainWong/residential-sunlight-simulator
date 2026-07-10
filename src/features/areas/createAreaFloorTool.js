@@ -3,7 +3,6 @@ import { rectArea } from '../../domain/buildings/areaEditing.js';
 import {
   createCancelAreaEditingCommand,
   createSaveAreaEditingCommand,
-  createSetEditorModeCommand,
   createUpdateAreaEditingCommand
 } from '../../store/buildingCommands.js';
 
@@ -13,18 +12,6 @@ export function createAreaFloorTool({ store, buildingId }) {
   let currentBuilding = null;
 
   const element = createElement('div', { className: 'area-floor-tool' });
-
-  const back = createElement('button', {
-    className: 'button button--ghost', text: '‹ 返回', testId: 'inspector-back',
-    attributes: { type: 'button' }
-  });
-  back.addEventListener('click', () => {
-    const session = store.getState()?.view?.areaEditing;
-    if (session && session.buildingId === buildingId) {
-      store.execute(createCancelAreaEditingCommand());
-    }
-    store.execute(createSetEditorModeCommand('none'));
-  });
 
   const floorInput = createElement('input', {
     className: 'input', testId: 'area-floor',
@@ -45,13 +32,18 @@ export function createAreaFloorTool({ store, buildingId }) {
       className: 'template-card', text: label, testId: `tool-${tool}`,
       attributes: { type: 'button', 'aria-pressed': 'false' }
     });
-    btn.addEventListener('click', () => store.execute(createUpdateAreaEditingCommand({ tool })));
+    btn.addEventListener('click', () => {
+      // Toggle: clicking the active tool deselects it, entering view mode
+      // (which unlocks camera rotation in the scene).
+      const current = store.getState()?.view?.areaEditing?.tool ?? null;
+      store.execute(createUpdateAreaEditingCommand({ tool: current === tool ? null : tool }));
+    });
     toolButtons.set(tool, btn);
     toolBar.append(btn);
   }
 
   function applyToolUI(tool) {
-    element.dataset.tool = tool;
+    element.dataset.tool = tool ?? 'view';
     for (const [t, btn] of toolButtons) {
       btn.setAttribute('aria-pressed', String(t === tool));
       btn.classList.toggle('is-active', t === tool);
@@ -65,7 +57,7 @@ export function createAreaFloorTool({ store, buildingId }) {
   });
   saveBtn.addEventListener('click', () => store.execute(createSaveAreaEditingCommand()));
   const cancelBtn = createElement('button', {
-    className: 'button button--ghost', text: '取消', testId: 'area-cancel',
+    className: 'button button--secondary', text: '取消', testId: 'area-cancel',
     attributes: { type: 'button' }
   });
   cancelBtn.addEventListener('click', () => store.execute(createCancelAreaEditingCommand()));
@@ -83,18 +75,23 @@ export function createAreaFloorTool({ store, buildingId }) {
     createElement('div', { className: 'inspector-actions' }, cancelBtn, saveBtn)
   );
 
-  element.append(back, sessionView);
+  element.append(sessionView);
 
   function renderSession(building, session) {
     sessionLabel.textContent = session.mode === 'edit' ? '编辑观察区' : '新建观察区';
     sessionTitle.textContent = building.name ?? '建筑';
     if (document.activeElement !== floorInput) floorInput.value = String(session.floor ?? 1);
     floorInput.setAttribute('max', String(building.params.floors));
-    applyToolUI(session.tool ?? 'draw');
+    const activeTool = session.tool ?? null;
+    applyToolUI(activeTool);
     const size = rectArea(session.rects).toFixed(1);
-    rectSummary.textContent = session.rects.length > 0
-      ? `已绘制 ${session.rects.length} 块，共 ${size} m²`
-      : '在画面中拖拽画出观察区';
+    if (!activeTool) {
+      rectSummary.textContent = '查看模式：拖拽可旋转视角，选择「画区」开始绘制';
+    } else if (session.rects.length > 0) {
+      rectSummary.textContent = `已绘制 ${session.rects.length} 块，共 ${size} m²`;
+    } else {
+      rectSummary.textContent = '在画面中拖拽画出观察区';
+    }
     saveBtn.disabled = session.rects.length === 0;
     const eraseBtn = toolButtons.get('erase');
     if (eraseBtn) eraseBtn.hidden = !(session.mode === 'edit' && session.rects.length > 0);

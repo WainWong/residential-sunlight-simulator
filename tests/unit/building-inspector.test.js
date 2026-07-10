@@ -5,7 +5,7 @@ import { createDefaultProject } from '../../src/domain/project/defaultProject.js
 import { createBuildingInspector } from '../../src/features/buildings/BuildingInspector.js';
 import {
   createAddBuildingCommand, createFinishBuildingCommand,
-  createSelectBuildingCommand, createSetEditorModeCommand
+  createStartAreaCreateCommand
 } from '../../src/store/buildingCommands.js';
 
 function mount() {
@@ -31,24 +31,26 @@ describe('BuildingInspector routing', () => {
     expect(hasText(el, '完成')).toBe(true);
   });
 
-  // THE BUG: single building, add -> finish -> overview must expose the areas entry
-  it('after add then finish, a single building shows the overview with an areas entry', () => {
+  // THE BUG: single building, add -> finish -> overview must expose editing.
+  // Areas are created from the left tree now, so the overview has no areas button.
+  it('after add then finish, a single building shows the overview with edit-building but no areas button', () => {
     const { store, el } = mount();
     store.execute(createAddBuildingCommand({ id: 'b1' }));
     store.execute(createFinishBuildingCommand('b1'));
     expect(q(el, 'building-overview')).not.toBeNull();
-    expect(q(el, 'overview-edit-areas')).not.toBeNull();
+    expect(q(el, 'overview-edit-building')).not.toBeNull();
+    expect(q(el, 'overview-edit-areas')).toBeNull();
   });
 
-  it('overview -> areas shows the area section and not the params form; back returns to overview', () => {
+  it('overview -> areas shows the area section and not the params form; cancel returns to overview', () => {
     const { store, el } = mount();
     store.execute(createAddBuildingCommand({ id: 'b1' }));
     store.execute(createFinishBuildingCommand('b1'));
-    store.execute(createSetEditorModeCommand('areas'));
+    store.execute(createStartAreaCreateCommand('b1'));
     expect(q(el, 'building-overview')).toBeNull();
     expect(hasText(el, '观察区')).toBe(true);
-    expect(q(el, 'inspector-back')).not.toBeNull();
-    q(el, 'inspector-back').click();
+    expect(q(el, 'area-cancel')).not.toBeNull();
+    q(el, 'area-cancel').click();
     expect(q(el, 'building-overview')).not.toBeNull();
   });
 
@@ -57,7 +59,7 @@ describe('BuildingInspector routing', () => {
     store.execute(createAddBuildingCommand({ id: 'b1' }));
     expect(hasText(el, '观察区编辑')).toBe(false);
     store.execute(createFinishBuildingCommand('b1'));
-    store.execute(createSetEditorModeCommand('areas'));
+    store.execute(createStartAreaCreateCommand('b1'));
     expect(hasText(el, '建筑长度（米）')).toBe(false);
   });
 

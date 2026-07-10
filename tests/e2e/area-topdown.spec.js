@@ -1,8 +1,8 @@
 import { expect, test } from '@playwright/test';
 
 // Drives the create/edit session flow for observation areas via the left tree
-// and the overview "新建观察区" button:
-// overview → create session → drag → save → area listed in tree →
+// top "＋ 添加观察区" button (acts on the selected building):
+// add-area → create session → drag → save → area listed in tree →
 // edit session (via tree) → cancel preserves the area. Also asserts that
 // dragging on the canvas does not kick the user back to the building overview.
 
@@ -11,8 +11,8 @@ async function addBuildingAndStartAreaCreate(page) {
   await page.getByRole('button', { name: '添加建筑' }).click();
   await page.getByRole('button', { name: '完成' }).click();
   await expect(page.getByTestId('building-overview')).toBeVisible();
-  // The overview button starts an area create session directly.
-  await page.getByTestId('overview-edit-areas').click();
+  // The top "＋ 添加观察区" button starts a create session for the selected building.
+  await page.getByTestId('area-create-start').click();
   await expect(page.getByTestId('area-session-title')).toHaveText('新建观察区');
 }
 
@@ -78,8 +78,8 @@ test('dragging on the canvas stays in area editing', async ({ page }) => {
   await expect(page.getByTestId('building-overview')).toHaveCount(0);
 });
 
-test('area back button returns to building overview', async ({ page }) => {
+test('cancel returns to building overview', async ({ page }) => {
   await addBuildingAndStartAreaCreate(page);
-  await page.getByTestId('inspector-back').click();
+  await page.getByTestId('area-cancel').click();
   await expect(page.getByTestId('building-overview')).toBeVisible();
 });

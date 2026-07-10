@@ -67,13 +67,10 @@ describe('createAreaFloorTool (session-only)', () => {
     expect(q(editTool.element, 'tool-erase').hidden).toBe(false);
   });
 
-  it('back button cancels an active session before leaving', () => {
+  it('has no back button (selecting a building or cancel/save leaves the session)', () => {
     const store = fakeStore({ view: { areaEditing: session() } });
     const { element, update } = createAreaFloorTool({ store, buildingId: 'b1' });
     update(building());
-    q(element, 'inspector-back').click();
-    const labels = store.execute.mock.calls.map(c => c[0].label);
-    expect(labels).toContain('取消观察区编辑');
-    expect(labels).toContain('切换编辑模式');
+    expect(q(element, 'inspector-back')).toBeNull();
   });
 });

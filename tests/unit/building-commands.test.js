@@ -427,14 +427,14 @@ describe('area editing session commands', () => {
   it('starts a create session without adding an observation area', () => {
     const next = createStartAreaCreateCommand('b1').apply(base);
     expect(next.buildings[0].observationAreas).toHaveLength(1);
-    expect(next.view.areaEditing).toMatchObject({ mode: 'create', buildingId: 'b1', areaId: null, floor: 1, rects: [], tool: 'draw' });
+    expect(next.view.areaEditing).toMatchObject({ mode: 'create', buildingId: 'b1', areaId: null, floor: 1, rects: [], tool: null });
     expect(next.view.areaEditing.name).toBeUndefined();
     expect(next.view.editorMode).toBe('areas');
   });
 
   it('starts an edit session by cloning the existing area', () => {
     const next = createStartAreaEditCommand('b1', 'a1').apply(base);
-    expect(next.view.areaEditing).toMatchObject({ mode: 'edit', buildingId: 'b1', areaId: 'a1', floor: 2, tool: 'draw' });
+    expect(next.view.areaEditing).toMatchObject({ mode: 'edit', buildingId: 'b1', areaId: 'a1', floor: 2, tool: null });
     expect(next.view.areaEditing.name).toBeUndefined();
     expect(next.view.areaEditing.rects).toEqual([{ x0: 0, z0: 0, x1: 2, z1: 2 }]);
     expect(next.view.areaEditing.rects).not.toBe(base.buildings[0].observationAreas[0].rects);
@@ -452,6 +452,7 @@ describe('area editing session commands', () => {
     const editing = createUpdateAreaEditingCommand({ rects: [{ x0: 9, z0: 9, x1: 10, z1: 10 }] }).apply(createStartAreaEditCommand('b1', 'a1').apply(base));
     const next = createCancelAreaEditingCommand().apply(editing);
     expect(next.view.areaEditing).toBeNull();
+    expect(next.view.editorMode).toBe('none');
     expect(next.buildings[0].observationAreas[0].rects).toEqual([{ x0: 0, z0: 0, x1: 2, z1: 2 }]);
   });
 
@@ -459,6 +460,7 @@ describe('area editing session commands', () => {
     const editing = createUpdateAreaEditingCommand({ floor: 3, rects: [{ x0: 1, z0: 1, x1: 2, z1: 2 }] }).apply(createStartAreaCreateCommand('b1').apply(base));
     const next = createSaveAreaEditingCommand().apply(editing);
     expect(next.view.areaEditing).toBeNull();
+    expect(next.view.editorMode).toBe('none');
     expect(next.buildings[0].observationAreas).toHaveLength(2);
     expect(next.buildings[0].observationAreas[1]).toMatchObject({ floor: 3, rects: [{ x0: 1, z0: 1, x1: 2, z1: 2 }], sampleHeight: 0 });
     expect(next.buildings[0].observationAreas[1].name).toBeUndefined();

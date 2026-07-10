@@ -113,7 +113,10 @@ export function createSelectBuildingCommand(buildingId) {
         view: {
           ...state.view,
           selectedBuildingId: buildingId,
-          editorMode: 'none'
+          editorMode: 'none',
+          // Selecting a building exits any area-editing session, so the scene
+          // leaves floor-focus and returns to the normal building view.
+          areaEditing: null
         }
       };
     }
@@ -364,7 +367,8 @@ export function createCancelAreaEditingCommand() {
     label: '取消观察区编辑',
     apply(state) {
       if (!state.view.areaEditing) return state;
-      return { ...state, view: { ...state.view, areaEditing: null } };
+      // Leaving the session returns to the building overview.
+      return { ...state, view: { ...state.view, areaEditing: null, editorMode: 'none' } };
     }
   };
 }
@@ -389,7 +393,8 @@ export function createSaveAreaEditingCommand() {
             : [...b.observationAreas, area]
         }),
         simulation: { ...state.simulation, activeAreaId: areaId },
-        view: { ...state.view, areaEditing: null }
+        // Saving returns to the building overview.
+        view: { ...state.view, areaEditing: null, editorMode: 'none' }
       };
     }
   };
