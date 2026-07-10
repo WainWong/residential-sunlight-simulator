@@ -30,16 +30,6 @@ export function createAnalysisClient(
       return promise;
     },
 
-    analyzeInterior(payload) {
-      nextRequestId += 1;
-      const requestId = nextRequestId;
-      const promise = new Promise((resolve, reject) => {
-        pending.set(requestId, { resolve, reject });
-      });
-      worker.postMessage({ type: 'analyzeInterior', requestId, ...structuredClone(payload) });
-      return promise;
-    },
-
     dispose() {
       worker.removeEventListener('message', onMessage);
       for (const request of pending.values()) {

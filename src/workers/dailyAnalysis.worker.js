@@ -2,7 +2,7 @@ import { getDaylightWindow } from '../domain/solar/getDaylightWindow.js';
 import { getSolarPosition } from '../domain/solar/getSolarPosition.js';
 import { analyzeDay } from '../domain/simulation/analyzeDay.js';
 import { evaluateDirectSun } from '../domain/simulation/evaluateDirectSun.js';
-import { evaluateInteriorSun } from '../domain/simulation/evaluateInteriorSun.js';
+import { rotateLocalToWorld } from '../domain/buildings/wallGeometry.js';
 
 function minuteToTime(minute) {
   const hours = Math.floor(minute / 60).toString().padStart(2, '0');
@@ -21,29 +21,18 @@ self.addEventListener('message', event => {
     obstacles
   } = event.data ?? {};
 
-  if (type === 'analyzeInterior') {
-    try {
-      const { surfaces, openings: interiorOpenings, obstacles: interiorObstacles, sunDirection } = event.data;
-      const result = evaluateInteriorSun({
-        surfaces,
-        openings: interiorOpenings,
-        obstacles: interiorObstacles,
-        sunDirection
-      });
-      self.postMessage({ type: 'result', requestId, result });
-    } catch (error) {
-      self.postMessage({
-        type: 'error',
-        requestId,
-        message: error instanceof Error ? error.message : String(error)
-      });
-    }
-    return;
-  }
-
   if (type !== 'analyze') return;
 
   try {
+    // Optional building frame: local→world sample transform can't cross
+    // postMessage as a function, so callers pass rotation/position/baseY.
+    const frame = event.data.frame;
+    const transform = frame
+      ? ([lx, , lz]) => {
+          const [wx, wz] = rotateLocalToWorld([lx, lz], frame.rotation);
+          return [wx + frame.position.x, frame.baseY, wz + frame.position.z];
+        }
+      : undefined;
     const daylight = getDaylightWindow({ ...location, localDate });
     const result = analyzeDay({
       startMinute: daylight.sunriseMinute,
@@ -59,7 +48,8 @@ self.addEventListener('message', event => {
           area,
           openings,
           obstacles,
-          sunDirection: [solar.direction.x, solar.direction.y, solar.direction.z]
+          sunDirection: [solar.direction.x, solar.direction.y, solar.direction.z],
+          transform
         });
       }
     });

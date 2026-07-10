@@ -2,9 +2,10 @@ import { createDefaultProject } from './domain/project/defaultProject.js';
 import { createWebGLFallback, supportsWebGL } from './features/compatibility/WebGLFallback.js';
 import { downloadProject } from './features/project/exportProject.js';
 import { exportScreenshot } from './features/project/exportScreenshot.js';
-import { parseProject, readProjectFile } from './features/project/importProject.js';
+import { readProjectFile } from './features/project/importProject.js';
 import { loadDraft, saveDraft } from './features/project/localDraft.js';
 import { createSimulationController } from './features/results/createSimulationController.js';
+import { createAnalysisClient } from './workers/createAnalysisClient.js';
 import { createAppShell } from './features/shell/AppShell.js';
 import {
   createAddBuildingCommand,
@@ -12,14 +13,8 @@ import {
   createSelectBuildingCommand
 } from './store/buildingCommands.js';
 import { createStore } from './store/createStore.js';
-import { createInteriorLightController } from './features/interior/createInteriorLightController.js';
-import { createAnalysisClient } from './workers/createAnalysisClient.js';
-import { sampleSurfaces } from './domain/simulation/sampleSurfaces.js';
 import { floorBaseY } from './domain/buildings/floorMath.js';
 import { rotateLocalToWorld } from './domain/buildings/wallGeometry.js';
-import { buildObstacles } from './domain/simulation/buildObstacles.js';
-import { buildAreaWallQuads } from './domain/simulation/buildAreaWallQuads.js';
-import { deriveAperturesFromArea } from './domain/simulation/deriveApertures.js';
 import { createElement } from './ui/createElement.js';
 import { showToast } from './ui/Toast.js';
 
@@ -27,7 +22,9 @@ export const APP_NAME = '日照 · 住宅采光模拟器';
 
 export function mountApp(root) {
   const store = createStore(loadDraft() ?? createDefaultProject());
-  const simulationController = createSimulationController(store);
+  const simulationController = createSimulationController(store, {
+    analysisClientFactory: createAnalysisClient
+  });
   let sceneController = null;
   let saveTimer = null;
 
@@ -87,91 +84,41 @@ export function mountApp(root) {
 
   const withController = fn => (sceneController ? fn(sceneController) : sceneReady.then(fn));
 
-  // --- Interior daylight lifecycle (present-phase "enter observation area") ---
-  let analysisClient = null;
-  let interiorCtrl = null;
+  // --- Interior view lifecycle (present-phase "enter observation area") ---
+  // Visuals come from the scene's real sun light + shadows (openings are cut
+  // in the room geometry); the numeric analysis stays on the CPU ray path in
+  // createSimulationController.
   let interiorKey = null;
 
-  function areaWorldTransform(building, area) {
-    const baseY = floorBaseY({ floor: area.floor, ...building.params }) + (area.sampleHeight ?? 0);
-    return {
-      baseY,
-      transform: ([lx, , lz]) => {
-        const [wx, wz] = rotateLocalToWorld([lx, lz], building.rotation);
-        return [wx + building.position.x, baseY, wz + building.position.z];
-      }
-    };
-  }
-
-  function interiorPayload(project, building, area, solar) {
-    const { transform } = areaWorldTransform(building, area);
-    const { surfaces } = sampleSurfaces(area, { floorHeight: building.params.floorHeight }, transform);
-    const { portals } = deriveAperturesFromArea(building, area);
-    // Walls stay in the obstacle set; only portal openings let light through.
-    // The area's own partition walls block light too.
-    const obstacles = [
-      ...buildObstacles(project.buildings),
-      ...buildAreaWallQuads(building, area)
-    ];
-    return {
-      surfaces,
-      openings: portals,
-      obstacles,
-      sunDirection: [solar.direction.x, solar.direction.y, solar.direction.z]
-    };
-  }
-
-  function teardownInterior() {
-    interiorCtrl?.dispose(); interiorCtrl = null;
-    analysisClient?.dispose(); analysisClient = null;
-    withController(controller => controller?.exitInterior());
-  }
-
-  function syncInterior(project, sim) {
+  function syncInterior(project) {
     const it = project.view.interior;
     const key = it ? `${it.buildingId}:${it.areaId}` : null;
-    const building = it ? project.buildings.find(b => b.id === it.buildingId) : null;
-    const area = building?.observationAreas?.find(a => a.id === it.areaId) ?? null;
+    if (key === interiorKey) return;
 
-    if (key === interiorKey) {
-      if (it && building && area) interiorCtrl?.request(interiorPayload(project, building, area, sim.solar));
-      return;
-    }
-
-    if (interiorKey) teardownInterior();
+    if (interiorKey) withController(controller => controller?.exitInterior());
     interiorKey = key;
-    if (!it || !building || !area) { interiorKey = null; return; }
+    if (!it) return;
+    const building = project.buildings.find(b => b.id === it.buildingId);
+    const area = building?.observationAreas?.find(a => a.id === it.areaId);
+    if (!building || !area) { interiorKey = null; return; }
 
-    const { transform, baseY } = areaWorldTransform(building, area);
-    const { surfaces } = sampleSurfaces(area, { floorHeight: building.params.floorHeight }, transform);
-    const xs = surfaces.flatMap(s => s.samples.map(p => p.position[0]));
-    const zs = surfaces.flatMap(s => s.samples.map(p => p.position[2]));
+    const baseY = floorBaseY({ floor: area.floor, ...building.params });
+    const corners = (area.rects ?? []).flatMap(r =>
+      [[r.x0, r.z0], [r.x0, r.z1], [r.x1, r.z0], [r.x1, r.z1]].map(([lx, lz]) => {
+        const [wx, wz] = rotateLocalToWorld([lx, lz], building.rotation);
+        return [wx + building.position.x, wz + building.position.z];
+      })
+    );
+    const xs = corners.map(c => c[0]);
+    const zs = corners.map(c => c[1]);
     const cx = (Math.min(...xs) + Math.max(...xs)) / 2;
     const cz = (Math.min(...zs) + Math.max(...zs)) / 2;
     const radius = Math.max(6, Math.hypot(Math.max(...xs) - Math.min(...xs), Math.max(...zs) - Math.min(...zs)) / 2);
 
-    // Mark each opening (where the area meets an exterior wall) so it's
-    // obvious where the sunlight can enter.
-    const { portals } = deriveAperturesFromArea(building, area);
-    const openingMarkers = portals.map(p => ({
-      id: p.id,
-      width: p.bounds.maxU - p.bounds.minU,
-      height: p.bounds.maxV - p.bounds.minV,
-      center: [p.plane.point[0], (p.bounds.minV + p.bounds.maxV) / 2, p.plane.point[2]],
-      normal: p.plane.normal
-    }));
-
     withController(controller => controller?.enterInterior({
-      building, floor: area.floor, area, surfaces, openingMarkers,
+      building, floor: area.floor, area,
       center: { x: cx, y: baseY + building.params.floorHeight / 2, z: cz }, radius
     }));
-
-    analysisClient = createAnalysisClient();
-    interiorCtrl = createInteriorLightController({
-      analyze: payload => analysisClient.analyzeInterior(payload),
-      onMasks: masks => withController(controller => controller?.updateInteriorLight(masks))
-    });
-    interiorCtrl.request(interiorPayload(project, building, area, sim.solar));
   }
 
   let prevEditing = store.getState().view.editorMode === 'building';
@@ -195,7 +142,7 @@ export function mountApp(root) {
       controller?.updateAnalysis(project, sim, project.view.phase);
       controller?.syncFloorFocus(project);
     });
-    syncInterior(project, sim);
+    syncInterior(project);
   });
 
   simulationController.subscribe(state => {
@@ -203,7 +150,6 @@ export function mountApp(root) {
       controller?.updateSolar(state, store.getState().view.phase);
       controller?.updateAnalysis(store.getState(), state, store.getState().view.phase);
     });
-    syncInterior(store.getState(), state);
   });
 
   shell.querySelector('[data-action="save-project"]')?.addEventListener('click', () => {

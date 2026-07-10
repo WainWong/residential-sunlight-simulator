@@ -208,3 +208,41 @@ describe('independent playback', () => {
     vi.useRealTimers();
   });
 });
+
+describe('daily worker wiring', () => {
+  it('merges the full-day result into state (latest key wins)', async () => {
+    vi.useFakeTimers();
+    const analyze = vi.fn().mockResolvedValue({
+      intervals: [{ startMinute: 600, endMinute: 660 }],
+      totalMinutes: 60
+    });
+    const factory = () => ({ analyze, dispose: vi.fn() });
+    const store = createStore(projectWithSouthWindow());
+    const controller = createSimulationController(store, { analysisClientFactory: factory });
+
+    // Trigger a state pass, run the debounce, flush the promise.
+    controller.setTime('12:00');
+    await vi.advanceTimersByTimeAsync(300);
+
+    expect(analyze).toHaveBeenCalledTimes(1);
+    const payload = analyze.mock.calls[0][0];
+    expect(payload.localDate).toBe('2026-12-21');
+    expect(payload.frame).toMatchObject({ rotation: 0, baseY: 1.2 });
+
+    expect(controller.getState().totalMinutes).toBe(60);
+    expect(controller.getState().intervals).toEqual([{ startMinute: 600, endMinute: 660 }]);
+
+    // Time-only changes reuse the cached result (no re-request).
+    controller.setTime('13:00');
+    await vi.advanceTimersByTimeAsync(300);
+    expect(analyze).toHaveBeenCalledTimes(1);
+
+    // Date change invalidates the key and refetches.
+    controller.setDate('2026-06-21');
+    await vi.advanceTimersByTimeAsync(300);
+    expect(analyze).toHaveBeenCalledTimes(2);
+
+    controller.dispose();
+    vi.useRealTimers();
+  });
+});

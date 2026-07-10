@@ -47,9 +47,56 @@ function resolveDirectSun({ project, building, area }) {
   return { transform, portals, obstacles };
 }
 
-export function createSimulationController(store) {
+export function createSimulationController(store, { analysisClientFactory = null } = {}) {
   const listeners = new Set();
   let state;
+
+  // Full-day direct-sun analysis runs in the worker; latest-wins + debounce.
+  let client = null;
+  let daily = null; // { key, intervals, totalMinutes }
+  let dailySeq = 0;
+  let dailyTimer = null;
+
+  function dailyKey(project, activeId) {
+    return JSON.stringify([
+      activeId,
+      project.simulation.date,
+      project.location,
+      project.buildings.map(b => [b.id, b.revision])
+    ]);
+  }
+
+  function requestDaily(project, building, area, key) {
+    if (!analysisClientFactory) return;
+    client ??= analysisClientFactory();
+    clearTimeout(dailyTimer);
+    dailyTimer = setTimeout(() => {
+      dailySeq += 1;
+      const mine = dailySeq;
+      const baseY = floorBaseY({ floor: area.floor, ...building.params }) + (area.sampleHeight ?? 0);
+      const { portals } = deriveAperturesFromArea(building, area);
+      const obstacles = [
+        ...buildObstacles(project.buildings),
+        ...buildAreaWallQuads(building, area)
+      ];
+      client.analyze({
+        location: project.location,
+        localDate: project.simulation.date,
+        area,
+        openings: portals,
+        obstacles,
+        frame: {
+          rotation: building.rotation,
+          position: { x: building.position.x, z: building.position.z },
+          baseY
+        }
+      }).then(result => {
+        if (mine !== dailySeq) return; // stale
+        daily = { key, intervals: result.intervals, totalMinutes: result.totalMinutes };
+        update();
+      }).catch(() => {});
+    }, 250);
+  }
 
   function calculate() {
     const project = store.getState();
@@ -83,6 +130,17 @@ export function createSimulationController(store) {
     }
 
     const { building, area } = map.get(activeId);
+
+    // Merge in the worker's full-day result when it matches the current
+    // area/date/geometry; otherwise leave placeholders and refresh it.
+    const key = dailyKey(project, activeId);
+    if (daily?.key === key) {
+      base.intervals = daily.intervals;
+      base.totalMinutes = daily.totalMinutes;
+    } else {
+      requestDaily(project, building, area, key);
+    }
+
     const { transform, portals, obstacles } = resolveDirectSun({ project, building, area });
 
     const result = solar.aboveHorizon
@@ -149,6 +207,8 @@ export function createSimulationController(store) {
     dispose() {
       unsubscribeStore();
       listeners.clear();
+      clearTimeout(dailyTimer);
+      client?.dispose();
     }
   };
 }
