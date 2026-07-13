@@ -16,10 +16,9 @@ function raycast(meshes, origin, dir) {
 }
 
 describe('buildSegmentMeshes', () => {
-  it('no-area building → single segment, zero frames', () => {
-    const { meshes, frames } = buildSegmentMeshes(bar(), material);
+  it('no-area building → single segment', () => {
+    const { meshes } = buildSegmentMeshes(bar(), material);
     expect(meshes).toHaveLength(1);
-    expect(frames).toHaveLength(0);
     expect(meshes[0].userData).toMatchObject({ kind: 'building-segment', entityId: 'b1' });
   });
 
@@ -67,14 +66,6 @@ describe('buildSegmentMeshes', () => {
     // 顶盖封住房间:从天空垂直向下,首个命中是顶盖顶面 y=18(不穿透)。
     const hits = raycast(meshes, [0, 30, 0], [0, -1, 0]);
     expect(hits[0].point.y).toBeCloseTo(18, 2);
-  });
-
-  it('emits one gold frame per opening edge', () => {
-    const { frames } = buildSegmentMeshes(bar([
-      { id: 'a1', floor: 2, rects: [{ x0: -8, z0: -9, x1: 8, z1: 0 }] }
-    ]), material);
-    expect(frames).toHaveLength(1);
-    expect(frames[0].userData.kind).toBe('opening-frame');
   });
 
   it('ring-shaped area keeps its inner island solid', () => {

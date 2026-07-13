@@ -68,13 +68,12 @@ export function createBuildingMesh(building, { preview = false, highlighted = fa
   group.userData.totalHeight = height;
   applyBuildingTransform(group, building);
 
-  const { meshes, frames } = buildSegmentMeshes(building, material);
+  const { meshes } = buildSegmentMeshes(building, material);
   for (const mesh of meshes) {
     mesh.castShadow = !preview;
     mesh.receiveShadow = !preview;
     group.add(mesh);
   }
-  for (const frame of frames) group.add(frame);
 
   const lines = floorLines(footprint, building);
   if (lines) group.add(lines);
