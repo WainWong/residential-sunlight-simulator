@@ -12,10 +12,6 @@ import { getOuterRing } from './buildingSceneHelpers.js';
 const CUT_Y_OVERSHOOT = 0.5;
 const EPS = 1e-4;
 
-const openingFrameMaterial = new THREE.LineBasicMaterial({
-  color: 0xf1b746, transparent: true, opacity: 0.95
-});
-
 // 硬边描线:给转角、墙厚、洞口一圈深色轮廓,让相邻同色面之间的棱线读得出
 // (统一几何是整块实体,少了老几何薄墙的受光差,棱线会糊)。三种视角通用。
 const edgeMaterial = new THREE.LineBasicMaterial({
@@ -38,9 +34,17 @@ function paintByOrientation(geometry) {
   geometry.setAttribute('color', new THREE.BufferAttribute(colors, 3));
 }
 
+// EdgesGeometry 靠"两三角共享一条边且共面"来剔除内部对角线,但它只在顶点
+// 被合并后才认得出共享边。CSG/挤出输出在同一位置的顶点带着不同的 normal/uv/
+// color,mergeVertices 比较全属性会拒绝合并 → 对角线漏画。故先抽出纯 position
+// 几何再焊接:面法线由三角形几何现算,硬角照旧保留,唯有共面对角线被消掉。
 export function edgesFor(geometry) {
-  const welded = mergeVertices(geometry);
+  const pos = geometry.getAttribute('position');
+  const bare = new THREE.BufferGeometry();
+  bare.setAttribute('position', new THREE.BufferAttribute(pos.array.slice(), pos.itemSize));
+  const welded = mergeVertices(bare);
   const lines = new THREE.LineSegments(new THREE.EdgesGeometry(welded, 25), edgeMaterial);
+  bare.dispose();
   welded.dispose();
   lines.userData.kind = 'segment-edges';
   return lines;
@@ -124,28 +128,11 @@ function lidGeometry(room, toY) {
   return geometry;
 }
 
-// 洞口描边:贴在墙面原位的金色线框,位置来自外凸前的原始贴墙边。
-function frameForEdge(edge, fromY, toY) {
-  const { a, b } = edge;
-  const frame = new THREE.LineLoop(
-    new THREE.BufferGeometry().setFromPoints([
-      new THREE.Vector3(a.x, fromY + 0.02, a.z),
-      new THREE.Vector3(b.x, fromY + 0.02, b.z),
-      new THREE.Vector3(b.x, toY - 0.02, b.z),
-      new THREE.Vector3(a.x, toY - 0.02, a.z)
-    ]),
-    openingFrameMaterial
-  );
-  frame.userData.kind = 'opening-frame';
-  return frame;
-}
-
 export function buildSegmentMeshes(building, material) {
   const specs = buildSegmentSpecs(building);
   const footprint = createFootprint(building.template, building.params);
   const totalH = totalBuildingHeight(building.params);
   const meshes = [];
-  const frames = [];
   for (const spec of specs) {
     const geometry = segmentGeometry(spec, footprint);
     const mesh = new THREE.Mesh(geometry, material);
@@ -171,12 +158,6 @@ export function buildSegmentMeshes(building, material) {
         meshes.push(lid);
       }
     }
-
-    for (const cutter of spec.cutters) {
-      for (const edge of cutter.openingEdges ?? []) {
-        frames.push(frameForEdge(edge, spec.fromY, spec.toY));
-      }
-    }
   }
-  return { meshes, frames };
+  return { meshes };
 }
