@@ -64,16 +64,18 @@ function edgeLines(rings, fromY, toY) {
   return lines;
 }
 
+// 一个房间空腔的所有环:外环 + 洞环(均为 {x,z})。
+function roomRings(room) {
+  return [room.outer, ...(room.holes ?? [])];
+}
+
 // 段的描边:footprint 外环 + footprint 洞环 + 各房间空腔的外环与洞环。
 function segmentEdges(spec, footprint) {
   const rings = [toXZRing(getOuterRing(footprint))];
   for (const hole of Array.isArray(footprint) ? [] : footprint.holes) {
     rings.push(toXZRing(hole));
   }
-  for (const room of spec.rooms ?? []) {
-    rings.push(room.outer);
-    for (const hole of room.holes ?? []) rings.push(hole);
-  }
+  for (const room of spec.rooms ?? []) rings.push(...roomRings(room));
   return edgeLines(rings, spec.fromY, spec.toY);
 }
 
@@ -182,7 +184,7 @@ export function buildSegmentMeshes(building, material) {
           fromY: spec.toY - SLAB_THICKNESS, toY: spec.toY
         };
         // 顶盖描边:房间空腔轮廓(外环 + 洞环),薄板 fromY..toY。
-        lid.add(edgeLines([room.outer, ...(room.holes ?? [])], spec.toY - SLAB_THICKNESS, spec.toY));
+        lid.add(edgeLines(roomRings(room), spec.toY - SLAB_THICKNESS, spec.toY));
         meshes.push(lid);
       }
     }

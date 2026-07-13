@@ -42,10 +42,6 @@ describe('buildSegmentSpecs', () => {
     expect(Math.max(...zs)).toBeCloseTo(0, 6);
     expect(Math.min(...cutter.outer.map(p => p.x))).toBeCloseTo(-8, 6);
     expect(Math.max(...cutter.outer.map(p => p.x))).toBeCloseTo(8, 6);
-    // 原始贴墙边随刀带出,供洞口描边使用
-    expect(cutter.openingEdges).toHaveLength(1);
-    expect(cutter.openingEdges[0].a.z).toBeCloseTo(-9, 6);
-    expect(cutter.openingEdges[0].b.z).toBeCloseTo(-9, 6);
   });
 
   it('top-floor area band ends at building top', () => {

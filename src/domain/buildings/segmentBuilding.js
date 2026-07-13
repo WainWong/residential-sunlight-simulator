@@ -70,10 +70,8 @@ function bumpEdgeOutward(a, b, footprint, amount) {
   ];
 }
 
-// 观察区并集多边形 → 刀多边形:贴墙边外凸,内部边原样。
-// openingEdges 记录外凸前的原始贴墙边,供洞口描边定位。
+// 观察区并集多边形 → 刀多边形:贴墙边外凸(穿出墙面消除共面),内部边原样。
 function toCutter(poly, footprint, walls) {
-  const openingEdges = [];
   const bumpRing = ring => {
     const out = [];
     for (let i = 0; i < ring.length; i += 1) {
@@ -81,14 +79,13 @@ function toCutter(poly, footprint, walls) {
       const b = ring[(i + 1) % ring.length];
       out.push({ x: a.x, z: a.z });
       if (edgeOnFootprint(a, b, walls)) {
-        openingEdges.push({ a: { x: a.x, z: a.z }, b: { x: b.x, z: b.z } });
         const [pa, pb] = bumpEdgeOutward(a, b, footprint, OPENING_CUT_EXTENSION);
         out.push(pa, pb);
       }
     }
     return out;
   };
-  return { outer: bumpRing(poly.outer), holes: (poly.holes ?? []).map(bumpRing), openingEdges };
+  return { outer: bumpRing(poly.outer), holes: (poly.holes ?? []).map(bumpRing) };
 }
 
 export function buildSegmentSpecs(building) {

@@ -20,6 +20,13 @@ import { createSceneSynchronizer } from './syncScene.js';
 import { createUpdateAreaEditingCommand } from '../store/buildingCommands.js';
 import { createFadeState } from './occlusionFade.js';
 
+// 段 mesh 的描边线是它的 'segment-edges' 子对象;淡化/还原时要连着一起改。
+function forEachEdge(mesh, fn) {
+  for (const child of mesh.children) {
+    if (child.userData?.kind === 'segment-edges') fn(child);
+  }
+}
+
 export function createSceneController(canvas, { onSelect = () => {}, store = null, compassNeedle = null, compassReadout = null } = {}) {
   const quality = createQualitySettings('medium');
   const sceneParts = createScene();
@@ -60,9 +67,10 @@ export function createSceneController(canvas, { onSelect = () => {}, store = nul
   let floorFocus = null;
 
   let interior = null;
-  // 观察视角下被淡化的段网格:mesh → { state, fade, cloned, sharedMaterial,
+  // 观察视角下被淡化的段网格:mesh → { state, fade, sharedMaterial,
   // sharedEdgeMaterial }。仅登记 building-segment(building-lid 归揭盖管)。
   const fadeMap = new Map();
+  const _occDir = new THREE.Vector3(); // updateOcclusion 每帧复用,避免分配
 
   // The room is the building itself — openings are cut in the geometry so the
   // scene's real sun light + shadow map pours in physically. No mesh is hidden.
@@ -150,15 +158,12 @@ export function createSceneController(canvas, { onSelect = () => {}, store = nul
     if (!interior) return;
     for (const mesh of interior.lid) mesh.visible = true;
     for (const [mesh, entry] of fadeMap) {
-      if (entry.cloned) {
-        mesh.material.dispose();
-        mesh.material = entry.sharedMaterial;
-        for (const child of mesh.children) {
-          if (child.userData?.kind !== 'segment-edges') continue;
-          child.material.dispose();
-          child.material = entry.sharedEdgeMaterial;
-        }
-      }
+      mesh.material.dispose();
+      mesh.material = entry.sharedMaterial;
+      forEachEdge(mesh, child => {
+        child.material.dispose();
+        child.material = entry.sharedEdgeMaterial;
+      });
     }
     fadeMap.clear();
     const hemi = sceneParts.scene.getObjectByName('ambient-sky');
@@ -177,10 +182,10 @@ export function createSceneController(canvas, { onSelect = () => {}, store = nul
 
     // 聚焦建筑的段 mesh(排除顶盖):射线 相机→房间中心,命中且在中心之前者遮挡。
     const cam = cameraParts.camera.position;
-    const dir = interior.center.clone().sub(cam);
-    const distToCenter = dir.length();
-    dir.normalize();
-    raycaster.set(cam, dir);
+    _occDir.copy(interior.center).sub(cam);
+    const distToCenter = _occDir.length();
+    _occDir.normalize();
+    raycaster.set(cam, _occDir);
     raycaster.far = distToCenter;
 
     const segments = [];
@@ -190,12 +195,13 @@ export function createSceneController(canvas, { onSelect = () => {}, store = nul
         if (m.userData?.kind === 'building-segment' && m.visible) segments.push(m);
       });
     }
+    const segmentSet = new Set(segments);
     const hits = raycaster.intersectObjects(segments, false);
     const occluders = new Set(hits.map(h => h.object));
 
     // 已登记但本帧不再存在的 mesh(段重建)从表中移除,不再触碰。
-    for (const mesh of [...fadeMap.keys()]) {
-      if (!segments.includes(mesh)) fadeMap.delete(mesh);
+    for (const mesh of fadeMap.keys()) {
+      if (!segmentSet.has(mesh)) fadeMap.delete(mesh);
     }
 
     for (const mesh of segments) {
@@ -204,28 +210,25 @@ export function createSceneController(canvas, { onSelect = () => {}, store = nul
       if (!entry) {
         if (!occluding) continue; // 未遮挡且未登记:保持共享实心材质,不克隆
         entry = {
-          state: createFadeState({ fadeIn: 0.30, restore: 1.0, step: 0.12 }),
-          fade: 1.0, cloned: true,
+          state: createFadeState(), fade: 1.0,
           sharedMaterial: mesh.material, sharedEdgeMaterial: null
         };
         mesh.material = mesh.material.clone();
         mesh.material.transparent = true;
-        for (const child of mesh.children) {
-          if (child.userData?.kind !== 'segment-edges') continue;
+        forEachEdge(mesh, child => {
           entry.sharedEdgeMaterial = child.material;
           child.material = child.material.clone();
           child.material.transparent = true;
-        }
+        });
         fadeMap.set(mesh, entry);
       }
       entry.fade = entry.state.update(entry.fade, occluding);
       mesh.material.opacity = entry.fade;
       mesh.material.transparent = entry.fade < 1;
-      for (const child of mesh.children) {
-        if (child.userData?.kind !== 'segment-edges') continue;
+      forEachEdge(mesh, child => {
         child.material.opacity = entry.fade;
         child.material.transparent = entry.fade < 1;
-      }
+      });
     }
   }
 
@@ -445,8 +448,8 @@ export function createSceneController(canvas, { onSelect = () => {}, store = nul
       // 按最新网格重新收集"盖子",并立即按当前相机高度决定其可见性。
       if (interior) {
         const alive = lidAndAbove(interior.buildingId, interior.bandToY);
-        const aliveSet = new Set(alive);
-        if (interior.lid.some(m => !aliveSet.has(m)) || alive.some(m => !new Set(interior.lid).has(m))) {
+        const lidSet = new Set(interior.lid);
+        if (alive.length !== interior.lid.length || alive.some(m => !lidSet.has(m))) {
           interior.lid = alive;
           const lifted = cameraParts.camera.position.y > interior.liftY;
           for (const mesh of alive) mesh.visible = !lifted;
