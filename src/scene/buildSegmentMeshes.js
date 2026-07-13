@@ -2,7 +2,6 @@
 // three-bvh-csg 做减法(真挖洞/掏房间)。刀已在 domain 层消除共面
 // (洞边外扩);这里再让刀的 y 区间超出段端面,保证上下端面也无共面布尔。
 import * as THREE from 'three';
-import { mergeVertices } from 'three/examples/jsm/utils/BufferGeometryUtils.js';
 import { Brush, Evaluator, SUBTRACTION } from 'three-bvh-csg';
 import { buildSegmentSpecs, SLAB_THICKNESS } from '../domain/buildings/segmentBuilding.js';
 import { createFootprint } from '../domain/buildings/createFootprint.js';
@@ -34,20 +33,48 @@ function paintByOrientation(geometry) {
   geometry.setAttribute('color', new THREE.BufferAttribute(colors, 3));
 }
 
-// EdgesGeometry 靠"两三角共享一条边且共面"来剔除内部对角线,但它只在顶点
-// 被合并后才认得出共享边。CSG/挤出输出在同一位置的顶点带着不同的 normal/uv/
-// color,mergeVertices 比较全属性会拒绝合并 → 对角线漏画。故先抽出纯 position
-// 几何再焊接:面法线由三角形几何现算,硬角照旧保留,唯有共面对角线被消掉。
-export function edgesFor(geometry) {
-  const pos = geometry.getAttribute('position');
-  const bare = new THREE.BufferGeometry();
-  bare.setAttribute('position', new THREE.BufferAttribute(pos.array.slice(), pos.itemSize));
-  const welded = mergeVertices(bare);
-  const lines = new THREE.LineSegments(new THREE.EdgesGeometry(welded, 25), edgeMaterial);
-  bare.dispose();
-  welded.dispose();
+// 描边不从 CSG 网格提取:布尔运算输出有 T 型接点(非边流形),EdgesGeometry
+// 无法配对共面三角形,会把三角剖分对角线当硬边漏画。改从 domain 多边形直接
+// 造轮廓 —— footprint 环 + 房间空腔环,干净且轴对齐,只有真实棱线,零对角线。
+//
+// 一圈 2D 环(顶点 {x,z})描成上环(toY)+ 下环(fromY)+ 每个角一条竖边。
+function pushRing(vertices, ring, fromY, toY) {
+  const n = ring.length;
+  for (let i = 0; i < n; i += 1) {
+    const a = ring[i];
+    const b = ring[(i + 1) % n];
+    vertices.push(a.x, toY, a.z, b.x, toY, b.z); // 上环
+    vertices.push(a.x, fromY, a.z, b.x, fromY, b.z); // 下环
+    vertices.push(a.x, fromY, a.z, a.x, toY, a.z); // 竖边
+  }
+}
+
+// footprint 外环存成 [x,z] 数组,房间环存成 {x,z};统一成 {x,z} 数组。
+function toXZRing(ring) {
+  return ring.map(p => (Array.isArray(p) ? { x: p[0], z: p[1] } : p));
+}
+
+function edgeLines(rings, fromY, toY) {
+  const vertices = [];
+  for (const ring of rings) pushRing(vertices, ring, fromY, toY);
+  const geo = new THREE.BufferGeometry();
+  geo.setAttribute('position', new THREE.Float32BufferAttribute(vertices, 3));
+  const lines = new THREE.LineSegments(geo, edgeMaterial);
   lines.userData.kind = 'segment-edges';
   return lines;
+}
+
+// 段的描边:footprint 外环 + footprint 洞环 + 各房间空腔的外环与洞环。
+function segmentEdges(spec, footprint) {
+  const rings = [toXZRing(getOuterRing(footprint))];
+  for (const hole of Array.isArray(footprint) ? [] : footprint.holes) {
+    rings.push(toXZRing(hole));
+  }
+  for (const room of spec.rooms ?? []) {
+    rings.push(room.outer);
+    for (const hole of room.holes ?? []) rings.push(hole);
+  }
+  return edgeLines(rings, spec.fromY, spec.toY);
 }
 
 function ringToShape(target, ring, toXY) {
@@ -141,7 +168,7 @@ export function buildSegmentMeshes(building, material) {
       fromY: spec.fromY, toY: spec.toY, hasCutters: spec.cutters.length > 0
     };
     // 描边作为子对象:随段的变换与可见性走,拾取仍解析到父级 entityId。
-    mesh.add(edgesFor(geometry));
+    mesh.add(segmentEdges(spec, footprint));
     meshes.push(mesh);
 
     // 顶层房间没有上方段当顶,补一块独立顶盖 mesh(可被"揭盖"整块隐藏)。
@@ -154,7 +181,8 @@ export function buildSegmentMeshes(building, material) {
           kind: 'building-lid', entityId: building.id,
           fromY: spec.toY - SLAB_THICKNESS, toY: spec.toY
         };
-        lid.add(edgesFor(lidGeom));
+        // 顶盖描边:房间空腔轮廓(外环 + 洞环),薄板 fromY..toY。
+        lid.add(edgeLines([room.outer, ...(room.holes ?? [])], spec.toY - SLAB_THICKNESS, spec.toY));
         meshes.push(lid);
       }
     }
