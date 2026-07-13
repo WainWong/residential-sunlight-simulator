@@ -2,6 +2,7 @@
 // three-bvh-csg 做减法(真挖洞/掏房间)。刀已在 domain 层消除共面
 // (洞边外扩);这里再让刀的 y 区间超出段端面,保证上下端面也无共面布尔。
 import * as THREE from 'three';
+import { mergeVertices } from 'three/examples/jsm/utils/BufferGeometryUtils.js';
 import { Brush, Evaluator, SUBTRACTION } from 'three-bvh-csg';
 import { buildSegmentSpecs, SLAB_THICKNESS } from '../domain/buildings/segmentBuilding.js';
 import { createFootprint } from '../domain/buildings/createFootprint.js';
@@ -37,8 +38,10 @@ function paintByOrientation(geometry) {
   geometry.setAttribute('color', new THREE.BufferAttribute(colors, 3));
 }
 
-function edgesFor(geometry) {
-  const lines = new THREE.LineSegments(new THREE.EdgesGeometry(geometry, 25), edgeMaterial);
+export function edgesFor(geometry) {
+  const welded = mergeVertices(geometry);
+  const lines = new THREE.LineSegments(new THREE.EdgesGeometry(welded, 25), edgeMaterial);
+  welded.dispose();
   lines.userData.kind = 'segment-edges';
   return lines;
 }
