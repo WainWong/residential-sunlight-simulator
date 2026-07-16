@@ -19,7 +19,7 @@
     "suncalc": "1.9.0",
     "three": "0.185.0",
     "three-bvh-csg": "^0.0.18",
-    "three-mesh-bvh": "^0.9.11"
+    "three-mesh-bvh": "0.9.10"
   },
   "devDependencies": {
     "@playwright/test": "1.61.1",

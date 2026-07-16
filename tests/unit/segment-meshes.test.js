@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 import * as THREE from 'three';
 import { buildSegmentMeshes } from '../../src/scene/buildSegmentMeshes.js';
 
@@ -16,6 +16,23 @@ function raycast(meshes, origin, dir) {
 }
 
 describe('buildSegmentMeshes', () => {
+  it('builds CSG geometry without deprecated BVH options', () => {
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
+
+    try {
+      const { meshes } = buildSegmentMeshes(bar([
+        { id: 'a1', floor: 2, rects: [{ x0: -8, z0: -6, x1: 8, z1: 6 }] }
+      ]), material);
+      const csgMesh = meshes.find(mesh => mesh.userData.hasCutters);
+      const warnings = warn.mock.calls.flat().map(String);
+
+      expect(csgMesh.geometry.getAttribute('position').count).toBeGreaterThan(0);
+      expect(warnings.some(message => message.includes('maxLeafSize'))).toBe(false);
+    } finally {
+      warn.mockRestore();
+    }
+  });
+
   it('no-area building → single segment', () => {
     const { meshes } = buildSegmentMeshes(bar(), material);
     expect(meshes).toHaveLength(1);
