@@ -25,8 +25,8 @@ describe('selection highlight', () => {
   it('signature includes highlight so highlight toggles rebuild', () => {
     const rebuild = vi.fn((b, opts) => ({ id: b.id, opts, dispose: vi.fn() }));
     const sync = createSceneSynchronizer({ rebuild, attach: vi.fn(), detach: vi.fn() });
-    sync.update([barBuilding], { previewBuildingId: null, highlightBuildingId: null });
-    sync.update([barBuilding], { previewBuildingId: null, highlightBuildingId: 'building-a' });
+    sync.update([barBuilding], { highlightBuildingId: null });
+    sync.update([barBuilding], { highlightBuildingId: 'building-a' });
     expect(rebuild).toHaveBeenCalledTimes(2);
     expect(rebuild.mock.calls[1][1]).toEqual({ preview: false, highlighted: true });
   });
@@ -83,18 +83,58 @@ describe('scene synchronization', () => {
     expect(group.userData.preview).toBe(true);
   });
 
-  it('rebuilds when preview state changes without a revision change', () => {
-    const rebuild = vi.fn((building, options) => ({ building, options }));
-    const sync = createSceneSynchronizer({
-      rebuild,
-      attach: vi.fn(),
-      detach: vi.fn()
-    });
-
-    sync.update([barBuilding], { previewBuildingId: null });
-    sync.update([barBuilding], { previewBuildingId: 'building-a' });
-
-    expect(rebuild).toHaveBeenCalledTimes(2);
-    expect(rebuild.mock.calls[1][1]).toEqual({ preview: true, highlighted: false });
-  });
 });
+
+  it('shows and clears one transient building without replacing canonical state', () => {
+    const rebuild = vi.fn((building, options) => ({
+      building,
+      options,
+      visible: true,
+      userData: { preview: options.preview, dispose: vi.fn() }
+    }));
+    const attach = vi.fn();
+    const detach = vi.fn();
+    const sync = createSceneSynchronizer({ rebuild, attach, detach });
+    sync.update([barBuilding]);
+    const canonical = attach.mock.calls[0][0];
+
+    sync.showTransient({
+      ...barBuilding,
+      params: { ...barBuilding.params, length: 72 }
+    });
+    const transient = attach.mock.calls[1][0];
+
+    expect(canonical.visible).toBe(false);
+    expect(transient.options).toEqual({ preview: true, highlighted: false });
+    expect(transient.building.params.length).toBe(72);
+
+    sync.clearTransient();
+
+    expect(canonical.visible).toBe(true);
+    expect(detach).toHaveBeenCalledWith(transient);
+    expect(transient.userData.dispose).toHaveBeenCalledOnce();
+  });
+
+  it('disposes a previous transient before replacing it', () => {
+    const rebuild = vi.fn((building, options) => ({
+      building,
+      options,
+      visible: true,
+      userData: { dispose: vi.fn() }
+    }));
+    const attach = vi.fn();
+    const detach = vi.fn();
+    const sync = createSceneSynchronizer({ rebuild, attach, detach });
+    sync.update([barBuilding]);
+
+    sync.showTransient({ ...barBuilding, params: { ...barBuilding.params, length: 70 } });
+    const first = attach.mock.calls[1][0];
+    sync.showTransient({ ...barBuilding, params: { ...barBuilding.params, length: 80 } });
+    const second = attach.mock.calls[2][0];
+
+    expect(detach).toHaveBeenCalledWith(first);
+    expect(first.userData.dispose).toHaveBeenCalledOnce();
+    expect(second.building.params.length).toBe(80);
+    sync.dispose();
+    expect(second.userData.dispose).toHaveBeenCalledOnce();
+  });

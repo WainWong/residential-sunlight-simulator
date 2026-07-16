@@ -3,22 +3,32 @@ import { createQualitySettings } from '../features/settings/QualitySettings.js';
 import { buildAnalysisOverlays } from './analysisOverlays.js';
 import { createBuildingMesh } from './buildingMesh.js';
 import { createCameraRig } from './createCameraRig.js';
-import { applyRectEdit, createAreaDrag } from './areaDrag.js';
-import { createFloorSlab, floorFocusTarget } from './floorFocus.js';
+import { applyRectEdit, createRoomDrag } from './roomDrag.js';
+import {
+  createFloorSlab,
+  floorFocusTarget,
+  restoreBuildingVisibility,
+  setFloorFocusVisibility
+} from './floorFocus.js';
 import { floorBaseY, totalBuildingHeight } from '../domain/buildings/floorMath.js';
+import { deriveWalls } from '../domain/walls/deriveWalls.js';
 import { SLAB_THICKNESS } from '../domain/buildings/segmentBuilding.js';
 import { applyBuildingTransform } from './buildingSceneHelpers.js';
-import { createObservationOverlay } from './observationOverlay.js';
+import { createRoomOverlay } from './roomOverlay.js';
 import { clipRectToFootprint } from '../domain/buildings/footprintClip.js';
 import { rotateLocalToWorld } from '../domain/buildings/wallGeometry.js';
 import { createRenderer } from './createRenderer.js';
 import { createScene } from './createScene.js';
 import { pointerToNdc, resolvePickedEntity } from './picking.js';
-import { deriveScenePreview } from './scenePreview.js';
+import { selectedBuildingId } from './sceneSelection.js';
 import { applySunLighting } from './sunLighting.js';
 import { createSceneSynchronizer } from './syncScene.js';
-import { createUpdateAreaEditingCommand } from '../store/buildingCommands.js';
+import { createAppendRoomRectCommand } from '../store/roomCommands.js';
 import { createFadeState } from './occlusionFade.js';
+import { createBuildingGestures } from './gizmos/createBuildingGestures.js';
+import { createOpeningGestures } from './gizmos/createOpeningGestures.js';
+import { createRoomGestures } from './gizmos/createRoomGestures.js';
+import { createWallOverlay, wallCameraPose } from './wallOverlay.js';
 
 // 段 mesh 的描边线是它的 'segment-edges' 子对象;淡化/还原时要连着一起改。
 function forEachEdge(mesh, fn) {
@@ -38,6 +48,23 @@ export function createSceneController(canvas, { onSelect = () => {}, store = nul
     detach: object => sceneParts.buildings.remove(object)
   });
   const viewport = canvas.parentElement;
+  const buildingGestures = createBuildingGestures({
+    canvas,
+    camera: cameraParts.camera,
+    scene: sceneParts.scene,
+    buildingsGroup: sceneParts.buildings,
+    store,
+    setCameraLocked: locked => cameraParts.setEditControls(locked ? 'draw' : null),
+    previewBuilding: building => synchronizer.showTransient(building),
+    clearBuildingPreview: () => synchronizer.clearTransient(),
+  });
+  const openingGestures = createOpeningGestures({
+    canvas,
+    camera: cameraParts.camera,
+    scene: sceneParts.scene,
+    store,
+    setCameraLocked: locked => cameraParts.setEditControls(locked ? 'draw' : null)
+  });
 
   function resize() {
     const rect = viewport.getBoundingClientRect();
@@ -52,6 +79,7 @@ export function createSceneController(canvas, { onSelect = () => {}, store = nul
   const pointer = new THREE.Vector2();
 
   function selectAtPointer(event) {
+    if (buildingGestures.consumeSuppressedClick() || openingGestures.consumeSuppressedClick()) return;
     if (floorFocus) return;
     const rect = canvas.getBoundingClientRect();
     const ndc = pointerToNdc(event, rect);
@@ -65,6 +93,65 @@ export function createSceneController(canvas, { onSelect = () => {}, store = nul
   canvas.addEventListener('click', selectAtPointer);
 
   let floorFocus = null;
+  let currentProject = null;
+  let hoverWallId = null;
+  let hoverWallOverlay = null;
+  let selectedWallOverlay = null;
+
+  function disposeWallOverlay(overlay) {
+    if (!overlay) return;
+    sceneParts.scene.remove(overlay);
+    overlay.userData.dispose?.();
+  }
+
+  function wallContext(selection) {
+    if (selection?.kind !== 'wall') return null;
+    const building = currentProject?.buildings.find(item => item.id === selection.buildingId);
+    const wall = building && deriveWalls(building, selection.floor).find(item => item.id === selection.id);
+    return building && wall ? { building, wall } : null;
+  }
+
+  function syncSelectedWall(project) {
+    disposeWallOverlay(selectedWallOverlay);
+    selectedWallOverlay = null;
+    const context = wallContext(project.view.selection);
+    if (!context) return;
+    selectedWallOverlay = createWallOverlay(context.building, context.wall, {
+      centerU: project.view.selection.centerU ?? 0.5,
+      selected: true
+    });
+    sceneParts.scene.add(selectedWallOverlay);
+  }
+
+  function clearHoverWall() {
+    disposeWallOverlay(hoverWallOverlay);
+    hoverWallOverlay = null;
+    hoverWallId = null;
+  }
+
+  function hoverAtPointer(event) {
+    if (floorFocus || currentProject?.view?.phase !== 'build') {
+      clearHoverWall();
+      return;
+    }
+    const ndc = pointerToNdc(event, canvas.getBoundingClientRect());
+    pointer.set(ndc.x, ndc.y);
+    raycaster.setFromCamera(pointer, cameraParts.camera);
+    const selection = resolvePickedEntity(raycaster.intersectObjects(sceneParts.buildings.children, true));
+    if (selection?.kind !== 'wall' || selection.id === currentProject.view.selection?.id) {
+      clearHoverWall();
+      return;
+    }
+    if (selection.id === hoverWallId) return;
+    clearHoverWall();
+    const context = wallContext(selection);
+    if (!context) return;
+    hoverWallId = selection.id;
+    hoverWallOverlay = createWallOverlay(context.building, context.wall);
+    sceneParts.scene.add(hoverWallOverlay);
+  }
+
+  canvas.addEventListener('pointermove', hoverAtPointer);
 
   let interior = null;
   // 观察视角下被淡化的段网格:mesh → { state, fade, sharedMaterial,
@@ -122,7 +209,7 @@ export function createSceneController(canvas, { onSelect = () => {}, store = nul
     return meshes;
   }
 
-  function enterInterior({ building, floor, area, center, radius }) {
+  function enterInterior({ building, floor, center, radius }) {
     if (interior) exitInterior();
     fadeMap.clear();
     const params = building.params;
@@ -234,6 +321,8 @@ export function createSceneController(canvas, { onSelect = () => {}, store = nul
 
   function disposeFloorFocus() {
     if (!floorFocus) return;
+    const origin = sceneParts.aids.getObjectByName('coordinate-origin');
+    if (origin) origin.visible = true;
     floorFocus.clearPreview();
     floorFocus.dimLabel?.remove();
     sceneParts.scene.remove(floorFocus.slab);
@@ -242,34 +331,45 @@ export function createSceneController(canvas, { onSelect = () => {}, store = nul
       sceneParts.scene.remove(overlay);
     }
     floorFocus.drag.dispose();
+    floorFocus.roomGestures?.dispose();
     floorFocus = null;
+    restoreBuildingVisibility(sceneParts.buildings);
   }
 
   function buildFloorFocus(project) {
-    const editing = project.view.areaEditing;
+    const editing = project.view.roomEditing;
     if (!editing) return;
     const buildingId = editing.buildingId;
     const floor = editing.floor;
     const building = project.buildings.find(b => b.id === buildingId);
     if (!building) return;
 
-    for (const child of sceneParts.buildings.children) child.visible = false;
+    const bandToY = floor >= building.params.floors
+      ? totalBuildingHeight(building.params)
+      : floorBaseY({ floor: floor + 1, ...building.params });
+    setFloorFocusVisibility(sceneParts.buildings, buildingId, floor, bandToY);
+    const origin = sceneParts.aids.getObjectByName('coordinate-origin');
+    if (origin) origin.visible = false;
 
-    // Keep the current camera angle when entering area editing — don't snap to
+    // Keep the current camera angle when entering room editing; do not snap to
     // top-down. `target` is still used for the draw plane height and overlay
     // baseY. The user can orbit freely (view mode) until they pick a tool.
     const { target } = floorFocusTarget(building, floor);
-    cameraParts.setEditControls(editing.tool);
+    cameraParts.focusFloor({
+      center: { x: building.position.x, y: target.y, z: building.position.z },
+      radius: Math.max(building.params.length, building.params.depth) / 2
+    });
+    cameraParts.setEditControls(editing.mode === 'edit' ? null : 'draw');
 
     const slab = createFloorSlab(building, floor);
     sceneParts.scene.add(slab);
 
     // Show this floor's other observation areas (already saved) as solid
     // overlays so the user can see existing rooms while drawing a new one.
-    const existing = (building.observationAreas ?? [])
-      .filter(a => a.floor === floor && a.id !== editing.areaId)
+    const existing = (building.rooms ?? [])
+      .filter(room => room.floor === floor && room.id !== editing.roomId)
       .map(a => {
-        const overlay = createObservationOverlay({ rects: a.rects, baseY: target.y, draft: false });
+        const overlay = createRoomOverlay({ rects: a.rects, baseY: target.y, draft: false });
         applyBuildingTransform(overlay, building);
         sceneParts.scene.add(overlay);
         return overlay;
@@ -277,7 +377,7 @@ export function createSceneController(canvas, { onSelect = () => {}, store = nul
 
     // Floating dimension readout shown next to the rect while dragging.
     const dimLabel = document.createElement('div');
-    dimLabel.className = 'area-dim-label';
+    dimLabel.className = 'scene-dim-label';
     dimLabel.hidden = true;
     viewport.appendChild(dimLabel);
     const _dimVec = new THREE.Vector3();
@@ -310,18 +410,36 @@ export function createSceneController(canvas, { onSelect = () => {}, store = nul
         previewGroup = null;
       }
     };
+    const renderRoomPreview = (rects, valid = true) => {
+      clearPreview();
+      if (!rects?.length) return;
+      previewGroup = createRoomOverlay({
+        rects, baseY: target.y, draft: true, invalid: !valid
+      });
+      applyBuildingTransform(previewGroup, building);
+      sceneParts.overlays.add(previewGroup);
+    };
+    if (editing.mode === 'edit') renderRoomPreview(editing.rects);
+
+    const roomGestures = editing.mode === 'edit' && editing.rects?.length
+      ? createRoomGestures({
+          canvas, camera: cameraParts.camera, scene: sceneParts.scene, store,
+          building, floor, floorY: target.y, rects: editing.rects,
+          onPreview: renderRoomPreview,
+          setCameraLocked: locked => cameraParts.setEditControls(locked ? 'draw' : null)
+        })
+      : null;
 
     const getBuilding = () => store.getState().buildings.find(b => b.id === buildingId);
-    const getMode = () => floorFocus?.tool ?? null;
+    const getMode = () => editing.mode === 'edit' ? null : floorFocus?.tool;
 
-    // Rects already claimed by other observation areas on this floor — a new
-    // draw must not overlap them (keeps floor regions disjoint for later
-    // hole/analysis handling). The area being edited is excluded because its
+    // Rects already claimed by other rooms on this floor. A new draw must not
+    // overlap them. The room being edited is excluded because its
     // working rects live in the session, not in the saved building.
     function existingRectsOnFloor(b) {
-      const st = store?.getState()?.view?.areaEditing;
-      return (b?.observationAreas ?? [])
-        .filter(a => a.floor === st?.floor && a.id !== st?.areaId)
+      const st = store?.getState()?.view?.roomEditing;
+      return (b?.rooms ?? [])
+        .filter(room => room.floor === st?.floor && room.id !== st?.roomId)
         .flatMap(a => a.rects ?? []);
     }
     function clipDrawable(rect, b) {
@@ -332,7 +450,7 @@ export function createSceneController(canvas, { onSelect = () => {}, store = nul
       return pieces;
     }
 
-    const drag = createAreaDrag({
+    const drag = createRoomDrag({
       canvas, camera: cameraParts.camera, floorY: target.y, getBuilding, getMode,
       onPreview: rect => {
         clearPreview();
@@ -340,37 +458,31 @@ export function createSceneController(canvas, { onSelect = () => {}, store = nul
         if (!rect) return;
         const pieces = clipDrawable(rect, getBuilding());
         if (pieces.length === 0) return;
-        previewGroup = createObservationOverlay({ rects: pieces, baseY: target.y, draft: true });
+        previewGroup = createRoomOverlay({ rects: pieces, baseY: target.y, draft: true });
         applyBuildingTransform(previewGroup, getBuilding());
         sceneParts.overlays.add(previewGroup);
       },
-      onCommit: (rect, mode) => {
+      onCommit: rect => {
         clearPreview();
-        if (!store) return;
-        const editingState = store.getState().view.areaEditing;
-        if (!editingState) return;
-        const b = getBuilding();
-        const pieces = mode === 'draw' ? clipDrawable(rect, b) : [rect];
-        const rects = pieces.reduce(
-          (acc, r) => applyRectEdit(acc, r, mode),
-          editingState.rects ?? []
-        );
-        store.execute(createUpdateAreaEditingCommand({ rects }));
+        if (store?.getState()?.view?.roomEditing) store.execute(createAppendRoomRectCommand(rect));
       }
     });
-    floorFocus = { slab, existing, drag, tool: editing.tool ?? null, clearPreview, dimLabel };
+    floorFocus = {
+      slab, existing, drag, roomGestures,
+      tool: editing.mode === 'edit' ? null : 'draw', clearPreview, dimLabel
+    };
   }
 
   // Reconcile floor-focus lifecycle from the editing session. The controller owns
   // its own diffing (like syncScene does for meshes) so main.js just calls this
   // unconditionally on every project change.
   function syncFloorFocus(project) {
-    const editing = project.view.areaEditing;
+    const editing = project.view.roomEditing;
     const sig = editing ? `${editing.buildingId}:${editing.floor}` : '';
     if (!editing) {
       if (floorFocus) {
         disposeFloorFocus();
-        for (const child of sceneParts.buildings.children) child.visible = true;
+        restoreBuildingVisibility(sceneParts.buildings);
         cameraParts.setEditControls(null);
       }
       return;
@@ -380,10 +492,14 @@ export function createSceneController(canvas, { onSelect = () => {}, store = nul
       buildFloorFocus(project);
       if (floorFocus) floorFocus.sig = sig;
     } else {
-      // A building mesh may have been rebuilt (e.g. revision bump on save),
-      // which re-adds it visible. Keep other buildings hidden while focused.
-      for (const child of sceneParts.buildings.children) child.visible = false;
-      const nextTool = editing.tool ?? null;
+      const building = project.buildings.find(item => item.id === editing.buildingId);
+      if (building) {
+        const bandToY = editing.floor >= building.params.floors
+          ? totalBuildingHeight(building.params)
+          : floorBaseY({ floor: editing.floor + 1, ...building.params });
+        setFloorFocusVisibility(sceneParts.buildings, editing.buildingId, editing.floor, bandToY);
+      }
+      const nextTool = editing.mode === 'edit' ? null : 'draw';
       if (floorFocus.tool !== nextTool) {
         floorFocus.tool = nextTool;
         // Re-apply control mode: an active edit tool locks rotation for
@@ -435,6 +551,7 @@ export function createSceneController(canvas, { onSelect = () => {}, store = nul
 
   rendererParts.renderer.setAnimationLoop(() => {
     cameraParts.controls.update();
+    buildingGestures.updateOverlay();
     updateOcclusion();
     rendererParts.renderer.render(sceneParts.scene, cameraParts.camera);
     updateCompass();
@@ -442,8 +559,12 @@ export function createSceneController(canvas, { onSelect = () => {}, store = nul
 
   return {
     updateProject(project) {
-      const { previewBuildingId, highlightBuildingId } = deriveScenePreview(project.view);
-      synchronizer.update(project.buildings, { previewBuildingId, highlightBuildingId });
+      currentProject = project;
+      const highlightBuildingId = selectedBuildingId(project.view);
+      synchronizer.update(project.buildings, { highlightBuildingId });
+      buildingGestures.updateProject(project);
+      openingGestures.updateProject(project);
+      syncSelectedWall(project);
       // revision 变化会重建段网格,interior.lid 里的旧 mesh 随之失效 →
       // 按最新网格重新收集"盖子",并立即按当前相机高度决定其可见性。
       if (interior) {
@@ -456,7 +577,6 @@ export function createSceneController(canvas, { onSelect = () => {}, store = nul
         }
       }
       canvas.dataset.buildingCount = String(project.buildings.length);
-      canvas.dataset.previewBuildingId = previewBuildingId ?? '';
     },
     updateSolar(simulationState, phase = 'present') {
       applySunLighting(sceneParts.sunlight, simulationState.solar, { phase });
@@ -471,14 +591,14 @@ export function createSceneController(canvas, { onSelect = () => {}, store = nul
       sceneParts.overlays.clear();
       const overlays = buildAnalysisOverlays(project, simulationState, phase);
       if (!overlays) return;
-      const areaGroup = createObservationOverlay({
-        rects: overlays.area.rects, baseY: overlays.area.baseY,
-        lit: overlays.area.lit, draft: overlays.area.draft,
-        wallHeight: overlays.area.wallHeight ?? 0
+      const roomGroup = createRoomOverlay({
+        rects: overlays.room.rects, baseY: overlays.room.baseY,
+        lit: overlays.room.lit, draft: overlays.room.draft,
+        wallHeight: overlays.room.wallHeight ?? 0
       });
-      areaGroup.position.set(overlays.area.group.position.x, 0, overlays.area.group.position.z);
-      areaGroup.rotation.y = THREE.MathUtils.degToRad(overlays.area.group.rotationDeg);
-      sceneParts.overlays.add(areaGroup);
+      roomGroup.position.set(overlays.room.group.position.x, 0, overlays.room.group.position.z);
+      roomGroup.rotation.y = THREE.MathUtils.degToRad(overlays.room.group.rotationDeg);
+      sceneParts.overlays.add(roomGroup);
     },
     setPreviewing(value) {
       quality.setPreviewing(value);
@@ -487,11 +607,22 @@ export function createSceneController(canvas, { onSelect = () => {}, store = nul
     syncFloorFocus(project) {
       syncFloorFocus(project);
     },
+    faceWall(selection) {
+      const context = wallContext({ kind: 'wall', id: selection.wallId, ...selection });
+      if (!context) return false;
+      cameraParts.focusWall(wallCameraPose(context.building, context.wall));
+      return true;
+    },
     enterInterior(payload) { enterInterior(payload); },
     exitInterior() { exitInterior(); },
     dispose() {
       exitInterior();
       canvas.removeEventListener('click', selectAtPointer);
+      canvas.removeEventListener('pointermove', hoverAtPointer);
+      buildingGestures.dispose();
+      openingGestures.dispose();
+      clearHoverWall();
+      disposeWallOverlay(selectedWallOverlay);
       observer.disconnect();
       rendererParts.renderer.setAnimationLoop(null);
       synchronizer.dispose();

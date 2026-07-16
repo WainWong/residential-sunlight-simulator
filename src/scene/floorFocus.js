@@ -1,12 +1,42 @@
 import * as THREE from 'three';
 import { createFootprint } from '../domain/buildings/createFootprint.js';
 import { floorBaseY } from '../domain/buildings/floorMath.js';
+import { SLAB_THICKNESS } from '../domain/buildings/segmentBuilding.js';
 import { applyBuildingTransform, getOuterRing } from './buildingSceneHelpers.js';
 
 export function floorFocusTarget(building, floor) {
   const y = floorBaseY({ floor, ...building.params });
   return { target: { x: building.position.x, y, z: building.position.z } };
 }
+export function restoreBuildingVisibility(buildingRoot) {
+  buildingRoot.traverse(object => {
+    object.visible = true;
+  });
+}
+
+const ROOM_GEOMETRY_KINDS = new Set(['room-floor', 'room-wall', 'opening-glass', 'opening-open']);
+
+export function setFloorFocusVisibility(buildingRoot, buildingId, floor, bandToY) {
+  restoreBuildingVisibility(buildingRoot);
+  const hiddenFromY = bandToY - SLAB_THICKNESS - 0.01;
+  for (const buildingGroup of buildingRoot.children) {
+    if (buildingGroup.userData?.entityId !== buildingId) continue;
+    buildingGroup.traverse(object => {
+      const kind = object.userData?.kind;
+      if (ROOM_GEOMETRY_KINDS.has(kind)) {
+        object.visible = object.userData.floor < floor;
+        return;
+      }
+      if (kind === 'floor-lines') {
+        object.visible = false;
+        return;
+      }
+      if (kind !== 'building-segment' && kind !== 'building-lid') return;
+      object.visible = !(object.userData.fromY > hiddenFromY);
+    });
+  }
+}
+
 
 const slabMaterial = new THREE.MeshBasicMaterial({
   color: 0xdfe6e9, transparent: true, opacity: 0.55, side: THREE.DoubleSide, depthWrite: false

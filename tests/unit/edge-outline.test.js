@@ -10,7 +10,7 @@ describe('segment edge outline', () => {
   const building = {
     id: 'b1', template: 'bar', rotation: 0, position: { x: 0, z: 0 },
     params: { length: 15, depth: 20, floors: 2, floorHeight: 4 },
-    observationAreas: [{ id: 'a1', floor: 2, rects: [{ x0: -6, z0: -8, x1: 6, z1: 6 }] }]
+    rooms: [{ id: 'r1', floor: 2, rects: [{ x0: -6, z0: -8, x1: 6, z1: 6 }] }]
   };
 
   it('顶层观察段的顶面描边仅为轮廓(矩形 footprint + 矩形房间 = 8 条),无对角线', () => {

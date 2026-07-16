@@ -1,7 +1,7 @@
 import { createFootprint } from './createFootprint.js';
 
 // Axis-aligned rect helpers (local copies to keep this domain module free of
-// scene-layer imports; areaDrag.js has its own erase-oriented subtractRect).
+// scene-layer imports; roomDrag.js has its own erase-oriented subtractRect).
 
 function rectBounds(points) {
   let x0 = Infinity;

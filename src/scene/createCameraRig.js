@@ -20,10 +20,10 @@ export function createCameraRig(canvas, aspect = 1) {
     camera.updateProjectionMatrix();
   }
 
-  // Configure controls for area editing. An edit tool ('draw'/'erase') reserves
+  // Configure controls for room editing. A draw gesture reserves
   // left-drag for editing and locks rotation; with no tool selected (null) the
   // user can orbit to inspect orientation. Passing null also restores the
-  // normal building-view controls when leaving area editing.
+  // normal building-view controls when leaving room editing.
   function setEditControls(tool) {
     controls.enabled = true;
     controls.enableZoom = true;
@@ -39,9 +39,25 @@ export function createCameraRig(canvas, aspect = 1) {
     }
   }
 
-  // Animate the camera to an oblique overhead framing of an area, then hand
+  function focusFloor({ center, radius }) {
+    const height = Math.max(24, radius * 1.65);
+    const offset = Math.max(5, radius * 0.28);
+    controls.target.set(center.x, center.y, center.z);
+    camera.position.set(center.x, center.y + height, center.z + offset);
+    controls.update();
+  }
+
+  function focusWall({ position, target }) {
+    camera.position.set(position.x, position.y, position.z);
+    controls.target.set(target.x, target.y, target.z);
+    controls.enabled = true;
+    setEditControls(null);
+    controls.update();
+  }
+
+  // Animate the camera to an oblique overhead framing of a room, then hand
   // control back to OrbitControls so the user inspects it with the same
-  // orbit/zoom as the editor. `radius` is the area's half-extent.
+  // orbit/zoom as the editor. `radius` is the room's half-extent.
   function flyToArea({ center, radius }, { pitch = Math.PI / 4, durationMs = 600 } = {}) {
     const fov = THREE.MathUtils.degToRad(camera.fov);
     const dist = Math.max(12, (radius / Math.sin(fov / 2)) * 1.4);
@@ -64,5 +80,8 @@ export function createCameraRig(canvas, aspect = 1) {
     requestAnimationFrame(tick);
   }
 
-  return { camera, controls, resize, setEditControls, flyToArea, dispose: () => controls.dispose() };
+  return {
+    camera, controls, resize, setEditControls, focusFloor, focusWall, flyToArea,
+    dispose: () => controls.dispose()
+  };
 }

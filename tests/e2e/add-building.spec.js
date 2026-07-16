@@ -1,15 +1,14 @@
 import { expect, test } from '@playwright/test';
 
-test('adds two buildings and shows them in the scene tree', async ({ page }) => {
+test('adds buildings on desktop and keeps mobile browse-only', async ({ page, isMobile }) => {
   await page.goto('/');
-
-  await page.getByRole('button', { name: '添加建筑' }).click();
-  await page.getByRole('button', { name: '完成建筑' }).click();
-
-  await page.getByRole('button', { name: '添加建筑' }).click();
-  await page.getByRole('button', { name: '完成建筑' }).click();
-
-  await expect(page.getByLabel('三维采光场景')).toHaveAttribute('data-building-count', '2');
-  const rows = page.locator('[data-testid^="building-tree-"]');
-  await expect(rows).toHaveCount(2);
+  const add = page.getByRole('button', { name: '添加建筑' });
+  if (isMobile) {
+    await expect(add).toBeHidden();
+    return;
+  }
+  await add.click();
+  await add.click();
+  await expect(page.locator('[data-testid^="building-tree-"]')).toHaveCount(2);
+  await expect(page.getByLabel('三维采光场景')).toHaveAttribute('data-building-count', '2', { timeout: 15000 });
 });

@@ -1,109 +1,65 @@
-import {
-  createSelectBuildingCommand,
-  createStartAreaCreateCommand,
-  createStartAreaEditCommand,
-  createRemoveObservationAreaCommand,
-  createEnterInteriorCommand
-} from '../../store/buildingCommands.js';
 import { createElement } from '../../ui/createElement.js';
-import { areaLabel } from '../../domain/buildings/areaEditing.js';
+import {
+  createRemoveRoomCommand,
+  createSelectEntityCommand,
+  createStartRoomCommand,
+  createViewRoomSunlightCommand
+} from '../../store/roomCommands.js';
 
 export function createProjectTree({ store, onAdd }) {
   const list = createElement('div', { className: 'tree-list' });
   const add = createElement('button', {
-    className: 'button button--primary',
-    text: '＋ 添加建筑',
+    className: 'button button--primary', text: '＋ 添加建筑',
     attributes: { type: 'button', 'data-action': 'add-building', 'data-primary-control': '' }
   });
   add.addEventListener('click', onAdd);
-  const addArea = createElement('button', {
-    className: 'button button--secondary',
-    text: '＋ 添加观察区',
-    testId: 'area-create-start',
-    attributes: { type: 'button' }
-  });
-  addArea.addEventListener('click', () => {
-    const selectedId = store.getState().view.selectedBuildingId;
-    if (selectedId) store.execute(createStartAreaCreateCommand(selectedId));
-  });
-  const actions = createElement('div', { className: 'tree-actions' }, add, addArea);
-
-  const element = createElement(
-    'aside',
-    { className: 'project-tree panel', testId: 'project-tree' },
+  const actions = createElement('div', { className: 'tree-actions' }, add);
+  const element = createElement('aside', { className: 'project-tree panel', testId: 'project-tree' },
     createElement('div', { className: 'panel__label', text: '场景结构' }),
-    createElement('h2', { className: 'panel__title', text: '场景对象' }),
-    actions,
-    list
-  );
+    createElement('h2', { className: 'panel__title', text: '建筑与房间' }), actions, list);
 
   function render(project) {
-    const present = project.view.phase === 'present';
-    actions.hidden = present;
-    addArea.disabled = !project.view.selectedBuildingId;
-
+    const locked = project.view.phase === 'sunlight';
+    actions.hidden = locked;
     if (project.buildings.length === 0) {
-      list.replaceChildren(createElement('p', {
-        className: 'tree-empty',
-        text: '暂无建筑。添加后可在这里选择和编辑。'
-      }));
+      list.replaceChildren(createElement('p', { className: 'tree-empty', text: '暂无建筑' }));
       return;
     }
-
     const nodes = project.buildings.map(building => {
-      const selected = building.id === project.view.selectedBuildingId;
+      const selected = project.view.selection?.kind === 'building' && project.view.selection.id === building.id;
       const row = createElement('button', {
         className: `tree-row tree-row--building ${selected ? 'is-active' : ''}`,
-        text: `▾ ${building.name}`,
-        testId: `building-tree-${building.id}`,
-        attributes: { type: 'button' }
+        text: `▾ ${building.name}`, testId: `building-tree-${building.id}`, attributes: { type: 'button' }
       });
-      row.addEventListener('click', () => {
-        store.execute(createSelectBuildingCommand(building.id));
+      row.addEventListener('click', () => store.execute(createSelectEntityCommand({ kind: 'building', id: building.id })));
+      const addRoom = createElement('button', {
+        className: 'tree-row__add', text: '+', testId: `add-room-${building.id}`,
+        attributes: { type: 'button', title: '添加房间', 'aria-label': `为${building.name}添加房间` }
       });
-
-      const children = (building.observationAreas ?? []).map((area, index) => {
-        const active = project.view.areaEditing?.areaId === area.id;
+      addRoom.hidden = locked;
+      addRoom.addEventListener('click', () => store.execute(createStartRoomCommand(building.id, 1)));
+      const header = createElement('div', { className: 'tree-building-row' }, row, addRoom);
+      const children = (building.rooms ?? []).map(room => {
+        const active = project.view.selection?.kind === 'room' && project.view.selection.id === room.id;
         const label = createElement('button', {
-          className: `tree-row__label tree-row--area ${active ? 'is-active' : ''}`,
-          text: `${areaLabel(area, index)} · ${area.floor} 层`,
-          testId: `area-tree-${area.id}`,
-          attributes: { type: 'button' }
+          className: `tree-row--room ${active ? 'is-active' : ''}`,
+          text: `${room.name} · ${room.floor} 层`, testId: `room-tree-${room.id}`, attributes: { type: 'button' }
         });
         label.addEventListener('click', () => {
-          if (present) {
-            store.execute(createSelectBuildingCommand(building.id));
-          } else {
-            store.execute(createStartAreaEditCommand(building.id, area.id));
-          }
+          const command = locked
+            ? createViewRoomSunlightCommand(building.id, room.id)
+            : createSelectEntityCommand({ kind: 'room', id: room.id, buildingId: building.id });
+          store.execute(command);
         });
         const del = createElement('button', {
-          className: 'tree-row__del', text: '✕',
-          testId: `area-delete-${area.id}`,
-          attributes: { type: 'button', 'aria-label': '删除观察区' }
+          className: 'tree-row__del', text: '×', attributes: { type: 'button', 'aria-label': `删除${room.name}` }
         });
-        del.disabled = present;
-        del.addEventListener('click', () => {
-          store.execute(createRemoveObservationAreaCommand(building.id, area.id));
-        });
-        const entered = project.view.interior?.areaId === area.id;
-        const enter = createElement('button', {
-          className: `tree-row__enter ${entered ? 'is-entered' : ''}`,
-          text: entered ? '已进入' : '进入',
-          testId: `area-enter-${area.id}`,
-          attributes: { type: 'button' }
-        });
-        enter.hidden = !present;
-        if (entered) enter.setAttribute('aria-pressed', 'true');
-        enter.addEventListener('click', () => {
-          store.execute(createEnterInteriorCommand({ buildingId: building.id, areaId: area.id }));
-        });
-        return createElement('div', { className: 'tree-area-row' }, label, del, enter);
+        del.hidden = locked;
+        del.addEventListener('click', () => store.execute(createRemoveRoomCommand(building.id, room.id)));
+        return createElement('div', { className: 'tree-room-row' }, label, del);
       });
-
-      return createElement('div', { className: 'tree-node' }, row, ...children);
+      return createElement('div', { className: 'tree-node' }, header, ...children);
     });
-
     list.replaceChildren(...nodes);
   }
 

@@ -4,11 +4,8 @@ import { createStore } from '../../src/store/createStore.js';
 import { createDefaultProject } from '../../src/domain/project/defaultProject.js';
 import { createSimulationController } from '../../src/features/results/createSimulationController.js';
 import { createAppShell } from '../../src/features/shell/AppShell.js';
-import {
-  createAddBuildingCommand, createClearBuildingsCommand,
-  createFinishBuildingCommand, createSetEditorModeCommand,
-  createSetPhaseCommand
-} from '../../src/store/buildingCommands.js';
+import { createAddBuildingCommand, createClearBuildingsCommand } from '../../src/store/projectCommands.js';
+import { createSetTaskPhaseCommand } from '../../src/store/roomCommands.js';
 
 function mount() {
   const store = createStore(createDefaultProject());
@@ -19,72 +16,55 @@ function mount() {
     onClearSandbox: () => store.execute(createClearBuildingsCommand()),
     confirmDeleteBuilding: () => true
   });
-  document.body.append(shell);
+  document.body.replaceChildren(shell);
   return { store, shell };
 }
-const testid = (el, id) => el.querySelector(`[data-testid="${id}"]`);
 
-describe('AppShell inspector vs results', () => {
-  it('shows results panel when nothing selected, inspector when selected', () => {
+describe('room-first AppShell', () => {
+  it('uses the inspector in build and results only in sunlight', () => {
     const { store, shell } = mount();
-    expect(testid(shell, 'results-panel').hidden).toBe(false);
-    expect(testid(shell, 'building-inspector').hidden).toBe(true);
-    store.execute(createAddBuildingCommand({ id: 'b1' }));
-    expect(testid(shell, 'building-inspector').hidden).toBe(false);
-    expect(testid(shell, 'results-panel').hidden).toBe(true);
-  });
-
-  it('switches mobile panel to editor on selection and back to buildings on clear', () => {
-    const { store, shell } = mount();
-    expect(shell.dataset.mobilePanel).toBe('buildings');
-    store.execute(createAddBuildingCommand({ id: 'b1' }));
-    expect(shell.dataset.mobilePanel).toBe('editor');
-    store.execute(createFinishBuildingCommand('b1'));
-    store.execute(createSetEditorModeCommand('areas'));
-    expect(shell.dataset.mobilePanel).toBe('editor');
-    store.execute(createClearBuildingsCommand());
-    expect(shell.dataset.mobilePanel).toBe('buildings');
-  });
-});
-
-describe('AppShell mobile phase gating', () => {
-  it('hides simulation/results tabs in edit phase and shows them in present', () => {
-    const { store, shell } = mount();
-    const nav = shell.querySelector('[data-testid="mobile-nav"]');
-    const labels = [...nav.querySelectorAll('button:not([hidden])')].map(b => b.textContent);
-    expect(labels).toEqual(['场景', '建筑']); // edit phase: only 场景/建筑
-    store.execute(createSetPhaseCommand('present'));
-    const labelsPresent = [...nav.querySelectorAll('button:not([hidden])')].map(b => b.textContent);
-    expect(labelsPresent).toEqual(['场景', '建筑', '模拟', '结果']);
-  });
-});
-
-describe('AppShell phase toggle', () => {
-  it('hides timeline in edit phase and shows it in present; location button always present', () => {
-    const { store, shell } = mount();
-    expect(shell.querySelector('[data-testid="timeline"]').hidden).toBe(true);
-    // Location is a low-frequency control in the header, available in both phases.
-    expect(shell.querySelector('[data-testid="location-button"]')).not.toBeNull();
-    expect(shell.querySelector('[data-testid="location-popover"]').hidden).toBe(true);
-    store.execute(createSetPhaseCommand('present'));
-    expect(shell.querySelector('[data-testid="timeline"]').hidden).toBe(false);
-    expect(shell.querySelector('[data-testid="location-button"]')).not.toBeNull();
-  });
-
-  it('opens the location popover on button click', () => {
-    const { shell } = mount();
-    const button = shell.querySelector('[data-testid="location-button"]');
-    const popover = shell.querySelector('[data-testid="location-popover"]');
-    expect(popover.hidden).toBe(true);
-    button.click();
-    expect(popover.hidden).toBe(false);
-  });
-
-  it('forces results panel over inspector in present phase even when a building is selected', () => {
-    const { store, shell } = mount();
-    store.execute(createAddBuildingCommand({ id: 'b1' }));
-    store.execute(createSetPhaseCommand('present'));
+    expect(shell.querySelector('[data-testid="building-inspector"]').hidden).toBe(false);
+    expect(shell.querySelector('[data-testid="results-panel"]').hidden).toBe(true);
+    store.execute(createSetTaskPhaseCommand('sunlight'));
     expect(shell.querySelector('[data-testid="building-inspector"]').hidden).toBe(true);
     expect(shell.querySelector('[data-testid="results-panel"]').hidden).toBe(false);
+    expect(shell.querySelector('[data-testid="timeline"]').hidden).toBe(false);
+    expect(shell.querySelector('[data-testid="return-build"]').hidden).toBe(false);
+  });
+
+  it('exposes build/sunlight phases and no old product terms', () => {
+    const { shell } = mount();
+    expect(shell.querySelector('[data-testid="phase-build"]').textContent).toBe('搭建场景');
+    expect(shell.querySelector('[data-testid="phase-sunlight"]').textContent).toBe('查看采光');
+    expect(shell.textContent).not.toMatch(/观察区|画区|擦除|进入观察区/);
+  });
+
+  it('updates undo and redo controls from command history', () => {
+    const { store, shell } = mount();
+    const undo = shell.querySelector('[data-testid="undo"]');
+    const redo = shell.querySelector('[data-testid="redo"]');
+    expect(undo.disabled).toBe(true);
+    store.execute(createAddBuildingCommand({ id: 'b1' }));
+    expect(undo.disabled).toBe(false);
+    undo.click();
+    expect(redo.disabled).toBe(false);
+  });
+
+  it('keeps mobile navigation browse-only and reveals results in sunlight', () => {
+    const { store, shell } = mount();
+    const nav = shell.querySelector('[data-testid="mobile-nav"]');
+    expect([...nav.querySelectorAll('button:not([hidden])')].map(button => button.textContent)).toEqual(['场景', '房间']);
+    store.execute(createSetTaskPhaseCommand('sunlight'));
+    expect([...nav.querySelectorAll('button:not([hidden])')].map(button => button.textContent)).toEqual(['场景', '房间', '结果']);
+  });
+
+  it('keeps location control available in both phases', () => {
+    const { store, shell } = mount();
+    const button = shell.querySelector('[data-testid="location-button"]');
+    const popover = shell.querySelector('[data-testid="location-popover"]');
+    button.click();
+    expect(popover.hidden).toBe(false);
+    store.execute(createSetTaskPhaseCommand('sunlight'));
+    expect(button).not.toBeNull();
   });
 });

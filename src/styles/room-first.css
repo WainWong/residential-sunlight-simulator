@@ -1,0 +1,54 @@
+.app-shell { height: 100dvh; min-height: 0; }
+.history-actions { display: flex; gap: 4px; }
+.icon-button { width: 36px; min-height: 36px; padding: 0; border: 0; border-radius: 6px; background: rgb(255 255 255 / 8%); color: white; font-size: 19px; cursor: pointer; }
+.icon-button:disabled { opacity: .35; cursor: default; }
+.tree-building-row, .tree-room-row { display: flex; align-items: center; gap: 4px; }
+.tree-building-row .tree-row { flex: 1; min-width: 0; }
+.tree-row__add { width: 30px; min-height: 30px; border: 0; border-radius: 6px; background: transparent; color: var(--ink-700); font-size: 20px; cursor: pointer; }
+.tree-row__add:hover { background: var(--paper-200); }
+.tree-row--room { flex: 1; min-width: 0; min-height: 34px; padding: 0 6px 0 32px; border: 0; border-radius: 6px; overflow: hidden; background: transparent; color: var(--ink-700); text-align: left; text-overflow: ellipsis; white-space: nowrap; cursor: pointer; }
+.tree-row--room.is-active, .tree-row--room:hover { background: var(--paper-200); color: var(--ink-950); font-weight: 650; }
+.building-context, .room-editor, .opening-editor { display: grid; gap: 12px; }
+.room-session-summary { display: flex; align-items: baseline; gap: 8px; padding: 12px; border-left: 3px solid var(--sun-500); background: white; }
+.room-session-summary strong { font-size: 20px; }
+.room-session-summary span, .context-note { color: var(--ink-600); font-size: 12px; }
+.context-primary { width: 100%; }
+.opening-presets { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-top: 8px; }
+.opening-preset { min-height: 48px; border: 1px solid var(--line); border-radius: 6px; background: white; color: var(--ink-900); cursor: pointer; }
+.opening-preset:hover { border-color: var(--sun-500); }
+.viewport__breadcrumb { position: absolute; top: 16px; left: 16px; z-index: 6; max-width: calc(100% - 190px); padding: 7px 10px; border: 1px solid rgb(255 255 255 / 55%); border-radius: 6px; background: rgb(255 255 255 / 86%); color: var(--ink-800); font-size: 11px; pointer-events: none; }
+.viewport__return-build { position: absolute; top: 16px; right: 104px; z-index: 7; }
+.tablet-drawer-toggle { display: none; }
+.app-shell[data-phase="sunlight"] .edit-only { display: none !important; }
+
+@media (min-width: 768px) and (max-width: 1100px) {
+  .workspace { grid-template-columns: minmax(0, 1fr); position: relative; }
+  .project-tree, .inspector-host { display: none; position: absolute; top: 0; bottom: 0; z-index: 8; width: min(320px, 42vw); overflow-y: auto; box-shadow: var(--shadow-soft); }
+  .app-shell[data-tablet-panel="tree"] .project-tree { display: block; left: 0; }
+  .app-shell[data-tablet-panel="inspector"] .inspector-host { display: block; right: 0; }
+  .app-shell[data-tablet-panel="inspector"] .viewport__compass-wrap { display: none; }
+  .viewport { min-height: 0; }
+  .tablet-drawer-toggle { position: absolute; top: 58px; z-index: 9; display: grid; width: 44px; min-height: 44px; place-items: center; border: 1px solid var(--line); border-radius: 6px; background: rgb(255 255 255 / 90%); color: var(--ink-900); font-size: 18px; cursor: pointer; }
+  .tablet-drawer-toggle--tree { left: 16px; }
+  .tablet-drawer-toggle--inspector { left: 68px; }
+}
+
+@media (max-width: 767px) {
+  .app-shell button { min-height: 44px; }
+  .app-header { gap: 6px; }
+  .brand { gap: 7px; min-width: 0; }
+  .brand__title { max-width: 88px; font-size: 13px; line-height: 1.1; }
+  .phase-toggle__btn { min-height: 44px; padding: 0 11px; white-space: nowrap; }
+  .header-actions { gap: 5px; }
+  .header-actions .location-control, .header-actions .button--screenshot, .header-actions .button--clear, .header-actions .button--import { display: none; }
+  .header-actions .button--primary { padding: 0 10px; white-space: nowrap; }
+  .edit-only, .tree-actions, .tree-row__add, .tree-row__del,
+  .building-context .input, .room-editor .inspector-actions, .opening-editor { display: none !important; }
+  .phase-toggle [data-phase="build"] { display: none; }
+  .app-shell[data-phase="sunlight"] .phase-toggle { display: none; }
+  .mobile-nav { grid-template-columns: repeat(3, 1fr); }
+  .viewport__return-build { position: fixed; top: 7px; right: 104px; z-index: 11; }
+  .app-shell[data-mobile-panel="results"] .mobile-sheet,
+  .app-shell[data-mobile-panel="results"] .viewport__breadcrumb,
+  .app-shell[data-mobile-panel="results"] .viewport__compass-wrap { display: none; }
+}

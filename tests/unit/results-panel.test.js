@@ -2,56 +2,47 @@
 import { describe, expect, it, vi } from 'vitest';
 import { createResultsPanel } from '../../src/features/results/ResultsPanel.js';
 
-function fakeController(state) {
-  const listeners = new Set();
+function controller(state) {
+  return { getState: () => state, subscribe: () => () => {}, setActiveRoom: vi.fn() };
+}
+
+function state(overrides = {}) {
   return {
-    getState: () => state,
-    subscribe: l => { listeners.add(l); return () => listeners.delete(l); },
-    setActiveArea: vi.fn(),
-    _emit(next) { state = next; for (const l of listeners) l(next); }
+    solar: { altitudeDeg: 40, azimuthDeg: 180 }, hasDirectSun: true, litRatio: 0.5,
+    totalMinutes: null, intervals: null, roomOptions: [{ id: 'r1', name: '客厅' }],
+    activeRoomId: 'r1', noRoom: false, ...overrides
   };
 }
-const solar = { altitudeDeg: 40, azimuthDeg: 180 };
 
-describe('ResultsPanel', () => {
-  it('shows placeholder for daily totals instead of hardcoded interval', () => {
-    const el = createResultsPanel(fakeController({
-      noArea: false, hasDirectSun: true, litRatio: 0.5, solar,
-      totalMinutes: null, intervals: null, areaOptions: [{ id: 'a', name: '客厅' }], activeAreaId: 'a'
-    }));
-    expect(el.textContent).toContain('尚未计算');
-    expect(el.textContent).not.toContain('09:12');
+describe('room direct-sun results', () => {
+  it('shows calculation placeholders and direct-sun-only language', () => {
+    const element = createResultsPanel(controller(state()));
+    expect(element.textContent).toContain('计算中');
+    expect(element.textContent).toContain('仅计算直射日光');
+    expect(element.textContent).not.toContain('整体采光亮度');
   });
 
-  it('renders formatted interval ranges when intervals are present', () => {
-    const el = createResultsPanel(fakeController({
-      noArea: false, hasDirectSun: true, litRatio: 0.5, solar,
-      totalMinutes: 326, intervals: [{ startMinute: 552, endMinute: 878 }],
-      areaOptions: [{ id: 'a', name: '客厅' }], activeAreaId: 'a'
-    }));
-    expect(el.textContent).toContain('09:12–14:38');
-    expect(el.textContent).not.toContain('尚未计算');
+  it('shows an empty-room hint', () => {
+    const element = createResultsPanel(controller(state({ roomOptions: [], activeRoomId: null, noRoom: true })));
+    expect(element.querySelector('[data-testid="direct-sun-status"]').textContent).toBe('请选择房间');
   });
 
-  it('shows an empty-area hint when noArea', () => {
-    const el = createResultsPanel(fakeController({
-      noArea: true, hasDirectSun: false, litRatio: 0, solar,
-      totalMinutes: null, intervals: null, areaOptions: [], activeAreaId: null
+  it('switches analysis room from the selector', () => {
+    const api = controller(state({
+      roomOptions: [{ id: 'r1', name: '客厅' }, { id: 'r2', name: '卧室 1' }]
     }));
-    expect(el.querySelector('[data-testid="direct-sun-status"]').textContent).toContain('暂无观察区');
-  });
-
-  it('renders a selector when more than one area and dispatches on change', () => {
-    const controller = fakeController({
-      noArea: false, hasDirectSun: true, litRatio: 1, solar,
-      totalMinutes: null, intervals: null,
-      areaOptions: [{ id: 'a', name: '客厅' }, { id: 'b', name: '卧室' }], activeAreaId: 'a'
-    });
-    const el = createResultsPanel(controller);
-    const select = el.querySelector('[data-testid="area-select"]');
-    expect(select).not.toBeNull();
-    select.value = 'b';
+    const element = createResultsPanel(api);
+    const select = element.querySelector('[data-testid="room-select"]');
+    select.value = 'r2';
     select.dispatchEvent(new window.Event('change'));
-    expect(controller.setActiveArea).toHaveBeenCalledWith('b');
+    expect(api.setActiveRoom).toHaveBeenCalledWith('r2');
+  });
+
+  it('renders daily intervals and duration', () => {
+    const element = createResultsPanel(controller(state({
+      totalMinutes: 90, intervals: [{ startMinute: 540, endMinute: 630 }]
+    })));
+    expect(element.textContent).toContain('1 小时 30 分');
+    expect(element.textContent).toContain('09:00–10:30');
   });
 });

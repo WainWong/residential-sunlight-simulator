@@ -1,0 +1,49 @@
+{
+  "schemaVersion": 2,
+  "id": "room-first-project",
+  "name": "房间优先示例",
+  "location": {
+    "cityId": "shenzhen",
+    "latitude": 22.5431,
+    "longitude": 114.0579,
+    "timeZone": "Asia/Shanghai"
+  },
+  "buildings": [{
+    "id": "b1",
+    "revision": 1,
+    "name": "住宅 1",
+    "template": "bar",
+    "position": { "x": 0, "z": 0 },
+    "rotation": 0,
+    "params": { "length": 20, "depth": 10, "floors": 2, "floorHeight": 3 },
+    "rooms": [{
+      "id": "r1",
+      "floor": 1,
+      "name": "客厅",
+      "type": "living",
+      "rects": [{ "x0": -4, "z0": -5, "x1": 4, "z1": 3 }],
+      "objects": []
+    }],
+    "openings": [{
+      "id": "o1",
+      "floor": 1,
+      "connectedRoomIds": ["r1"],
+      "wallAnchor": { "wallId": "wall:1:-4,-5:4,-5", "centerU": 0.5 },
+      "preset": "window",
+      "bounds": { "centerU": 0.5, "width": 3, "bottom": 0.7, "top": 2.4 },
+      "fill": "glass",
+      "transmittance": null,
+      "status": "valid"
+    }]
+  }],
+  "simulation": { "date": "2026-12-21", "time": "09:30", "activeRoomId": "r1", "sampleHeight": 0 },
+  "view": {
+    "camera": null,
+    "activePanel": "buildings",
+    "wizardComplete": true,
+    "phase": "build",
+    "selection": { "kind": "room", "id": "r1", "buildingId": "b1" },
+    "roomEditing": null,
+    "interiorRoomId": null
+  }
+}

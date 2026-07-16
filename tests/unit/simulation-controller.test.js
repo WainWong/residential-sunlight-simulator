@@ -14,17 +14,23 @@ function projectWithSouthWindow() {
   const p = createDefaultProject();
   p.simulation.date = '2026-12-21';
   p.simulation.time = '12:00';
-  p.simulation.activeAreaId = 'area-a';
-  p.buildings = [{
+  p.simulation.activeRoomId = 'room-a';
+  const building = {
     id: 'b1', revision: 1, name: '住宅 A', template: 'bar',
     position: { x: 0, z: 0 }, rotation: 0,
     params: { length: 60, depth: 18, floors: 3, floorHeight: 3 },
-    observationAreas: [{
-      id: 'area-a', floor: 1,
-      rects: [{ x0: -3, z0: -11, x1: 3, z1: -4 }], sampleHeight: 1.2
+    rooms: [{
+      id: 'room-a', name: 'Living room', floor: 1, objects: [],
+      rects: [{ x0: -3, z0: -9, x1: 3, z1: -4 }]
     }],
     openings: []
-  }];
+  };
+  const southWall = deriveWalls(building, 1)
+    .find(wall => wall.normal[0] === 0 && wall.normal[1] === -1);
+  building.openings.push(createOpeningFromPreset({
+    wall: southWall, preset: 'window', centerU: 0.5, id: 'opening-a'
+  }));
+  p.buildings = [building];
   return p;
 }
 
@@ -74,20 +80,6 @@ describe('simulation controller', () => {
     });
   });
 
-  it('updates the project location and derived solar input', () => {
-    const { controller, store } = createFixture();
-    const location = {
-      cityId: 'harbin',
-      latitude: 45.8038,
-      longitude: 126.5349,
-      timeZone: 'Asia/Shanghai'
-    };
-
-    controller.setLocation(location);
-
-    expect(store.getState().location).toEqual(location);
-    expect(controller.getState().location).toEqual(location);
-  });
 
   it('recalculates and notifies once for each store change', () => {
     const { controller, store } = createFixture();
@@ -111,6 +103,18 @@ describe('simulation controller', () => {
       time: '10:15'
     });
     expect(listener).toHaveBeenCalledOnce();
+  });
+
+  it('publishes only room-first state and commands', () => {
+    const controller = createSimulationController(createStore(createDefaultProject()));
+    expect(controller.getState()).toMatchObject({
+      activeRoomId: null, roomOptions: [], noRoom: true
+    });
+    expect(controller.getState()).not.toHaveProperty('activeAreaId');
+    expect(controller.getState()).not.toHaveProperty('areaOptions');
+    expect(controller.getState()).not.toHaveProperty('noArea');
+    expect(controller).not.toHaveProperty('setActiveArea');
+    controller.dispose();
   });
 
   it('disposes its store subscription and controller listeners', () => {
@@ -137,7 +141,7 @@ describe('simulation controller — real geometry', () => {
   it('reports direct sun for an unobstructed south window at noon', () => {
     const controller = createSimulationController(createStore(projectWithSouthWindow()));
     const state = controller.getState();
-    expect(state.noArea).toBe(false);
+    expect(state.noRoom).toBe(false);
     expect(state.hasDirectSun).toBe(true);
     expect(state.litRatio).toBeGreaterThan(0);
     expect(state.totalMinutes).toBeNull();
@@ -149,25 +153,25 @@ describe('simulation controller — real geometry', () => {
       id: 'blocker', revision: 1, name: '遮挡楼', template: 'bar',
       position: { x: 0, z: -30 }, rotation: 0,
       params: { length: 120, depth: 18, floors: 40, floorHeight: 3 },
-      observationAreas: [], openings: []
+      rooms: [], openings: []
     });
     const controller = createSimulationController(createStore(p));
     expect(controller.getState().hasDirectSun).toBe(false);
   });
 
-  it('flags noArea when there are no observation areas', () => {
+  it('flags noRoom when there are no rooms', () => {
     const controller = createSimulationController(createStore(createDefaultProject()));
     const state = controller.getState();
-    expect(state.noArea).toBe(true);
-    expect(state.areaOptions).toEqual([]);
+    expect(state.noRoom).toBe(true);
+    expect(state.roomOptions).toEqual([]);
   });
 
-  it('lists all observation areas as options and switches active area', () => {
+  it('lists all rooms as options and switches the active room', () => {
     const store = createStore(projectWithSouthWindow());
     const controller = createSimulationController(store);
-    expect(controller.getState().areaOptions).toEqual([{ id: 'area-a', name: '观察区 1' }]);
-    controller.setActiveArea('area-a');
-    expect(store.getState().simulation.activeAreaId).toBe('area-a');
+    expect(controller.getState().roomOptions).toEqual([{ id: 'room-a', name: 'Living room', buildingId: 'b1' }]);
+    controller.setActiveRoom('room-a');
+    expect(store.getState().simulation.activeRoomId).toBe('room-a');
   });
 });
 
@@ -227,7 +231,7 @@ describe('daily worker wiring', () => {
     expect(analyze).toHaveBeenCalledTimes(1);
     const payload = analyze.mock.calls[0][0];
     expect(payload.localDate).toBe('2026-12-21');
-    expect(payload.frame).toMatchObject({ rotation: 0, baseY: 1.2 });
+    expect(payload.frame).toMatchObject({ rotation: 0, baseY: 0 });
 
     expect(controller.getState().totalMinutes).toBe(60);
     expect(controller.getState().intervals).toEqual([{ startMinute: 600, endMinute: 660 }]);
@@ -246,3 +250,5 @@ describe('daily worker wiring', () => {
     vi.useRealTimers();
   });
 });
+import { createOpeningFromPreset } from '../../src/domain/openings/openingGeometry.js';
+import { deriveWalls } from '../../src/domain/walls/deriveWalls.js';

@@ -113,7 +113,44 @@
   height: 100%;
 }
 
-.area-dim-label {
+.building-gizmo-overlay {
+  position: absolute;
+  inset: 0;
+  z-index: 4;
+  overflow: hidden;
+  pointer-events: none;
+}
+
+.building-gizmo-icon {
+  --gizmo-icon-angle: 0deg;
+  position: absolute;
+  width: 26px;
+  height: 26px;
+  transform: translate(-50%, -50%) rotate(var(--gizmo-icon-angle));
+  transform-origin: center;
+  color: var(--sun-500);
+}
+
+.building-gizmo-icon svg {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+.building-gizmo-icon__outline {
+  stroke: rgb(255 255 255 / 96%);
+  stroke-width: 5;
+}
+
+.building-gizmo-icon__glyph {
+  stroke: var(--sun-500);
+  stroke-width: 2.4;
+}
+
+.scene-dim-label {
   position: absolute;
   transform: translate(-50%, -140%);
   padding: 2px 8px;

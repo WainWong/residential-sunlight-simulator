@@ -1,3 +1,4 @@
+import './styles/room-first.css';
 import { createDefaultProject } from './domain/project/defaultProject.js';
 import { createWebGLFallback, supportsWebGL } from './features/compatibility/WebGLFallback.js';
 import { downloadProject } from './features/project/exportProject.js';
@@ -9,9 +10,13 @@ import { createAnalysisClient } from './workers/createAnalysisClient.js';
 import { createAppShell } from './features/shell/AppShell.js';
 import {
   createAddBuildingCommand,
-  createClearBuildingsCommand,
-  createSelectBuildingCommand
-} from './store/buildingCommands.js';
+  createClearBuildingsCommand
+} from './store/projectCommands.js';
+import {
+  createReturnExteriorCommand,
+  createSelectEntityCommand,
+  createViewRoomSunlightCommand
+} from './store/roomCommands.js';
 import { createStore } from './store/createStore.js';
 import { floorBaseY } from './domain/buildings/floorMath.js';
 import { rotateLocalToWorld } from './domain/buildings/wallGeometry.js';
@@ -20,43 +25,36 @@ import { showToast } from './ui/Toast.js';
 
 export const APP_NAME = '日照 · 住宅采光模拟器';
 
+function scenePhase(project) {
+  return project.view.phase === 'sunlight' ? 'present' : 'edit';
+}
+
+
 export function mountApp(root) {
   const store = createStore(loadDraft() ?? createDefaultProject());
-  const simulationController = createSimulationController(store, {
-    analysisClientFactory: createAnalysisClient
-  });
+  const simulationController = createSimulationController(store, { analysisClientFactory: createAnalysisClient });
   let sceneController = null;
   let saveTimer = null;
 
   function scheduleSave(project) {
     clearTimeout(saveTimer);
     saveTimer = setTimeout(() => {
-      try {
-        saveDraft(project);
-      } catch {
-        showToast('无法保存本机草稿，请检查浏览器存储空间。', 'error');
-      }
+      try { saveDraft(project); }
+      catch { showToast('无法保存本机草稿，请检查浏览器存储空间。', 'error'); }
     }, 300);
-  }
-
-  function addBuilding() {
-    store.execute(createAddBuildingCommand());
-  }
-
-  function clearSandbox() {
-    if (globalThis.confirm('清空后将删除所有建筑、观察区和窗户。确定继续吗？')) {
-      store.execute(createClearBuildingsCommand());
-      saveDraft(store.getState());
-    }
   }
 
   const shell = createAppShell({
     store,
     simulationController,
-    onAddBuilding: addBuilding,
-    onClearSandbox: clearSandbox,
-    confirmDeleteBuilding: building =>
-      globalThis.confirm(`确定删除"${building.name}"及其观察区和窗户吗？`)
+    onAddBuilding: () => store.execute(createAddBuildingCommand()),
+    onClearSandbox: () => {
+      if (globalThis.confirm('清空后将删除所有建筑、房间和墙上开口。确定继续吗？')) {
+        store.execute(createClearBuildingsCommand());
+        saveDraft(store.getState());
+      }
+    },
+    confirmDeleteBuilding: building => globalThis.confirm(`确定删除“${building.name}”及其中的房间和开口吗？`)
   });
   root.replaceChildren(shell);
 
@@ -68,87 +66,90 @@ export function mountApp(root) {
           store,
           compassNeedle: shell.querySelector('[data-testid="compass-needle"]'),
           compassReadout: shell.querySelector('[data-testid="compass-readout"]'),
-          onSelect: buildingId => {
-            store.execute(createSelectBuildingCommand(buildingId));
+          onSelect: picked => {
+            const selection = typeof picked === 'string' ? { kind: 'building', id: picked } : picked;
+            if (!selection) return;
+            const project = store.getState();
+            if (project.view.phase === 'sunlight' && selection.kind === 'building') {
+              store.execute(createReturnExteriorCommand(selection.id));
+            } else if (project.view.phase === 'sunlight' && selection.kind === 'room') {
+              store.execute(createViewRoomSunlightCommand(selection.buildingId, selection.id));
+            } else {
+              store.execute(createSelectEntityCommand(selection));
+            }
           }
         });
-        const project0 = store.getState();
-        const sim0 = simulationController.getState();
-        sceneController.updateProject(project0);
-        sceneController.updateSolar(sim0, project0.view.phase);
-        sceneController.updateAnalysis(project0, sim0, project0.view.phase);
+        const project = store.getState();
+        const simulation = simulationController.getState();
+        sceneController.updateProject(project);
+        sceneController.updateSolar(simulation, scenePhase(project));
+        sceneController.updateAnalysis(project, simulation, scenePhase(project));
+        sceneController.syncFloorFocus(project);
         return sceneController;
       })
     : Promise.resolve(null);
   if (!webglAvailable) canvas.parentElement.append(createWebGLFallback());
-
   const withController = fn => (sceneController ? fn(sceneController) : sceneReady.then(fn));
+  shell.addEventListener('face-wall', event => {
+    withController(controller => controller?.faceWall(event.detail));
+  });
 
-  // --- Interior view lifecycle (present-phase "enter observation area") ---
-  // Visuals come from the scene's real sun light + shadows (openings are cut
-  // in the room geometry); the numeric analysis stays on the CPU ray path in
-  // createSimulationController.
   let interiorKey = null;
-
   function syncInterior(project) {
-    const it = project.view.interior;
-    const key = it ? `${it.buildingId}:${it.areaId}` : null;
+    const roomId = project.view.interiorRoomId;
+    let building = null; let room = null;
+    for (const candidate of project.buildings) {
+      const found = (candidate.rooms ?? []).find(item => item.id === roomId);
+      if (found) { building = candidate; room = found; break; }
+    }
+    const key = building && room ? `${building.id}:${room.id}` : null;
     if (key === interiorKey) return;
-
     if (interiorKey) withController(controller => controller?.exitInterior());
     interiorKey = key;
-    if (!it) return;
-    const building = project.buildings.find(b => b.id === it.buildingId);
-    const area = building?.observationAreas?.find(a => a.id === it.areaId);
-    if (!building || !area) { interiorKey = null; return; }
-
-    const baseY = floorBaseY({ floor: area.floor, ...building.params });
-    const corners = (area.rects ?? []).flatMap(r =>
-      [[r.x0, r.z0], [r.x0, r.z1], [r.x1, r.z0], [r.x1, r.z1]].map(([lx, lz]) => {
-        const [wx, wz] = rotateLocalToWorld([lx, lz], building.rotation);
+    if (!building || !room) return;
+    const baseY = floorBaseY({ floor: room.floor, ...building.params });
+    const corners = room.rects.flatMap(rect =>
+      [[rect.x0, rect.z0], [rect.x0, rect.z1], [rect.x1, rect.z0], [rect.x1, rect.z1]].map(([x, z]) => {
+        const [wx, wz] = rotateLocalToWorld([x, z], building.rotation);
         return [wx + building.position.x, wz + building.position.z];
-      })
-    );
-    const xs = corners.map(c => c[0]);
-    const zs = corners.map(c => c[1]);
-    const cx = (Math.min(...xs) + Math.max(...xs)) / 2;
-    const cz = (Math.min(...zs) + Math.max(...zs)) / 2;
+      }));
+    if (corners.length === 0) return;
+    const xs = corners.map(point => point[0]); const zs = corners.map(point => point[1]);
+    const center = {
+      x: (Math.min(...xs) + Math.max(...xs)) / 2,
+      y: baseY + building.params.floorHeight / 2,
+      z: (Math.min(...zs) + Math.max(...zs)) / 2
+    };
     const radius = Math.max(6, Math.hypot(Math.max(...xs) - Math.min(...xs), Math.max(...zs) - Math.min(...zs)) / 2);
-
-    withController(controller => controller?.enterInterior({
-      building, floor: area.floor, area,
-      center: { x: cx, y: baseY + building.params.floorHeight / 2, z: cz }, radius
-    }));
+    withController(controller => controller?.enterInterior({ building, floor: room.floor, center, radius }));
   }
 
-  let prevEditing = store.getState().view.editorMode === 'building';
+  let prevEditing = Boolean(store.getState().view.roomEditing);
   store.subscribe(project => {
-    const currentEditing = project.view.editorMode === 'building';
+    const currentEditing = Boolean(project.view.roomEditing);
     if (!currentEditing && prevEditing) {
       clearTimeout(saveTimer);
-      saveTimer = null;
-      try { saveDraft(project); } catch { /* handled in scheduleSave */ }
-    } else {
-      scheduleSave(project);
-    }
+      try { saveDraft(project); } catch { /* next scheduled save reports */ }
+    } else scheduleSave(project);
     prevEditing = currentEditing;
     shell.dataset.projectBuildings = String(project.buildings.length);
     const emptyHint = shell.querySelector('.viewport__empty');
     if (emptyHint) emptyHint.hidden = project.buildings.length > 0;
-    const sim = simulationController.getState();
+    const simulation = simulationController.getState();
     withController(controller => {
       controller?.updateProject(project);
-      controller?.updateSolar(sim, project.view.phase);
-      controller?.updateAnalysis(project, sim, project.view.phase);
+      controller?.updateSolar(simulation, scenePhase(project));
+      controller?.updateAnalysis(project, simulation, scenePhase(project));
       controller?.syncFloorFocus(project);
     });
     syncInterior(project);
   });
 
-  simulationController.subscribe(state => {
+  simulationController.subscribe(simulation => {
+    const project = store.getState();
     withController(controller => {
-      controller?.updateSolar(state, store.getState().view.phase);
-      controller?.updateAnalysis(store.getState(), state, store.getState().view.phase);
+      controller?.updateSolar(simulation, scenePhase(project));
+      controller?.updateAnalysis(project, simulation, scenePhase(project));
     });
   });
 
@@ -156,45 +157,27 @@ export function mountApp(root) {
     downloadProject(store.getState());
     showToast('项目文件已生成。', 'success');
   });
-
-  const importInput = createElement('input', {
-    attributes: { type: 'file', accept: '.json,.sunlight.json', hidden: '' }
-  });
+  const importInput = createElement('input', { attributes: { type: 'file', accept: '.json,.sunlight.json', hidden: '' } });
   importInput.addEventListener('change', async () => {
     const file = importInput.files?.[0];
     if (!file) return;
-    try {
-      store.replaceProject(await readProjectFile(file));
-      showToast('项目已导入。', 'success');
-    } catch (error) {
-      showToast(error.message, 'error');
-    } finally {
-      importInput.value = '';
-    }
+    try { store.replaceProject(await readProjectFile(file)); showToast('项目已导入。', 'success'); }
+    catch (error) { showToast(error.message, 'error'); }
+    finally { importInput.value = ''; }
   });
   shell.append(importInput);
-  shell.querySelector('[data-action="import-project"]')?.addEventListener('click', () =>
-    importInput.click()
-  );
-
+  shell.querySelector('[data-action="import-project"]')?.addEventListener('click', () => importInput.click());
   shell.querySelector('[data-action="export-screenshot"]')?.addEventListener('click', async () => {
     const { location, simulation } = store.getState();
     try {
       await exportScreenshot(canvas, {
         city: location.label ?? (location.cityId === 'shenzhen' ? '深圳' : location.cityId),
-        date: simulation.date,
-        time: simulation.time
+        date: simulation.date, time: simulation.time
       });
       showToast('场景截图已生成。', 'success');
-    } catch (error) {
-      showToast(error.message, 'error');
-    }
+    } catch (error) { showToast(error.message, 'error'); }
   });
-
-  const { buildings } = store.getState();
-  shell.dataset.projectBuildings = String(buildings.length);
-  const emptyHint = shell.querySelector('.viewport__empty');
-  if (emptyHint) emptyHint.hidden = buildings.length > 0;
+  shell.dataset.projectBuildings = String(store.getState().buildings.length);
 }
 
 if (typeof document !== 'undefined') {

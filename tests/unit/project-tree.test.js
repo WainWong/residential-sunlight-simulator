@@ -3,57 +3,44 @@ import { describe, expect, it, vi } from 'vitest';
 import { createStore } from '../../src/store/createStore.js';
 import { createDefaultProject } from '../../src/domain/project/defaultProject.js';
 import { createProjectTree } from '../../src/features/shell/DesktopShell.js';
-import { createAddBuildingCommand, createAddObservationAreaCommand } from '../../src/store/buildingCommands.js';
+import { createAddBuildingCommand } from '../../src/store/projectCommands.js';
+import { createAppendRoomRectCommand, createFinishRoomCommand, createSetTaskPhaseCommand } from '../../src/store/roomCommands.js';
 
-function mount(state = {}) {
-  const store = createStore({ ...createDefaultProject(), ...state });
-  const onAdd = vi.fn();
-  const tree = createProjectTree({ store, onAdd });
-  document.body.append(tree);
-  return { store, tree, onAdd };
+function mount() {
+  const store = createStore(createDefaultProject());
+  const tree = createProjectTree({ store, onAdd: vi.fn() });
+  document.body.replaceChildren(tree);
+  return { store, tree };
 }
 
-const q = (el, id) => el.querySelector(`[data-testid="${id}"]`);
-
-describe('createProjectTree hierarchy', () => {
-  it('renders a top-level add-area button alongside add-building', () => {
-    const { tree } = mount();
-    expect(q(tree, 'area-create-start')).not.toBeNull();
+describe('room-first project tree', () => {
+  it('places the add-room action on each building', () => {
+    const { store, tree } = mount();
+    expect(tree.textContent).not.toContain('添加房间');
+    store.execute(createAddBuildingCommand({ id: 'b1' }));
+    expect(tree.querySelector('[data-testid="add-room-b1"]')).not.toBeNull();
   });
 
-  it('renders observation areas as children', () => {
+  it('renders, selects and deletes rooms as building children', () => {
     const { store, tree } = mount();
     store.execute(createAddBuildingCommand({ id: 'b1' }));
-    store.execute(createAddObservationAreaCommand('b1', { id: 'a1', floor: 2, rects: [] }));
-    expect(q(tree, 'area-tree-a1')).not.toBeNull();
-    expect(q(tree, 'area-tree-a1').textContent).toContain('观察区 1');
+    tree.querySelector('[data-testid="add-room-b1"]').click();
+    store.execute(createAppendRoomRectCommand({ x0: -4, z0: -3, x1: 4, z1: 3 }));
+    store.execute(createFinishRoomCommand());
+    const room = store.getState().buildings[0].rooms[0];
+    const row = tree.querySelector(`[data-testid="room-tree-${room.id}"]`);
+    expect(row.textContent).toContain('房间 1');
+    row.click();
+    expect(store.getState().view.selection).toMatchObject({ kind: 'room', id: room.id });
+    row.parentElement.querySelector('.tree-row__del').click();
+    expect(store.getState().buildings[0].rooms).toHaveLength(0);
   });
 
-  it('deletes an observation area from its tree row', () => {
+  it('locks creation and deletion in sunlight', () => {
     const { store, tree } = mount();
     store.execute(createAddBuildingCommand({ id: 'b1' }));
-    store.execute(createAddObservationAreaCommand('b1', { id: 'a1', floor: 2, rects: [] }));
-    q(tree, 'area-delete-a1').click();
-    expect(store.getState().buildings[0].observationAreas).toHaveLength(0);
-  });
-
-  it('add-area button is disabled until a building is selected', () => {
-    const { store, tree } = mount();
-    expect(q(tree, 'area-create-start').disabled).toBe(true);
-    store.execute(createAddBuildingCommand({ id: 'b1' })); // add selects the building
-    expect(q(tree, 'area-create-start').disabled).toBe(false);
-  });
-
-  it('starts an area create session for the selected building from the top button', () => {
-    const { store, tree } = mount();
-    store.execute(createAddBuildingCommand({ id: 'b1' }));
-    q(tree, 'area-create-start').click();
-    expect(store.getState().view.areaEditing).toMatchObject({ mode: 'create', buildingId: 'b1' });
-  });
-
-  it('hides the add-action row in present phase', () => {
-    const { store, tree } = mount({ view: { ...createDefaultProject().view, phase: 'present' } });
-    store.execute(createAddBuildingCommand({ id: 'b1' }));
+    store.execute(createSetTaskPhaseCommand('sunlight'));
     expect(tree.querySelector('.tree-actions').hidden).toBe(true);
+    expect(tree.querySelector('[data-testid="add-room-b1"]').hidden).toBe(true);
   });
 });

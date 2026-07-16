@@ -1,4 +1,4 @@
-// 把一栋楼切成若干上下叠放的实体段,并为含观察区的段生成"刀"
+// 把一栋楼切成若干上下叠放的实体段,并为含房间的段生成"刀"
 // (挖房间空腔的棱柱多边形)。纯数学,无 three.js,供 scene 层执行 CSG。
 //
 // 共面消除:三维布尔在两面精确共面处的里/外分类是浮点 0/0,会产生闪烁膜
@@ -70,7 +70,7 @@ function bumpEdgeOutward(a, b, footprint, amount) {
   ];
 }
 
-// 观察区并集多边形 → 刀多边形:贴墙边外凸(穿出墙面消除共面),内部边原样。
+// 房间并集多边形 → 刀多边形:贴墙边外凸(穿出墙面消除共面),内部边原样。
 function toCutter(poly, footprint, walls) {
   const bumpRing = ring => {
     const out = [];
@@ -94,26 +94,26 @@ export function buildSegmentSpecs(building) {
   const footprint = createFootprint(building.template, params);
   const walls = createWallSegments(footprint);
 
-  // 按楼层聚合观察区 → 每个被占用楼层一个 band
+  // 按楼层聚合房间 → 每个被占用楼层一个 band
   const byFloor = new Map();
-  for (const area of building.observationAreas ?? []) {
-    if (!(area.rects?.length > 0)) continue;
-    if (!byFloor.has(area.floor)) byFloor.set(area.floor, []);
-    byFloor.get(area.floor).push(area);
+  for (const room of building.rooms ?? []) {
+    if (!(room.rects?.length > 0)) continue;
+    if (!byFloor.has(room.floor)) byFloor.set(room.floor, []);
+    byFloor.get(room.floor).push(room);
   }
 
   const bands = [...byFloor.entries()]
-    .map(([floor, areas]) => {
+    .map(([floor, roomsOnFloor]) => {
       const fromY = floorBaseY({ floor, ...params }) + SLAB_THICKNESS;
       const nextBase = floor >= params.floors
         ? totalH
         : floorBaseY({ floor: floor + 1, ...params });
-      const cutters = areas.flatMap(area =>
-        rectUnionToPolygons(area.rects).map(poly => toCutter(poly, footprint, walls))
+      const cutters = roomsOnFloor.flatMap(room =>
+        rectUnionToPolygons(room.rects).map(poly => toCutter(poly, footprint, walls))
       );
       // 房间多边形(未外凸,即刀在 footprint 内挖出的真实空腔轮廓):顶层房间
       // 用它单独造顶盖 mesh,好让"揭盖"能把顶盖整块隐藏。
-      const rooms = areas.flatMap(area => rectUnionToPolygons(area.rects));
+      const rooms = roomsOnFloor.flatMap(room => rectUnionToPolygons(room.rects));
       return { fromY, toY: nextBase, cutters, rooms };
     })
     .sort((a, b) => a.fromY - b.fromY);

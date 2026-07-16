@@ -3,6 +3,7 @@ import { createFootprint } from '../domain/buildings/createFootprint.js';
 import { floorBaseY, totalBuildingHeight } from '../domain/buildings/floorMath.js';
 import { applyBuildingTransform, getOuterRing } from './buildingSceneHelpers.js';
 import { buildSegmentMeshes } from './buildSegmentMeshes.js';
+import { createRoomGeometry } from './roomGeometry.js';
 
 // 白底 × 顶点色:顶点色携带最终色调(墙灰、地板/顶面米色,见 buildSegmentMeshes),
 // 所以外墙灰度和以前一致,水平面转米色,室内地板/墙一眼可分。
@@ -73,6 +74,10 @@ export function createBuildingMesh(building, { preview = false, highlighted = fa
     mesh.castShadow = !preview;
     mesh.receiveShadow = !preview;
     group.add(mesh);
+  }
+
+  if ((building.rooms ?? []).length > 0) {
+    group.add(createRoomGeometry(building, material));
   }
 
   const lines = floorLines(footprint, building);

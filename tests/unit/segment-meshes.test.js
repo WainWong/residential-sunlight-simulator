@@ -6,7 +6,7 @@ const material = new THREE.MeshStandardMaterial();
 const bar = (areas = []) => ({
   id: 'b1', template: 'bar', rotation: 0, position: { x: 0, z: 0 },
   params: { length: 60, depth: 18, floors: 6, floorHeight: 3 },
-  observationAreas: areas
+  rooms: areas
 });
 
 function raycast(meshes, origin, dir) {

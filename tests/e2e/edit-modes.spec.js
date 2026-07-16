@@ -1,22 +1,13 @@
 import { expect, test } from '@playwright/test';
 
-test('single building: explicit modes, select does not auto-edit', async ({ page }) => {
+test('room creation starts directly without hidden edit modes', async ({ page, isMobile }) => {
+  test.skip(isMobile, 'mobile is browse-only');
   await page.goto('/');
-
   await page.getByRole('button', { name: '添加建筑' }).click();
-  await expect(page.getByRole('button', { name: '完成' })).toBeVisible();
-
-  await page.getByRole('button', { name: '完成' }).click();
-  await expect(page.getByTestId('building-overview')).toBeVisible();
-  await expect(page.getByTestId('area-create-start')).toBeVisible();
-
-  await page.getByTestId('area-create-start').click();
-  await expect(page.getByTestId('building-overview')).toHaveCount(0);
-  // The top add-area button starts a create session directly (no area home view).
-  await expect(page.getByTestId('area-session-title')).toHaveText('新建观察区');
-  await page.getByTestId('area-cancel').click();
-  await expect(page.getByTestId('building-overview')).toBeVisible();
-
-  await page.getByTestId('overview-edit-building').click();
-  await expect(page.getByLabel('建筑长度（米）')).toBeVisible();
+  await expect(page.getByTestId('building-context')).toBeVisible();
+  await page.getByTestId('inspector-add-room-' + await page.locator('[data-testid^="building-tree-"]').getAttribute('data-testid').then(value => value.replace('building-tree-', ''))).click();
+  await expect(page.getByTestId('room-session-title')).toHaveText('新建房间');
+  await expect(page.getByTestId('room-editor')).not.toContainText(/画区|擦除/);
+  await page.getByTestId('room-cancel').click();
+  await expect(page.getByTestId('building-context')).toBeVisible();
 });
