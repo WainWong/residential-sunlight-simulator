@@ -52,6 +52,9 @@ export function createFloorSlab(building, floor) {
   const group = new THREE.Group();
   group.name = 'floor-slab';
   group.userData.kind = 'floor-slab';
+  group.userData.dispose = () => {
+    group.traverse(child => child.geometry?.dispose());
+  };
   const slab = new THREE.Mesh(new THREE.ShapeGeometry(shape), slabMaterial);
   slab.rotation.x = -Math.PI / 2;
   slab.position.y = y + 0.01;

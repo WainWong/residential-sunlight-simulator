@@ -32,6 +32,25 @@ describe('daily interval analysis', () => {
 });
 
 describe('analysis worker client', () => {
+  it('rejects pending and future requests when the worker fails', async () => {
+    const listeners = new Map();
+    const worker = {
+      postMessage: vi.fn(),
+      addEventListener: vi.fn((type, listener) => listeners.set(type, listener)),
+      removeEventListener: vi.fn(),
+      terminate: vi.fn()
+    };
+    const client = createAnalysisClient(() => worker);
+    const first = client.analyze({ localDate: '2026-12-21' });
+    const second = client.analyze({ localDate: '2026-06-21' });
+
+    listeners.get('error')({ message: 'worker crashed' });
+
+    await expect(first).rejects.toThrow('worker crashed');
+    await expect(second).rejects.toThrow('worker crashed');
+    await expect(client.analyze({ localDate: '2027-01-01' })).rejects.toThrow('worker crashed');
+    expect(worker.terminate).toHaveBeenCalledOnce();
+  });
   it('resolves the request with the matching id and disposes the worker', async () => {
     const listeners = new Map();
     const worker = {

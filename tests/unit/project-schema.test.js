@@ -24,6 +24,18 @@ describe('project schema', () => {
     expect(validateProject(project)).toEqual({ ok: true, errors: [] });
   });
 
+  it('rejects solar inputs that cannot form a valid local date and time', () => {
+    const invalidZone = createDefaultProject();
+    invalidZone.location.timeZone = 'Mars/Olympus';
+    const invalidDate = createDefaultProject();
+    invalidDate.simulation.date = '2026-02-30';
+    const invalidTime = createDefaultProject();
+    invalidTime.simulation.time = '25:00';
+
+    expect(validateProject(invalidZone).ok).toBe(false);
+    expect(validateProject(invalidDate).ok).toBe(false);
+    expect(validateProject(invalidTime).ok).toBe(false);
+  });
   it('reports the building name and invalid field', () => {
     const project = createDefaultProject();
     project.buildings.push(validBar({
@@ -163,6 +175,7 @@ describe('project schema', () => {
   it('rejects future project versions', () => {
     expect(() => migrateProject({ schemaVersion: 3 })).toThrow('不支持的项目版本：3');
   });
+
   it('rejects explicit invalid L-shape geometry', () => {
     const project = createDefaultProject();
     project.buildings.push(validBar({

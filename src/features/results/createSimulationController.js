@@ -35,6 +35,7 @@ export function createSimulationController(store, { analysisClientFactory = null
   let state;
   let client = null;
   let daily = null;
+  let dailyFailure = null;
   let dailySeq = 0;
   let dailyTimer = null;
 
@@ -62,8 +63,16 @@ export function createSimulationController(store, { analysisClientFactory = null
       }).then(result => {
         if (mine !== dailySeq) return;
         daily = { key, intervals: result.intervals, totalMinutes: result.totalMinutes };
+        dailyFailure = null;
         update();
-      }).catch(() => {});
+      }).catch(error => {
+        if (mine !== dailySeq) return;
+        dailyFailure = {
+          key,
+          message: error instanceof Error ? error.message : String(error)
+        };
+        update();
+      });
     }, 250);
   }
 
@@ -85,7 +94,8 @@ export function createSimulationController(store, { analysisClientFactory = null
       activeRoomId: activeId,
       roomOptions: options,
       intervals: null,
-      totalMinutes: null
+      totalMinutes: null,
+      dailyError: null
     };
     if (!activeId) {
       state = { ...base, noRoom: true, hasDirectSun: false, litRatio: 0, litSampleIds: [] };
@@ -96,6 +106,8 @@ export function createSimulationController(store, { analysisClientFactory = null
     if (daily?.key === key) {
       base.intervals = daily.intervals;
       base.totalMinutes = daily.totalMinutes;
+    } else if (dailyFailure?.key === key) {
+      base.dailyError = dailyFailure.message;
     } else requestDaily(project, building, room, key);
 
     let result;

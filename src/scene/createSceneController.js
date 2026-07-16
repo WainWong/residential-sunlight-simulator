@@ -98,6 +98,12 @@ export function createSceneController(canvas, { onSelect = () => {}, store = nul
   let hoverWallOverlay = null;
   let selectedWallOverlay = null;
 
+  function clearAnalysisOverlays() {
+    for (const overlay of sceneParts.overlays.children) {
+      overlay.userData?.dispose?.();
+    }
+    sceneParts.overlays.clear();
+  }
   function disposeWallOverlay(overlay) {
     if (!overlay) return;
     sceneParts.scene.remove(overlay);
@@ -326,8 +332,9 @@ export function createSceneController(canvas, { onSelect = () => {}, store = nul
     floorFocus.clearPreview();
     floorFocus.dimLabel?.remove();
     sceneParts.scene.remove(floorFocus.slab);
+    floorFocus.slab.userData.dispose();
     for (const overlay of floorFocus.existing) {
-      overlay.traverse(c => c.geometry?.dispose());
+      overlay.userData.dispose();
       sceneParts.scene.remove(overlay);
     }
     floorFocus.drag.dispose();
@@ -405,7 +412,7 @@ export function createSceneController(canvas, { onSelect = () => {}, store = nul
     let previewGroup = null;
     const clearPreview = () => {
       if (previewGroup) {
-        previewGroup.traverse(c => c.geometry?.dispose());
+        previewGroup.userData.dispose();
         sceneParts.overlays.remove(previewGroup);
         previewGroup = null;
       }
@@ -588,7 +595,7 @@ export function createSceneController(canvas, { onSelect = () => {}, store = nul
       canvas.dataset.sunAboveHorizon = String(simulationState.solar.aboveHorizon);
     },
     updateAnalysis(project, simulationState, phase = 'present') {
-      sceneParts.overlays.clear();
+      clearAnalysisOverlays();
       const overlays = buildAnalysisOverlays(project, simulationState, phase);
       if (!overlays) return;
       const roomGroup = createRoomOverlay({
@@ -626,7 +633,7 @@ export function createSceneController(canvas, { onSelect = () => {}, store = nul
       observer.disconnect();
       rendererParts.renderer.setAnimationLoop(null);
       synchronizer.dispose();
-      sceneParts.overlays.clear();
+      clearAnalysisOverlays();
       cameraParts.dispose();
       rendererParts.dispose();
     }

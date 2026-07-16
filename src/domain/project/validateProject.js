@@ -1,3 +1,4 @@
+import { DateTime } from 'luxon';
 import {
   listBuildingTypeDefinitions,
   validateBuildingParams
@@ -161,7 +162,13 @@ export function validateProject(project) {
   if (!Array.isArray(project.buildings)) errors.push('建筑列表必须是数组');
   if (!isFiniteInRange(project.location?.latitude, -90, 90)) errors.push('纬度必须在 -90–90 度之间');
   if (!isFiniteInRange(project.location?.longitude, -180, 180)) errors.push('经度必须在 -180–180 度之间');
-  if (typeof project.location?.timeZone !== 'string' || !project.location.timeZone.includes('/')) errors.push('时区必须使用 IANA 时区名称');
+  const timeZone = project.location?.timeZone;
+  const zoneValid = typeof timeZone === 'string' && DateTime.local().setZone(timeZone).isValid;
+  if (!zoneValid) errors.push('时区必须使用有效的 IANA 时区名称');
+  const localDateTime = zoneValid
+    ? DateTime.fromISO(String(project.simulation?.date) + 'T' + String(project.simulation?.time), { zone: timeZone })
+    : null;
+  if (!localDateTime?.isValid) errors.push('模拟日期和时间必须组成有效的当地时间');
   const buildingIds = new Set();
   for (const building of Array.isArray(project.buildings) ? project.buildings : []) validateBuilding(building, errors, buildingIds);
   return { ok: errors.length === 0, errors };

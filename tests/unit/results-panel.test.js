@@ -22,6 +22,12 @@ describe('room direct-sun results', () => {
     expect(element.textContent).not.toContain('整体采光亮度');
   });
 
+  it('shows a daily analysis failure instead of a permanent loading state', () => {
+    const element = createResultsPanel(controller(state({ dailyError: 'worker crashed' })));
+
+    expect(element.querySelector('[data-testid="daily-total"]').textContent).toBe('全天分析失败');
+    expect(element.textContent).toContain('worker crashed');
+  });
   it('shows an empty-room hint', () => {
     const element = createResultsPanel(controller(state({ roomOptions: [], activeRoomId: null, noRoom: true })));
     expect(element.querySelector('[data-testid="direct-sun-status"]').textContent).toBe('请选择房间');

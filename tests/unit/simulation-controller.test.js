@@ -214,6 +214,23 @@ describe('independent playback', () => {
 });
 
 describe('daily worker wiring', () => {
+  it('publishes a daily analysis failure without retrying the same input', async () => {
+    vi.useFakeTimers();
+    const analyze = vi.fn().mockRejectedValue(new Error('worker crashed'));
+    const store = createStore(projectWithSouthWindow());
+    const controller = createSimulationController(store, {
+      analysisClientFactory: () => ({ analyze, dispose: vi.fn() })
+    });
+
+    await vi.advanceTimersByTimeAsync(300);
+
+    expect(controller.getState().dailyError).toBe('worker crashed');
+    await vi.advanceTimersByTimeAsync(1000);
+    expect(analyze).toHaveBeenCalledOnce();
+
+    controller.dispose();
+    vi.useRealTimers();
+  });
   it('merges the full-day result into state (latest key wins)', async () => {
     vi.useFakeTimers();
     const analyze = vi.fn().mockResolvedValue({

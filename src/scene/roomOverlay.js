@@ -50,6 +50,9 @@ export function createRoomOverlay({ rects, baseY, lit = false, draft = false, in
   group.name = 'room-overlay';
   group.userData.kind = 'room-overlay';
   group.userData.draft = draft;
+  group.userData.dispose = () => {
+    group.traverse(child => child.geometry?.dispose());
+  };
   const material = invalid ? invalidMaterial : draft ? draftMaterial : (lit ? litMaterial : selectedMaterial);
 
   // Render the union of the rects as a single continuous shape per connected

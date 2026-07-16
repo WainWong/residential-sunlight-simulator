@@ -52,8 +52,13 @@ export function createResultsPanel(controller) {
       status.element.className = 'status-pill status-pill--neutral';
       status.element.textContent = '请选择房间';
     } else status.update(state.hasDirectSun);
-    duration.textContent = durationLabel(state.totalMinutes);
-    intervals.textContent = intervalLabel(state.intervals);
+    if (state.dailyError) {
+      duration.textContent = '全天分析失败';
+      intervals.textContent = state.dailyError;
+    } else {
+      duration.textContent = durationLabel(state.totalMinutes);
+      intervals.textContent = intervalLabel(state.intervals);
+    }
     altitude.textContent = `${state.solar.altitudeDeg.toFixed(1)}°`;
     azimuth.textContent = `${state.solar.azimuthDeg.toFixed(1)}°`;
     litRatio.textContent = noRoom ? '—' : `${Math.round(state.litRatio * 100)}%`;
