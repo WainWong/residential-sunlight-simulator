@@ -19,7 +19,7 @@ describe('project schema', () => {
     expect(project.location.timeZone).toBe('Asia/Shanghai');
     expect(project.simulation).toHaveProperty('activeRoomId', null);
     expect(project.view).toMatchObject({
-      phase: 'build', selection: null, roomEditing: null, interiorRoomId: null
+      phase: 'building', selection: null, roomEditing: null, interiorRoomId: null
     });
     expect(validateProject(project)).toEqual({ ok: true, errors: [] });
   });

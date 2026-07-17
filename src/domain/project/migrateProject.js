@@ -159,7 +159,7 @@ function normalizeV2(project) {
     camera: normalized.view?.camera ?? null,
     activePanel: normalized.view?.activePanel ?? 'buildings',
     wizardComplete: normalized.view?.wizardComplete ?? false,
-    phase: normalized.view?.phase === 'sunlight' ? 'sunlight' : 'build',
+    phase: normalized.view?.phase === 'sunlight' ? 'sunlight' : 'building',
     selection: normalized.view?.selection ?? null,
     roomEditing: null,
     interiorRoomId: normalized.view?.interiorRoomId ?? null
@@ -192,7 +192,7 @@ function migrateV1(rawProject) {
     camera: oldView.camera ?? null,
     activePanel: oldView.activePanel ?? 'buildings',
     wizardComplete: oldView.wizardComplete ?? false,
-    phase: oldView.phase === 'present' ? 'sunlight' : 'build',
+    phase: oldView.phase === 'present' ? 'sunlight' : 'building',
     selection: interiorRoomId
       ? { kind: 'room', id: interiorRoomId, buildingId: oldView.interior?.buildingId ?? selectedBuildingId }
       : (selectedBuildingId ? { kind: 'building', id: selectedBuildingId } : null),

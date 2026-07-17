@@ -30,6 +30,7 @@ describe('room commands', () => {
     const store = createStore(projectWithBuilding());
     store.execute(createStartRoomCommand('b1', 2));
     expect(store.getState().buildings[0].rooms).toEqual([]);
+    expect(store.getState().view.phase).toBe('room');
 
     store.execute(createAppendRoomRectCommand({ x0: -4, z0: -3, x1: 0, z1: 3 }));
     store.execute(createAppendRoomRectCommand({ x0: 0, z0: -3, x1: 4, z1: 0 }));

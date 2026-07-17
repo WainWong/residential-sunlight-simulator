@@ -40,7 +40,7 @@ export function createAddBuildingCommand(overrides = {}) {
       return {
         ...state,
         buildings: [...state.buildings, building],
-        view: { ...state.view, phase: 'build', selection: { kind: 'building', id }, roomEditing: null }
+        view: { ...state.view, phase: 'building', selection: { kind: 'building', id }, roomEditing: null }
       };
     }
   };
@@ -121,7 +121,7 @@ export function createClearBuildingsCommand() {
         ...state,
         buildings: [],
         simulation: { ...state.simulation, activeRoomId: null },
-        view: { ...state.view, selection: null, roomEditing: null, interiorRoomId: null, phase: 'build' }
+        view: { ...state.view, selection: null, roomEditing: null, interiorRoomId: null, phase: 'building' }
       };
     }
   };

@@ -41,7 +41,7 @@
     "camera": null,
     "activePanel": "buildings",
     "wizardComplete": true,
-    "phase": "build",
+    "phase": "building",
     "selection": { "kind": "room", "id": "r1", "buildingId": "b1" },
     "roomEditing": null,
     "interiorRoomId": null

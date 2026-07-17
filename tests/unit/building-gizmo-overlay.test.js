@@ -212,7 +212,7 @@ describe('building gizmo DOM overlay', () => {
         params: { length: 60, depth: 18 }
       }],
       view: {
-        phase: 'build', selection: { kind: 'building', id: 'b1' },
+        phase: 'building', selection: { kind: 'building', id: 'b1' },
         roomEditing: null
       }
     });
@@ -256,7 +256,7 @@ describe('building gizmo DOM overlay', () => {
           params: { length: 60, depth: 18 }
         }],
         view: {
-          phase: 'build', selection: { kind: 'building', id: 'b1' },
+          phase: 'building', selection: { kind: 'building', id: 'b1' },
           roomEditing: null
         }
       });

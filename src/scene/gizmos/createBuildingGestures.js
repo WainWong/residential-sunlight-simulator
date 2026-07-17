@@ -12,7 +12,7 @@ import { worldPointToBuildingLocal } from '../../domain/buildings/buildingCoordi
 import { createUpdateBuildingCommand } from '../../store/projectCommands.js';
 
 export function selectedBuildingIdForGizmo(view) {
-  return view?.phase === 'build' && view.selection?.kind === 'building'
+  return view?.phase === 'building' && view.selection?.kind === 'building'
     ? view.selection.id : null;
 }
 
@@ -79,7 +79,7 @@ export function createBuildingGestures({
   }
 
   function updateCursor(event) {
-    if (project?.view?.phase !== 'build' || project.view.roomEditing) {
+    if (project?.view?.phase !== 'building' || project.view.roomEditing) {
       canvas.style.cursor = '';
       return;
     }
@@ -113,7 +113,7 @@ export function createBuildingGestures({
   }
 
   function start(event) {
-    if (project?.view?.phase !== 'build' || project.view.roomEditing) return;
+    if (project?.view?.phase !== 'building' || project.view.roomEditing) return;
     const intersections = raycast(event, interactionObjects());
     const handle = resolveGizmo(intersections);
     const picked = resolvePickedEntity(intersections);

@@ -10,8 +10,8 @@ import { selectedBuildingIdForGizmo } from '../../src/scene/gizmos/createBuildin
 
 describe('building gizmo math', () => {
   it('shows building handles only for a building selection', () => {
-    expect(selectedBuildingIdForGizmo({ phase: 'build', selection: { kind: 'building', id: 'b1' } })).toBe('b1');
-    expect(selectedBuildingIdForGizmo({ phase: 'build', selection: { kind: 'opening', id: 'o1', buildingId: 'b1' } })).toBeNull();
+    expect(selectedBuildingIdForGizmo({ phase: 'building', selection: { kind: 'building', id: 'b1' } })).toBe('b1');
+    expect(selectedBuildingIdForGizmo({ phase: 'building', selection: { kind: 'opening', id: 'o1', buildingId: 'b1' } })).toBeNull();
     expect(selectedBuildingIdForGizmo({ phase: 'sunlight', selection: { kind: 'building', id: 'b1' } })).toBeNull();
   });
 

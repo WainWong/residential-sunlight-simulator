@@ -16,7 +16,7 @@ function createHeader({ store, onClearSandbox, locationControl }) {
     className: 'phase-toggle__btn', text: '查看采光', testId: 'phase-sunlight',
     attributes: { type: 'button', 'aria-pressed': 'false', 'data-phase': 'sunlight' }
   });
-  build.addEventListener('click', () => store.execute(createSetTaskPhaseCommand('build')));
+  build.addEventListener('click', () => store.execute(createSetTaskPhaseCommand('building')));
   sunlight.addEventListener('click', () => {
     const selection = store.getState().view.selection;
     if (selection?.kind === 'room') store.execute(createViewRoomSunlightCommand(selection.buildingId, selection.id));
@@ -53,7 +53,7 @@ function createViewport(store) {
   const returnBuild = createElement('button', {
     className: 'button button--secondary viewport__return-build', text: '返回搭建场景', testId: 'return-build', attributes: { type: 'button' }
   });
-  returnBuild.addEventListener('click', () => store.execute(createSetTaskPhaseCommand('build')));
+  returnBuild.addEventListener('click', () => store.execute(createSetTaskPhaseCommand('building')));
   const toggleTabletPanel = panel => {
     const shell = returnBuild.closest('.app-shell');
     if (shell) shell.dataset.tabletPanel = shell.dataset.tabletPanel === panel ? 'none' : panel;
@@ -106,7 +106,7 @@ export function createAppShell({ store, simulationController, onAddBuilding, onC
   const inspectorHost = createElement('aside', { className: 'inspector-host', testId: 'inspector' }, buildingInspector, resultsPanel);
   const headerParts = createHeader({ store, onClearSandbox, locationControl: locationControl.element });
   const viewport = createViewport(store);
-  const appShell = createElement('div', { className: 'app-shell', attributes: { 'data-mobile-panel': 'scene', 'data-tablet-panel': 'none', 'data-phase': 'build' } },
+  const appShell = createElement('div', { className: 'app-shell', attributes: { 'data-mobile-panel': 'scene', 'data-tablet-panel': 'none', 'data-phase': 'building' } },
     headerParts.header,
     createElement('div', { className: 'workspace' }, projectTree, viewport.element, inspectorHost, sheet),
     timeline, navigation);

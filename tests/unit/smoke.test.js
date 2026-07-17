@@ -8,6 +8,6 @@ describe('application defaults', () => {
     expect(APP_NAME).toBe('日照 · 住宅采光模拟器');
     expect(project.schemaVersion).toBe(2);
     expect(project.buildings).toEqual([]);
-    expect(project.view).toMatchObject({ phase: 'build', selection: null, roomEditing: null, interiorRoomId: null });
+    expect(project.view).toMatchObject({ phase: 'building', selection: null, roomEditing: null, interiorRoomId: null });
   });
 });

@@ -114,6 +114,11 @@ describe('migrateProject v1 to v2', () => {
     expect(out.view.interior).toBeUndefined();
   });
 
+  it('maps non-present legacy phase to building', () => {
+    const out = migrateProject(legacyProject({ view: { phase: 'build' } }));
+    expect(out.view.phase).toBe('building');
+  });
+
   it('is idempotent for version-two projects and does not mutate input', () => {
     const first = migrateProject(legacyProject());
     const second = migrateProject(first);

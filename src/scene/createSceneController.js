@@ -128,7 +128,8 @@ export function createSceneController(canvas, { onSelect = () => {}, store = nul
   }
 
   function hoverAtPointer(event) {
-    if (floorFocus || currentProject?.view?.phase !== 'build') {
+    const phase = currentProject?.view?.phase;
+    if (floorFocus || (phase !== 'building' && phase !== 'room')) {
       clearHoverWall();
       return;
     }

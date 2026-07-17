@@ -90,7 +90,8 @@ export function createOpeningGestures({ canvas, camera, scene, store, setCameraL
   }
 
   function start(event) {
-    if (project?.view?.phase !== 'build') return;
+    const phase = project?.view?.phase;
+    if (phase !== 'building' && phase !== 'room') return;
     const handle = resolveOpeningHandle(raycast(event));
     const context = handle && contextFor(handle.openingId, handle.buildingId);
     if (!handle || !context) return;

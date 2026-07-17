@@ -66,7 +66,7 @@ export function createStartRoomCommand(buildingId, floor = 1) {
         ...state,
         view: {
           ...state.view,
-          phase: 'build',
+          phase: 'room',
           selection: { kind: 'building', id: buildingId },
           roomEditing: {
             mode: 'create', buildingId, roomId: newId('room'), floor,
@@ -89,6 +89,7 @@ export function createStartRoomEditCommand(buildingId, roomId) {
         ...state,
         view: {
           ...state.view,
+          phase: 'room',
           selection: { kind: 'room', id: roomId, buildingId },
           roomEditing: {
             mode: 'edit', buildingId, roomId, floor: room.floor,
@@ -294,14 +295,14 @@ export function createSetTaskPhaseCommand(phase) {
   return {
     label: '切换工作阶段',
     apply(state) {
-      if (phase !== 'build' && phase !== 'sunlight') return null;
+      if (phase !== 'building' && phase !== 'room' && phase !== 'sunlight') return null;
       return {
         ...state,
         view: {
           ...state.view,
           phase,
-          roomEditing: phase === 'sunlight' ? null : state.view.roomEditing,
-          interiorRoomId: phase === 'build' ? null : state.view.interiorRoomId
+          roomEditing: phase === 'room' ? state.view.roomEditing : null,
+          interiorRoomId: phase === 'sunlight' ? state.view.interiorRoomId : null
         }
       };
     }

@@ -22,7 +22,7 @@ export function createDefaultProject() {
       camera: null,
       activePanel: 'buildings',
       wizardComplete: false,
-      phase: 'build',
+      phase: 'building',
       selection: null,
       roomEditing: null,
       interiorRoomId: null
