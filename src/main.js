@@ -110,9 +110,11 @@ export function mountApp(root) {
     withController(controller => controller?.enterInterior(building, room));
   }
 
-  let prevEditing = Boolean(store.getState().view.roomEditing);
+  let prevEditing = Boolean(store.getState().view.roomEditing || store.getState().view.roomFocus);
   store.subscribe(project => {
-    const currentEditing = Boolean(project.view.roomEditing);
+    // An editing "session" is active while either a room draft or the room-focus
+    // view is open. Flush the debounced save the moment either ends.
+    const currentEditing = Boolean(project.view.roomEditing || project.view.roomFocus);
     if (!currentEditing && prevEditing) {
       clearTimeout(saveTimer);
       try { saveDraft(project); } catch { /* next scheduled save reports */ }

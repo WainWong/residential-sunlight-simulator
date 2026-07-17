@@ -72,7 +72,9 @@ export function createSceneController(canvas, { onSelect = () => {}, store = nul
 
   function selectAtPointer(event) {
     if (buildingGestures.consumeSuppressedClick() || openingGestures.consumeSuppressedClick()) return;
-    if (floorFocus) return;
+    // While a draw/erase tool is engaged, left clicks draw rather than select.
+    // In the room view with no active tool, clicks still select (to pick walls, etc.).
+    if (floorFocus?.draft?.tool) return;
     const rect = canvas.getBoundingClientRect();
     const ndc = pointerToNdc(event, rect);
     pointer.set(ndc.x, ndc.y);
@@ -159,8 +161,19 @@ export function createSceneController(canvas, { onSelect = () => {}, store = nul
     buildingsGroup: sceneParts.buildings
   });
 
+  function disposeDraft() {
+    if (!floorFocus?.draft) return;
+    floorFocus.draft.drag?.dispose();
+    floorFocus.draft.roomGestures?.dispose();
+    floorFocus.clearPreview();
+    floorFocus.dimLabel.hidden = true;
+    floorFocus.draft = null;
+    cameraParts.setEditControls(null);
+  }
+
   function disposeFloorFocus() {
     if (!floorFocus) return;
+    disposeDraft();
     const origin = sceneParts.aids.getObjectByName('coordinate-origin');
     if (origin) origin.visible = true;
     floorFocus.clearPreview();
@@ -171,17 +184,39 @@ export function createSceneController(canvas, { onSelect = () => {}, store = nul
       overlay.userData.dispose();
       sceneParts.scene.remove(overlay);
     }
-    floorFocus.drag.dispose();
-    floorFocus.roomGestures?.dispose();
     floorFocus = null;
     restoreBuildingVisibility(sceneParts.buildings);
   }
 
+  // Rebuild the set of solid overlays for OTHER rooms on this floor. Excludes the
+  // room currently being drafted (its working rects live in the session, not the
+  // saved building) so the draft doesn't double up with a solid overlay.
+  function rebuildExistingOverlays() {
+    if (!floorFocus) return;
+    for (const overlay of floorFocus.existing) {
+      overlay.userData.dispose();
+      sceneParts.scene.remove(overlay);
+    }
+    const building = currentProject?.buildings.find(b => b.id === floorFocus.buildingId);
+    const draftRoomId = currentProject?.view?.roomEditing?.roomId ?? null;
+    floorFocus.existing = (building?.rooms ?? [])
+      .filter(room => room.floor === floorFocus.floor && room.id !== draftRoomId)
+      .map(room => {
+        const overlay = createRoomOverlay({ rects: room.rects, baseY: floorFocus.baseY, draft: false });
+        applyBuildingTransform(overlay, building);
+        sceneParts.scene.add(overlay);
+        return overlay;
+      });
+  }
+
+  // The persistent "编辑房间" view: lift the lid on one floor of one building and
+  // frame the camera on it. Driven by view.roomFocus — it stays for the whole
+  // room-editing view, independent of whether a room is actively being drafted.
   function buildFloorFocus(project) {
-    const editing = project.view.roomEditing;
-    if (!editing) return;
-    const buildingId = editing.buildingId;
-    const floor = editing.floor;
+    const focus = project.view.roomFocus;
+    if (!focus) return;
+    const buildingId = focus.buildingId;
+    const floor = focus.floor;
     const building = project.buildings.find(b => b.id === buildingId);
     if (!building) return;
 
@@ -190,29 +225,16 @@ export function createSceneController(canvas, { onSelect = () => {}, store = nul
     const origin = sceneParts.aids.getObjectByName('coordinate-origin');
     if (origin) origin.visible = false;
 
-    // Keep the current camera angle when entering room editing; do not snap to
-    // top-down. `target` is still used for the draw plane height and overlay
-    // baseY. The user can orbit freely (view mode) until they pick a tool.
+    // Keep the current camera angle when entering; do not snap to top-down.
+    // `target.y` is the draw-plane height and overlay baseY.
     const { target } = floorFocusTarget(building, floor);
     cameraParts.focusFloor({
       center: { x: building.position.x, y: target.y, z: building.position.z },
       radius: Math.max(building.params.length, building.params.depth) / 2
     });
-    cameraParts.setEditControls(editing.mode === 'edit' ? null : 'draw');
 
     const slab = createFloorSlab(building, floor);
     sceneParts.scene.add(slab);
-
-    // Show this floor's other observation areas (already saved) as solid
-    // overlays so the user can see existing rooms while drawing a new one.
-    const existing = (building.rooms ?? [])
-      .filter(room => room.floor === floor && room.id !== editing.roomId)
-      .map(a => {
-        const overlay = createRoomOverlay({ rects: a.rects, baseY: target.y, draft: false });
-        applyBuildingTransform(overlay, building);
-        sceneParts.scene.add(overlay);
-        return overlay;
-      });
 
     // Floating dimension readout shown next to the rect while dragging.
     const dimLabel = document.createElement('div');
@@ -226,7 +248,6 @@ export function createSceneController(canvas, { onSelect = () => {}, store = nul
       const depth = Math.abs(rect.z1 - rect.z0);
       if (width < 1e-6 && depth < 1e-6) { dimLabel.hidden = true; return; }
       dimLabel.textContent = `${width.toFixed(2)} × ${depth.toFixed(2)} 米`;
-      // Project the rect center (local floor coords) to screen space.
       const b = getBuilding();
       const cx = (rect.x0 + rect.x1) / 2;
       const cz = (rect.z0 + rect.z1) / 2;
@@ -258,26 +279,13 @@ export function createSceneController(canvas, { onSelect = () => {}, store = nul
       applyBuildingTransform(previewGroup, building);
       sceneParts.overlays.add(previewGroup);
     };
-    if (editing.mode === 'edit') renderRoomPreview(editing.rects);
-
-    const roomGestures = editing.mode === 'edit' && editing.rects?.length
-      ? createRoomGestures({
-          canvas, camera: cameraParts.camera, scene: sceneParts.scene, store,
-          building, floor, floorY: target.y, rects: editing.rects,
-          onPreview: renderRoomPreview,
-          setCameraLocked: locked => cameraParts.setEditControls(locked ? 'draw' : null)
-        })
-      : null;
 
     const getBuilding = () => store.getState().buildings.find(b => b.id === buildingId);
-    const getMode = () => editing.mode === 'edit' ? null : floorFocus?.tool;
 
-    // Rects already claimed by other rooms on this floor. A new draw must not
-    // overlap them. The room being edited is excluded because its
-    // working rects live in the session, not in the saved building.
     function existingRectsOnFloor(b) {
+      const draftRoomId = store.getState().view.roomEditing?.roomId ?? null;
       return (b?.rooms ?? [])
-        .filter(room => room.floor === editing.floor && room.id !== editing.roomId)
+        .filter(room => room.floor === floor && room.id !== draftRoomId)
         .flatMap(a => a.rects ?? []);
     }
     function clipDrawable(rect, b) {
@@ -288,63 +296,95 @@ export function createSceneController(canvas, { onSelect = () => {}, store = nul
       return pieces;
     }
 
+    floorFocus = {
+      buildingId, floor, baseY: target.y,
+      sig: `${buildingId}:${floor}`,
+      slab, existing: [], dimLabel, clearPreview,
+      showDimLabel, renderRoomPreview, clipDrawable, getBuilding,
+      draft: null
+    };
+    rebuildExistingOverlays();
+  }
+
+  // Attach/detach the draft sub-state (draw drag + resize gestures + tool). Driven
+  // by view.roomEditing — created when a room draft starts, torn down when it ends,
+  // while the floor focus (lid) stays put.
+  function syncDraft(project) {
+    const editing = project.view.roomEditing;
+    if (!floorFocus) return;
+    if (!editing) {
+      if (floorFocus.draft) { disposeDraft(); rebuildExistingOverlays(); }
+      return;
+    }
+    const draftSig = `${editing.roomId}:${editing.mode}`;
+    if (floorFocus.draft?.sig === draftSig) {
+      if (editing.mode === 'edit') floorFocus.renderRoomPreview(editing.rects);
+      return;
+    }
+    if (floorFocus.draft) disposeDraft();
+    rebuildExistingOverlays();
+
+    cameraParts.setEditControls(editing.mode === 'edit' ? null : 'draw');
+    if (editing.mode === 'edit') floorFocus.renderRoomPreview(editing.rects);
+
+    const roomGestures = editing.mode === 'edit' && editing.rects?.length
+      ? createRoomGestures({
+          canvas, camera: cameraParts.camera, scene: sceneParts.scene, store,
+          building: floorFocus.getBuilding(), floor: floorFocus.floor,
+          floorY: floorFocus.baseY, rects: editing.rects,
+          onPreview: floorFocus.renderRoomPreview,
+          setCameraLocked: locked => cameraParts.setEditControls(locked ? 'draw' : null)
+        })
+      : null;
+
+    const getMode = () => editing.mode === 'edit' ? null : (floorFocus?.draft?.tool ?? 'draw');
     const drag = createRoomDrag({
-      canvas, camera: cameraParts.camera, floorY: target.y, getBuilding, getMode,
+      canvas, camera: cameraParts.camera, floorY: floorFocus.baseY,
+      getBuilding: floorFocus.getBuilding, getMode,
       onPreview: rect => {
-        clearPreview();
-        showDimLabel(rect);
+        floorFocus.clearPreview();
+        floorFocus.showDimLabel(rect);
         if (!rect) return;
-        const pieces = clipDrawable(rect, getBuilding());
+        const b = floorFocus.getBuilding();
+        const pieces = floorFocus.clipDrawable(rect, b);
         if (pieces.length === 0) return;
-        previewGroup = createRoomOverlay({ rects: pieces, baseY: target.y, draft: true });
-        applyBuildingTransform(previewGroup, getBuilding());
-        sceneParts.overlays.add(previewGroup);
+        floorFocus.renderRoomPreview(pieces);
       },
       onCommit: rect => {
-        clearPreview();
+        floorFocus.clearPreview();
         if (!store?.getState()?.view?.roomEditing) return;
-        for (const piece of clipDrawable(rect, getBuilding())) {
+        for (const piece of floorFocus.clipDrawable(rect, floorFocus.getBuilding())) {
           store.execute(createAppendRoomRectCommand(piece));
         }
       }
     });
-    floorFocus = {
-      slab, existing, drag, roomGestures, sig: `${buildingId}:${floor}`,
-      tool: editing.mode === 'edit' ? null : 'draw', clearPreview, dimLabel
+    floorFocus.draft = {
+      sig: draftSig, drag, roomGestures,
+      tool: editing.mode === 'edit' ? null : 'draw'
     };
   }
 
-  // Reconcile floor-focus lifecycle from the editing session. The controller owns
-  // its own diffing (like syncScene does for meshes) so main.js just calls this
+  // Reconcile floor-focus lifecycle from the view. The controller owns its own
+  // diffing (like syncScene does for meshes) so main.js just calls this
   // unconditionally on every project change.
   function syncFloorFocus(project) {
-    const editing = project.view.roomEditing;
-    const sig = editing ? `${editing.buildingId}:${editing.floor}` : '';
-    if (!editing) {
-      if (floorFocus) {
-        // disposeFloorFocus already restores building visibility.
-        disposeFloorFocus();
-        cameraParts.setEditControls(null);
-      }
+    const focus = project.view.roomFocus;
+    const sig = focus ? `${focus.buildingId}:${focus.floor}` : '';
+    if (!focus) {
+      if (floorFocus) disposeFloorFocus();
       return;
     }
     if (!floorFocus || floorFocus.sig !== sig) {
       if (floorFocus) disposeFloorFocus();
       buildFloorFocus(project);
     } else {
-      const building = project.buildings.find(item => item.id === editing.buildingId);
+      const building = project.buildings.find(item => item.id === focus.buildingId);
       if (building) {
-        const bandToY = bandTopY({ floor: editing.floor, ...building.params });
-        setFloorFocusVisibility(sceneParts.buildings, editing.buildingId, editing.floor, bandToY);
-      }
-      const nextTool = editing.mode === 'edit' ? null : 'draw';
-      if (floorFocus.tool !== nextTool) {
-        floorFocus.tool = nextTool;
-        // Re-apply control mode: an active edit tool locks rotation for
-        // left-drag drawing; no tool selected unlocks orbiting.
-        cameraParts.setEditControls(nextTool);
+        const bandToY = bandTopY({ floor: focus.floor, ...building.params });
+        setFloorFocusVisibility(sceneParts.buildings, focus.buildingId, focus.floor, bandToY);
       }
     }
+    syncDraft(project);
   }
 
   const observer = new ResizeObserver(resize);

@@ -161,6 +161,7 @@ function normalizeV2(project) {
     wizardComplete: normalized.view?.wizardComplete ?? false,
     phase: normalized.view?.phase === 'sunlight' ? 'sunlight' : 'building',
     selection: normalized.view?.selection ?? null,
+    roomFocus: null,
     roomEditing: null,
     interiorRoomId: normalized.view?.interiorRoomId ?? null
   };

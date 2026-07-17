@@ -7,8 +7,10 @@ import {
   createAddOpeningCommand,
   createAppendRoomRectCommand,
   createCancelRoomCommand,
+  createEnterRoomViewCommand,
   createFinishRoomCommand,
   createSelectEntityCommand,
+  createSetTaskPhaseCommand,
   createStartRoomCommand,
   createUpdateRoomCommand,
   createViewRoomSunlightCommand
@@ -40,10 +42,41 @@ describe('room commands', () => {
     expect(room).toMatchObject({ floor: 2, name: '房间 1', type: null, objects: [] });
     expect(room.rects).toHaveLength(2);
     expect(store.getState().view).toMatchObject({
+      phase: 'room',
+      roomFocus: { buildingId: 'b1', floor: 2 },
       roomEditing: null,
       selection: { kind: 'room', id: room.id, buildingId: 'b1' }
     });
     expect(store.canUndo()).toBe(true);
+  });
+
+  it('finishing a room keeps the room-focus view open (lid stays lifted)', () => {
+    const store = createStore(projectWithBuilding());
+    store.execute(createStartRoomCommand('b1', 1));
+    store.execute(createAppendRoomRectCommand({ x0: -4, z0: -3, x1: 4, z1: 3 }));
+    store.execute(createFinishRoomCommand());
+    // draft cleared, but still in the room view on the same floor
+    expect(store.getState().view.roomEditing).toBeNull();
+    expect(store.getState().view.roomFocus).toEqual({ buildingId: 'b1', floor: 1 });
+    expect(store.getState().view.phase).toBe('room');
+  });
+
+  it('enters the room view without starting a draft and clamps the floor', () => {
+    const store = createStore(projectWithBuilding());
+    store.execute(createEnterRoomViewCommand('b1', 99));
+    const view = store.getState().view;
+    expect(view.phase).toBe('room');
+    expect(view.roomEditing).toBeNull();
+    expect(view.roomFocus).toEqual({ buildingId: 'b1', floor: 2 });
+    expect(createEnterRoomViewCommand('missing').apply(store.getState())).toBeNull();
+  });
+
+  it('leaving the room phase clears the room-focus view', () => {
+    const store = createStore(projectWithBuilding());
+    store.execute(createEnterRoomViewCommand('b1', 1));
+    store.execute(createSetTaskPhaseCommand('building'));
+    expect(store.getState().view.roomFocus).toBeNull();
+    expect(store.getState().view.roomEditing).toBeNull();
   });
 
   it('rejects disconnected and occupied rects without creating a history entry', () => {

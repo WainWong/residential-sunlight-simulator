@@ -32,11 +32,12 @@ describe('room-first AppShell', () => {
     expect(shell.querySelector('[data-testid="return-build"]').hidden).toBe(false);
   });
 
-  it('exposes build/sunlight phases and no old product terms', () => {
+  it('exposes the three view phases and no old product terms', () => {
     const { shell } = mount();
-    expect(shell.querySelector('[data-testid="phase-build"]').textContent).toBe('搭建场景');
+    expect(shell.querySelector('[data-testid="phase-build"]').textContent).toBe('编辑建筑');
+    expect(shell.querySelector('[data-testid="phase-room"]').textContent).toBe('编辑房间');
     expect(shell.querySelector('[data-testid="phase-sunlight"]').textContent).toBe('查看采光');
-    expect(shell.textContent).not.toMatch(/观察区|画区|擦除|进入观察区/);
+    expect(shell.textContent).not.toMatch(/观察区|画区|进入观察区/);
   });
 
   it('updates undo and redo controls from command history', () => {

@@ -5,18 +5,30 @@ import { createTimeline } from '../timeline/Timeline.js';
 import { createLocationControl } from '../location/createLocationControl.js';
 import { createProjectTree } from './DesktopShell.js';
 import { createMobileControls } from './MobileShell.js';
-import { createSetTaskPhaseCommand, createViewRoomSunlightCommand } from '../../store/roomCommands.js';
+import { createSetTaskPhaseCommand, createViewRoomSunlightCommand, createEnterRoomViewCommand } from '../../store/roomCommands.js';
+import { selectedBuildingId } from '../../domain/project/viewSelection.js';
 
 function createHeader({ store, onClearSandbox, locationControl }) {
   const build = createElement('button', {
-    className: 'phase-toggle__btn is-active', text: '搭建场景', testId: 'phase-build',
-    attributes: { type: 'button', 'aria-pressed': 'true', 'data-phase': 'build' }
+    className: 'phase-toggle__btn is-active', text: '编辑建筑', testId: 'phase-build',
+    attributes: { type: 'button', 'aria-pressed': 'true', 'data-phase': 'building' }
+  });
+  const room = createElement('button', {
+    className: 'phase-toggle__btn', text: '编辑房间', testId: 'phase-room',
+    attributes: { type: 'button', 'aria-pressed': 'false', 'data-phase': 'room' }
   });
   const sunlight = createElement('button', {
     className: 'phase-toggle__btn', text: '查看采光', testId: 'phase-sunlight',
     attributes: { type: 'button', 'aria-pressed': 'false', 'data-phase': 'sunlight' }
   });
   build.addEventListener('click', () => store.execute(createSetTaskPhaseCommand('building')));
+  room.addEventListener('click', () => {
+    const view = store.getState().view;
+    const buildingId = selectedBuildingId(view);
+    if (!buildingId) return;
+    const floor = view.roomFocus?.buildingId === buildingId ? view.roomFocus.floor : 1;
+    store.execute(createEnterRoomViewCommand(buildingId, floor));
+  });
   sunlight.addEventListener('click', () => {
     const selection = store.getState().view.selection;
     if (selection?.kind === 'room') store.execute(createViewRoomSunlightCommand(selection.buildingId, selection.id));
@@ -36,7 +48,7 @@ function createHeader({ store, onClearSandbox, locationControl }) {
     createElement('div', { className: 'brand' },
       createElement('span', { className: 'brand__sun', attributes: { 'aria-hidden': 'true' } }),
       createElement('div', {}, createElement('h1', { className: 'brand__title', text: '住宅采光模拟器' }))),
-    createElement('div', { className: 'phase-toggle', testId: 'phase-toggle' }, build, sunlight),
+    createElement('div', { className: 'phase-toggle', testId: 'phase-toggle' }, build, room, sunlight),
     createElement('div', { className: 'header-actions' },
       createElement('div', { className: 'history-actions edit-only' }, undo, redo),
       locationControl,
@@ -45,7 +57,7 @@ function createHeader({ store, onClearSandbox, locationControl }) {
       createElement('button', { className: 'button button--ghost button--screenshot', text: '截图', attributes: { type: 'button', 'aria-label': '导出截图', 'data-action': 'export-screenshot' } }),
       createElement('button', { className: 'button button--primary', text: '保存项目', attributes: { type: 'button', 'data-action': 'save-project' } })));
   header.querySelector('[data-action="clear-sandbox"]').addEventListener('click', onClearSandbox);
-  return { header, build, sunlight, undo, redo };
+  return { header, build, room, sunlight, undo, redo };
 }
 
 function createViewport(store) {
@@ -114,13 +126,14 @@ export function createAppShell({ store, simulationController, onAddBuilding, onC
   let previousPhase = store.getState().view.phase;
   let previousSelection = null;
   function render(project) {
-    const sunlight = project.view.phase === 'sunlight';
-    if (project.view.phase !== previousPhase) {
+    const phase = project.view.phase;
+    const sunlight = phase === 'sunlight';
+    if (phase !== previousPhase) {
       appShell.dataset.mobilePanel = sunlight ? 'results' : 'scene';
       appShell.dataset.tabletPanel = sunlight ? 'inspector' : 'none';
-      previousPhase = project.view.phase;
+      previousPhase = phase;
     }
-    appShell.dataset.phase = project.view.phase;
+    appShell.dataset.phase = phase;
     const selectionKey = project.view.selection
       ? `${project.view.selection.kind}:${project.view.selection.id}` : null;
     if (!sunlight && selectionKey && selectionKey !== previousSelection) appShell.dataset.tabletPanel = 'inspector';
@@ -130,10 +143,17 @@ export function createAppShell({ store, simulationController, onAddBuilding, onC
     resultsPanel.hidden = !sunlight;
     viewport.returnBuild.hidden = !sunlight;
     viewport.breadcrumb.textContent = breadcrumbText(project);
-    headerParts.build.classList.toggle('is-active', !sunlight);
-    headerParts.sunlight.classList.toggle('is-active', sunlight);
-    headerParts.build.setAttribute('aria-pressed', String(!sunlight));
-    headerParts.sunlight.setAttribute('aria-pressed', String(sunlight));
+    for (const [btn, active] of [
+      [headerParts.build, phase === 'building'],
+      [headerParts.room, phase === 'room'],
+      [headerParts.sunlight, sunlight]
+    ]) {
+      btn.classList.toggle('is-active', active);
+      btn.setAttribute('aria-pressed', String(active));
+    }
+    // 编辑房间需要一栋选中的楼作为上下文;无楼可编辑时禁用入口。
+    const canEditRoom = phase === 'room' || Boolean(selectedBuildingId(project.view));
+    headerParts.room.disabled = !canEditRoom;
     headerParts.undo.disabled = !store.canUndo();
     headerParts.redo.disabled = !store.canRedo();
     navigation.querySelector('[data-panel="results"]').hidden = !sunlight;

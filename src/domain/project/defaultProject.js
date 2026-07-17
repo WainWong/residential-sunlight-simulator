@@ -24,6 +24,7 @@ export function createDefaultProject() {
       wizardComplete: false,
       phase: 'building',
       selection: null,
+      roomFocus: null,
       roomEditing: null,
       interiorRoomId: null
     }

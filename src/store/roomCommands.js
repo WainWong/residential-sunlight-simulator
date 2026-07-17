@@ -56,6 +56,28 @@ export function createSelectEntityCommand(selection) {
   };
 }
 
+export function createEnterRoomViewCommand(buildingId, floor = 1) {
+  return {
+    label: '进入编辑房间',
+    apply(state) {
+      const building = findBuilding(state, buildingId);
+      if (!building) return null;
+      const clampedFloor = Math.min(Math.max(1, floor), building.params.floors);
+      return {
+        ...state,
+        view: {
+          ...state.view,
+          phase: 'room',
+          roomFocus: { buildingId, floor: clampedFloor },
+          roomEditing: null,
+          interiorRoomId: null,
+          selection: { kind: 'building', id: buildingId }
+        }
+      };
+    }
+  };
+}
+
 export function createStartRoomCommand(buildingId, floor = 1) {
   return {
     label: '开始添加房间',
@@ -67,6 +89,7 @@ export function createStartRoomCommand(buildingId, floor = 1) {
         view: {
           ...state.view,
           phase: 'room',
+          roomFocus: { buildingId, floor },
           selection: { kind: 'building', id: buildingId },
           roomEditing: {
             mode: 'create', buildingId, roomId: newId('room'), floor,
@@ -90,6 +113,7 @@ export function createStartRoomEditCommand(buildingId, roomId) {
         view: {
           ...state.view,
           phase: 'room',
+          roomFocus: { buildingId, floor: room.floor },
           selection: { kind: 'room', id: roomId, buildingId },
           roomEditing: {
             mode: 'edit', buildingId, roomId, floor: room.floor,
@@ -301,6 +325,7 @@ export function createSetTaskPhaseCommand(phase) {
         view: {
           ...state.view,
           phase,
+          roomFocus: phase === 'room' ? state.view.roomFocus : null,
           roomEditing: phase === 'room' ? state.view.roomEditing : null,
           interiorRoomId: phase === 'sunlight' ? state.view.interiorRoomId : null
         }
@@ -320,7 +345,7 @@ export function createViewRoomSunlightCommand(buildingId, roomId) {
         simulation: { ...state.simulation, activeRoomId: roomId },
         view: {
           ...state.view,
-          phase: 'sunlight', roomEditing: null, interiorRoomId: roomId,
+          phase: 'sunlight', roomFocus: null, roomEditing: null, interiorRoomId: roomId,
           selection: { kind: 'room', id: roomId, buildingId }
         }
       };
