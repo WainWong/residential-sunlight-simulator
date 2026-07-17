@@ -5,7 +5,7 @@ import { createTimeline } from '../timeline/Timeline.js';
 import { createLocationControl } from '../location/createLocationControl.js';
 import { createProjectTree } from './DesktopShell.js';
 import { createMobileControls } from './MobileShell.js';
-import { createSetTaskPhaseCommand, createViewRoomSunlightCommand, createEnterRoomViewCommand } from '../../store/roomCommands.js';
+import { createSetTaskPhaseCommand, createViewRoomSunlightCommand, createEnterRoomViewCommand, createRemoveRoomCommand, createRemoveOpeningCommand } from '../../store/roomCommands.js';
 import { selectedBuildingId } from '../../domain/project/viewSelection.js';
 
 function createHeader({ store, onClearSandbox, locationControl }) {
@@ -162,9 +162,26 @@ export function createAppShell({ store, simulationController, onAddBuilding, onC
   render(store.getState());
 
   appShell.addEventListener('keydown', event => {
-    if (!(event.ctrlKey || event.metaKey) || event.key.toLowerCase() !== 'z') return;
-    event.preventDefault();
-    if (event.shiftKey) store.redo(); else store.undo();
+    if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === 'z') {
+      event.preventDefault();
+      if (event.shiftKey) store.redo(); else store.undo();
+      return;
+    }
+    if (event.key === 'Delete' || event.key === 'Backspace') {
+      // Ignore while typing in a field, or mid room-draft (that has its own tools).
+      const tag = event.target?.tagName;
+      if (tag === 'INPUT' || tag === 'SELECT' || tag === 'TEXTAREA') return;
+      const view = store.getState().view;
+      if (view.roomEditing) return;
+      const sel = view.selection;
+      if (sel?.kind === 'room') {
+        event.preventDefault();
+        store.execute(createRemoveRoomCommand(sel.buildingId, sel.id));
+      } else if (sel?.kind === 'opening') {
+        event.preventDefault();
+        store.execute(createRemoveOpeningCommand(sel.buildingId, sel.id));
+      }
+    }
   });
   return appShell;
 }

@@ -5,7 +5,7 @@ import { createDefaultProject } from '../../src/domain/project/defaultProject.js
 import { createSimulationController } from '../../src/features/results/createSimulationController.js';
 import { createAppShell } from '../../src/features/shell/AppShell.js';
 import { createAddBuildingCommand, createClearBuildingsCommand } from '../../src/store/projectCommands.js';
-import { createSetTaskPhaseCommand } from '../../src/store/roomCommands.js';
+import { createSetTaskPhaseCommand, createAppendRoomRectCommand, createFinishRoomCommand, createSelectEntityCommand, createStartRoomCommand } from '../../src/store/roomCommands.js';
 
 function mount() {
   const store = createStore(createDefaultProject());
@@ -49,6 +49,32 @@ describe('room-first AppShell', () => {
     expect(undo.disabled).toBe(false);
     undo.click();
     expect(redo.disabled).toBe(false);
+  });
+
+  it('deletes the selected room with the Delete key', () => {
+    const { store, shell } = mount();
+    store.execute(createAddBuildingCommand({ id: 'b1' }));
+    store.execute(createStartRoomCommand('b1', 1));
+    store.execute(createAppendRoomRectCommand({ x0: -4, z0: -3, x1: 4, z1: 3 }));
+    store.execute(createFinishRoomCommand());
+    const roomId = store.getState().buildings[0].rooms[0].id;
+    store.execute(createSelectEntityCommand({ kind: 'room', id: roomId, buildingId: 'b1' }));
+    shell.dispatchEvent(new KeyboardEvent('keydown', { key: 'Delete', bubbles: true }));
+    expect(store.getState().buildings[0].rooms).toEqual([]);
+  });
+
+  it('does not delete while typing in a field', () => {
+    const { store, shell } = mount();
+    store.execute(createAddBuildingCommand({ id: 'b1' }));
+    store.execute(createStartRoomCommand('b1', 1));
+    store.execute(createAppendRoomRectCommand({ x0: -4, z0: -3, x1: 4, z1: 3 }));
+    store.execute(createFinishRoomCommand());
+    const roomId = store.getState().buildings[0].rooms[0].id;
+    store.execute(createSelectEntityCommand({ kind: 'room', id: roomId, buildingId: 'b1' }));
+    const input = document.createElement('input');
+    shell.append(input);
+    input.dispatchEvent(new KeyboardEvent('keydown', { key: 'Delete', bubbles: true }));
+    expect(store.getState().buildings[0].rooms).toHaveLength(1);
   });
 
   it('keeps mobile navigation browse-only and reveals results in sunlight', () => {

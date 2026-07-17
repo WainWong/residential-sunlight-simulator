@@ -53,9 +53,10 @@ export function createOpeningEditor({ store, selection }) {
     })));
     element.replaceChildren(
       createElement('div', { className: 'panel__label', text: '墙面' }),
-      createElement('h2', { className: 'panel__title', text: `墙面朝向：${formatWallDirection(wall.normal)}` }),
-      faceWall,
-      createElement('div', { className: 'opening-presets' }, ...buttons)
+      createElement('h2', { className: 'panel__title', text: `在这面墙上开窗/开门` }),
+      createElement('p', { className: 'context-note', text: `朝向：${formatWallDirection(wall.normal)} · 选一种开口放到这面墙上` }),
+      createElement('div', { className: 'opening-presets' }, ...buttons),
+      faceWall
     );
     return element;
   }

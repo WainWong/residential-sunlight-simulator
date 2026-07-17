@@ -36,7 +36,8 @@ export function createResultsPanel(controller) {
       createElement('dt', { text: '全天直射时段' }), intervals,
       createElement('dt', { text: '太阳高度角' }), altitude,
       createElement('dt', { text: '太阳方位角' }), azimuth),
-    createElement('p', { className: 'disclaimer', text: '仅计算直射日光，不包含天空漫射、间接反射或玻璃透射损失。' }));
+    createElement('p', { className: 'disclaimer', text: '仅计算直射日光，不包含天空漫射、间接反射或玻璃透射损失。' }),
+    createElement('p', { className: 'context-note', text: '提示：挡住视线的外墙会自动淡化，方便看清室内光斑。' }));
 
   function update(state) {
     const options = state.roomOptions ?? [];

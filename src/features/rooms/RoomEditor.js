@@ -96,7 +96,7 @@ export function createRoomEditor({ store, buildingId, roomId = null }) {
         createElement('dt', { text: '面积' }), createElement('dd', { text: `${rectArea(room.rects).toFixed(1)} m²` }),
         createElement('dt', { text: '墙上开口' }), createElement('dd', { text: `${openingCount} 个` })),
       ...(openingCount === 0
-        ? [createElement('p', { className: 'context-note', text: '当前房间还没有窗或开口' })]
+        ? [createElement('p', { className: 'context-note', text: '还没有窗或门。点击房间的一面墙即可开窗、开门。' })]
         : []),
       createElement('div', { className: 'inspector-actions' }, sunlight, edit, remove)
     );
