@@ -191,6 +191,62 @@
   color: var(--ink-950);
 }
 
+.phase-toggle__btn:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
+/* 楼层选择器（编辑房间视图，右栏顶部） */
+.inspector__floor-bar:empty {
+  display: none;
+}
+
+.floor-selector {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 8px 4px 12px;
+}
+
+.floor-selector__label {
+  font-size: 12px;
+  font-weight: 650;
+  color: var(--ink-500, #64748b);
+}
+
+.floor-selector__floors {
+  display: inline-flex;
+  gap: 4px;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+}
+
+.floor-selector__btn {
+  min-width: 34px;
+  min-height: 34px;
+  padding: 0 8px;
+  border: 1px solid var(--ink-200, #e2e8f0);
+  border-radius: 8px;
+  background: white;
+  color: var(--ink-700, #334155);
+  font-size: 13px;
+  font-weight: 650;
+  cursor: pointer;
+  transition: background-color 140ms ease, color 140ms ease, border-color 140ms ease;
+}
+
+.floor-selector__btn:hover {
+  border-color: var(--sun-500);
+}
+
+.floor-selector__btn.is-active {
+  background: var(--sun-500);
+  border-color: var(--sun-500);
+  color: var(--ink-950);
+  cursor: default;
+}
+
 /* 顶栏地点选择（低频，浮层） */
 .location-control {
   position: relative;

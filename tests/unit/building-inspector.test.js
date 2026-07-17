@@ -8,7 +8,7 @@ import { createAddBuildingCommand } from '../../src/store/projectCommands.js';
 import { createOpeningFromPreset } from '../../src/domain/openings/openingGeometry.js';
 import { deriveWalls } from '../../src/domain/walls/deriveWalls.js';
 import {
-  createAddOpeningCommand, createAppendRoomRectCommand, createFinishRoomCommand,
+  createAddOpeningCommand, createAppendRoomRectCommand, createEnterRoomViewCommand, createFinishRoomCommand,
   createSelectEntityCommand, createStartRoomCommand, createUpdateOpeningCommand, createUpdateRoomCommand
 } from '../../src/store/roomCommands.js';
 
@@ -35,6 +35,25 @@ describe('contextual building inspector', () => {
       .toEqual(['楼层数', '标准层高（米）']);
     expect(element.textContent).not.toMatch(/建筑长度|建筑宽度|旋转角度|X 坐标|Y 坐标/);
     expect(element.querySelector('[data-testid="inspector-add-room-b1"]')).not.toBeNull();
+  });
+
+  it('shows a floor selector in the room view and switches the focused floor', () => {
+    const { store, element } = mount();
+    store.execute(createAddBuildingCommand({ id: 'b1' }));
+    store.execute(createEnterRoomViewCommand('b1', 1));
+    const selector = element.querySelector('[data-testid="floor-selector"]');
+    expect(selector).not.toBeNull();
+    expect(element.querySelector('[data-testid="floor-option-1"]').getAttribute('aria-pressed')).toBe('true');
+    element.querySelector('[data-testid="floor-option-3"]').click();
+    expect(store.getState().view.roomFocus).toEqual({ buildingId: 'b1', floor: 3 });
+    expect(element.querySelector('[data-testid="floor-option-3"]').getAttribute('aria-pressed')).toBe('true');
+  });
+
+  it('hides the floor selector outside the room view', () => {
+    const { store, element } = mount();
+    store.execute(createAddBuildingCommand({ id: 'b1' }));
+    store.execute(createSelectEntityCommand({ kind: 'building', id: 'b1' }));
+    expect(element.querySelector('[data-testid="floor-selector"]')).toBeNull();
   });
 
   it('routes from a room session to a room panel with sunlight action', () => {

@@ -2,7 +2,7 @@ import { listBuildingTypeDefinitions } from '../../domain/buildings/buildingType
 import { selectedBuildingId as resolveSelectedBuildingId } from '../../domain/project/viewSelection.js';
 import { createElement } from '../../ui/createElement.js';
 import { createRemoveBuildingCommand, createUpdateBuildingCommand } from '../../store/projectCommands.js';
-import { createSelectEntityCommand, createStartRoomCommand } from '../../store/roomCommands.js';
+import { createSelectEntityCommand, createStartRoomCommand, createSetRoomFloorCommand } from '../../store/roomCommands.js';
 import { createOpeningEditor } from '../openings/OpeningEditor.js';
 import { createRoomEditor } from '../rooms/RoomEditor.js';
 
@@ -48,7 +48,11 @@ function buildingPanel({ store, building, confirmDelete }) {
     className: 'button button--primary context-primary', text: '添加房间', testId: `inspector-add-room-${building.id}`,
     attributes: { type: 'button', 'data-primary-control': '' }
   });
-  addRoom.addEventListener('click', () => store.execute(createStartRoomCommand(building.id, 1)));
+  addRoom.addEventListener('click', () => {
+    const focus = store.getState().view.roomFocus;
+    const floor = focus?.buildingId === building.id ? focus.floor : 1;
+    store.execute(createStartRoomCommand(building.id, floor));
+  });
   const remove = createElement('button', { className: 'button button--danger', text: '删除建筑', attributes: { type: 'button' } });
   remove.addEventListener('click', () => {
     if (confirmDelete(building)) store.execute(createRemoveBuildingCommand(building.id));
@@ -86,17 +90,50 @@ function buildingPanel({ store, building, confirmDelete }) {
     createElement('div', { className: 'inspector-actions' }, addRoom, remove));
 }
 
+function floorSelectorBar({ store, building, floor }) {
+  const floors = building.params.floors;
+  const bar = createElement('div', { className: 'floor-selector', testId: 'floor-selector' },
+    createElement('span', { className: 'floor-selector__label', text: '当前楼层' }));
+  const buttons = createElement('div', { className: 'floor-selector__floors' });
+  // Top floor first, ground floor last — reads like a building seen side-on.
+  for (let f = floors; f >= 1; f -= 1) {
+    const btn = createElement('button', {
+      className: 'floor-selector__btn' + (f === floor ? ' is-active' : ''),
+      text: `${f}`, testId: `floor-option-${f}`,
+      attributes: { type: 'button', 'aria-pressed': String(f === floor), 'aria-label': `第 ${f} 层` }
+    });
+    if (f !== floor) btn.addEventListener('click', () => store.execute(createSetRoomFloorCommand(f)));
+    buttons.append(btn);
+  }
+  bar.append(buttons);
+  return bar;
+}
+
 export function createBuildingInspector({ store, confirmDelete = () => true }) {
   const element = createElement('aside', { className: 'inspector panel building-inspector', testId: 'building-inspector' });
+  const floorBar = createElement('div', { className: 'inspector__floor-bar' });
+  const contentHost = createElement('div', { className: 'inspector__content' });
+  element.append(floorBar, contentHost);
   let key = null;
   let disposeContent = null;
   function replaceContent(content = null) {
     disposeContent?.();
     disposeContent = typeof content?.dispose === 'function' ? content.dispose : null;
-    element.replaceChildren(...(content ? [content] : []));
+    contentHost.replaceChildren(...(content ? [content] : []));
+  }
+
+  function renderFloorBar(project) {
+    const focus = project.view.phase === 'room' ? project.view.roomFocus : null;
+    const building = focus && project.buildings.find(b => b.id === focus.buildingId);
+    floorBar.replaceChildren(
+      ...(building && building.params.floors > 1
+        ? [floorSelectorBar({ store, building, floor: focus.floor })]
+        : [])
+    );
   }
 
   function render(project) {
+    renderFloorBar(project);
     const selection = project.view.selection;
     const editing = project.view.roomEditing;
     const selectedBuildingId = resolveSelectedBuildingId(project.view);

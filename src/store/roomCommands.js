@@ -56,6 +56,31 @@ export function createSelectEntityCommand(selection) {
   };
 }
 
+export function createSetRoomFloorCommand(floor) {
+  return {
+    label: '切换楼层',
+    apply(state) {
+      const focus = state.view.roomFocus;
+      if (!focus) return null;
+      const building = findBuilding(state, focus.buildingId);
+      if (!building) return null;
+      const clampedFloor = Math.min(Math.max(1, floor), building.params.floors);
+      if (clampedFloor === focus.floor) return null;
+      return {
+        ...state,
+        view: {
+          ...state.view,
+          roomFocus: { ...focus, floor: clampedFloor },
+          // Switching floors abandons any in-progress draft — a draft belongs to
+          // the floor it was started on.
+          roomEditing: null,
+          selection: { kind: 'building', id: focus.buildingId }
+        }
+      };
+    }
+  };
+}
+
 export function createEnterRoomViewCommand(buildingId, floor = 1) {
   return {
     label: '进入编辑房间',

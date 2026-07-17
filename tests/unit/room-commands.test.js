@@ -10,6 +10,7 @@ import {
   createEnterRoomViewCommand,
   createFinishRoomCommand,
   createSelectEntityCommand,
+  createSetRoomFloorCommand,
   createSetTaskPhaseCommand,
   createStartRoomCommand,
   createUpdateRoomCommand,
@@ -77,6 +78,20 @@ describe('room commands', () => {
     store.execute(createSetTaskPhaseCommand('building'));
     expect(store.getState().view.roomFocus).toBeNull();
     expect(store.getState().view.roomEditing).toBeNull();
+  });
+
+  it('switches the focused floor and abandons any in-progress draft', () => {
+    const store = createStore(projectWithBuilding());
+    store.execute(createStartRoomCommand('b1', 1));
+    store.execute(createAppendRoomRectCommand({ x0: -4, z0: -3, x1: 4, z1: 3 }));
+    expect(store.getState().view.roomEditing).not.toBeNull();
+    store.execute(createSetRoomFloorCommand(2));
+    expect(store.getState().view.roomFocus).toEqual({ buildingId: 'b1', floor: 2 });
+    expect(store.getState().view.roomEditing).toBeNull();
+    // clamps and rejects no-op / no-focus
+    store.execute(createSetRoomFloorCommand(99));
+    expect(store.getState().view.roomFocus.floor).toBe(2);
+    expect(createSetRoomFloorCommand(1).apply({ view: { roomFocus: null } })).toBeNull();
   });
 
   it('rejects disconnected and occupied rects without creating a history entry', () => {
