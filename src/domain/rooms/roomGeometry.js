@@ -1,6 +1,36 @@
 import { clipRectToFootprint } from '../buildings/footprintClip.js';
+import { floorBaseY } from '../buildings/floorMath.js';
+import { rotateLocalToWorld } from '../buildings/wallGeometry.js';
 
 const EPS = 1e-6;
+
+// 室内取景 (Interior Frame)：由房间几何推导相机要飞去的世界坐标包围信息。
+// center 是房间在世界地图上的几何中心（y 取观察层楼板 + 半层高，约在人眼高度），
+// radius 是房间世界足迹对角线的一半（下限 6m，避免小房间相机贴脸）。
+// 纯几何，无 Three.js / DOM 依赖 —— 主线程与新场景模块共用。
+export function roomInteriorFrame(building, room) {
+  if (!building || !room) return null;
+  const baseY = floorBaseY({ floor: room.floor, ...building.params });
+  const corners = (room.rects ?? []).flatMap(rect =>
+    [[rect.x0, rect.z0], [rect.x0, rect.z1], [rect.x1, rect.z0], [rect.x1, rect.z1]]
+      .map(([x, z]) => {
+        const [wx, wz] = rotateLocalToWorld([x, z], building.rotation);
+        return [wx + building.position.x, wz + building.position.z];
+      }));
+  if (corners.length === 0) return null;
+  const xs = corners.map(point => point[0]);
+  const zs = corners.map(point => point[1]);
+  const minX = Math.min(...xs); const maxX = Math.max(...xs);
+  const minZ = Math.min(...zs); const maxZ = Math.max(...zs);
+  return {
+    center: {
+      x: (minX + maxX) / 2,
+      y: baseY + building.params.floorHeight / 2,
+      z: (minZ + maxZ) / 2
+    },
+    radius: Math.max(6, Math.hypot(maxX - minX, maxZ - minZ) / 2)
+  };
+}
 
 export function rectArea(rects = []) {
   return rects.reduce((sum, rect) => sum + Math.abs((rect.x1 - rect.x0) * (rect.z1 - rect.z0)), 0);
