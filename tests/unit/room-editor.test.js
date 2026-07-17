@@ -36,13 +36,17 @@ describe('room-first components', () => {
     expect(tree.textContent).not.toContain('观察区');
   });
 
-  it('shows a direct creation session without draw or erase tools', () => {
+  it('shows the select/draw/erase toolbar with draw active for a new session', () => {
     const store = createStore(fixture());
     store.execute(createStartRoomCommand('b1', 1));
     const editor = createRoomEditor({ store, buildingId: 'b1' });
     document.body.append(editor);
     expect(editor.querySelector('[data-testid="room-session-title"]').textContent).toBe('新建房间');
-    expect(editor.textContent).not.toMatch(/画区|擦除/);
+    expect(editor.querySelector('[data-testid="room-tools"]')).not.toBeNull();
+    expect(editor.querySelector('[data-testid="room-tool-draw"]').getAttribute('aria-pressed')).toBe('true');
+    editor.querySelector('[data-testid="room-tool-erase"]').click();
+    expect(store.getState().view.roomTool).toBe('erase');
+    expect(editor.querySelector('[data-testid="room-tool-erase"]').getAttribute('aria-pressed')).toBe('true');
     expect(editor.querySelector('[data-testid="room-finish"]')).not.toBeNull();
   });
 

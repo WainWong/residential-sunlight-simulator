@@ -8,11 +8,13 @@ import {
   createAppendRoomRectCommand,
   createCancelRoomCommand,
   createEnterRoomViewCommand,
+  createEraseRoomRectCommand,
   createFinishRoomCommand,
   createSelectEntityCommand,
   createSetRoomFloorCommand,
   createSetTaskPhaseCommand,
   createStartRoomCommand,
+  createStartRoomEditCommand,
   createUpdateRoomCommand,
   createViewRoomSunlightCommand
 } from '../../src/store/roomCommands.js';
@@ -92,6 +94,37 @@ describe('room commands', () => {
     store.execute(createSetRoomFloorCommand(99));
     expect(store.getState().view.roomFocus.floor).toBe(2);
     expect(createSetRoomFloorCommand(1).apply({ view: { roomFocus: null } })).toBeNull();
+  });
+
+  it('erase subtracts from the draft, rejects a split, and deletes when empty', () => {
+    const store = createStore(projectWithBuilding());
+    store.execute(createStartRoomCommand('b1', 1));
+    store.execute(createAppendRoomRectCommand({ x0: -4, z0: -3, x1: 4, z1: 3 }));
+
+    // subtract a corner → still connected, draft shrinks
+    expect(store.execute(createEraseRoomRectCommand({ x0: 2, z0: -3, x1: 4, z1: 3 }))).toBe(true);
+    expect(store.getState().view.roomEditing.rects).toEqual([{ x0: -4, z0: -3, x1: 2, z1: 3 }]);
+
+    // a middle band would split the room into two → rejected, no change
+    expect(store.execute(createEraseRoomRectCommand({ x0: -4, z0: -1, x1: 2, z1: 1 }))).toBe(false);
+    expect(store.getState().view.roomEditing.rects).toEqual([{ x0: -4, z0: -3, x1: 2, z1: 3 }]);
+
+    // erase everything → draft discarded (create mode never saved a room)
+    expect(store.execute(createEraseRoomRectCommand({ x0: -5, z0: -5, x1: 5, z1: 5 }))).toBe(true);
+    expect(store.getState().view.roomEditing).toBeNull();
+    expect(store.getState().view.roomTool).toBe('select');
+    expect(store.getState().buildings[0].rooms).toEqual([]);
+  });
+
+  it('erasing an edited room to empty removes the saved room', () => {
+    const project = projectWithBuilding();
+    project.buildings[0].rooms.push({ id: 'r1', floor: 1, name: '房间 1',
+      rects: [{ x0: -4, z0: -3, x1: 4, z1: 3 }], objects: [] });
+    const store = createStore(project);
+    store.execute(createStartRoomEditCommand('b1', 'r1'));
+    expect(store.execute(createEraseRoomRectCommand({ x0: -5, z0: -5, x1: 5, z1: 5 }))).toBe(true);
+    expect(store.getState().buildings[0].rooms).toEqual([]);
+    expect(store.getState().view.roomEditing).toBeNull();
   });
 
   it('rejects disconnected and occupied rects without creating a history entry', () => {

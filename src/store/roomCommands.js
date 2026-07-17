@@ -1,5 +1,6 @@
 import { clipRectToFootprint } from '../domain/buildings/footprintClip.js';
 import { reprojectBuildingOpenings } from '../domain/openings/openingGeometry.js';
+import { applyRectEdit } from '../domain/rooms/rectEdit.js';
 import { nextRoomName, normalizeRects, validateRoomRects } from '../domain/rooms/roomGeometry.js';
 
 const fallbackId = prefix => `${prefix}-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 7)}`;
@@ -74,6 +75,7 @@ export function createSetRoomFloorCommand(floor) {
           // Switching floors abandons any in-progress draft — a draft belongs to
           // the floor it was started on.
           roomEditing: null,
+          roomTool: 'select',
           selection: { kind: 'building', id: focus.buildingId }
         }
       };
@@ -115,6 +117,7 @@ export function createStartRoomCommand(buildingId, floor = 1) {
           ...state.view,
           phase: 'room',
           roomFocus: { buildingId, floor },
+          roomTool: 'draw',
           selection: { kind: 'building', id: buildingId },
           roomEditing: {
             mode: 'create', buildingId, roomId: newId('room'), floor,
@@ -139,6 +142,7 @@ export function createStartRoomEditCommand(buildingId, roomId) {
           ...state.view,
           phase: 'room',
           roomFocus: { buildingId, floor: room.floor },
+          roomTool: 'select',
           selection: { kind: 'room', id: roomId, buildingId },
           roomEditing: {
             mode: 'edit', buildingId, roomId, floor: room.floor,
@@ -190,12 +194,54 @@ export function createReplaceRoomRectsCommand(rects) {
   };
 }
 
+// Erase a rectangular region from the active draft. Rules (see CONTEXT.md
+// 编辑房间工具): erasing to nothing deletes the room; erasing into two
+// disconnected pieces is rejected (apply returns null → caller warns).
+export function createEraseRoomRectCommand(rect) {
+  return {
+    label: '擦除房间区域',
+    apply(state) {
+      const editing = state.view.roomEditing;
+      const building = editing && findBuilding(state, editing.buildingId);
+      if (!editing || !building) return null;
+      const remaining = normalizeRects(applyRectEdit(editing.rects, rect, 'erase'));
+      if (remaining.length === 0) {
+        // Nothing left → delete. A saved room (edit mode) is removed; an
+        // unsaved create draft is simply discarded.
+        const cleared = {
+          ...state.view, roomEditing: null, roomTool: 'select',
+          selection: { kind: 'building', id: editing.buildingId }
+        };
+        const existing = (building.rooms ?? []).some(room => room.id === editing.roomId);
+        if (!existing) return { ...state, view: cleared };
+        const next = updateBuilding(state, editing.buildingId, current => ({
+          ...current,
+          rooms: current.rooms.filter(room => room.id !== editing.roomId),
+          openings: (current.openings ?? []).filter(opening => !(opening.connectedRoomIds ?? []).includes(editing.roomId))
+        }));
+        return {
+          ...next,
+          simulation: { ...next.simulation, activeRoomId: next.simulation.activeRoomId === editing.roomId ? null : next.simulation.activeRoomId },
+          view: cleared
+        };
+      }
+      const occupied = (building.rooms ?? [])
+        .filter(room => room.floor === editing.floor && room.id !== editing.roomId)
+        .flatMap(room => room.rects ?? []);
+      // Reject a cut that splits the room into disconnected pieces.
+      if (!validateRoomRects(remaining, occupied).ok) return null;
+      if (!openingsRemainValid(building, roomsWithDraft(building, editing, remaining))) return null;
+      return { ...state, view: { ...state.view, roomEditing: { ...editing, rects: remaining } } };
+    }
+  };
+}
+
 export function createCancelRoomCommand() {
   return {
     label: '取消房间编辑',
     apply(state) {
       if (!state.view.roomEditing) return null;
-      return { ...state, view: { ...state.view, roomEditing: null } };
+      return { ...state, view: { ...state.view, roomEditing: null, roomTool: 'select' } };
     }
   };
 }
@@ -232,6 +278,7 @@ export function createFinishRoomCommand() {
         view: {
           ...next.view,
           roomEditing: null,
+          roomTool: 'select',
           selection: { kind: 'room', id: room.id, buildingId: editing.buildingId }
         }
       };

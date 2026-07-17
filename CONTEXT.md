@@ -30,7 +30,7 @@
 
 - **楼层选择 (Active Floor)** — 编辑房间视图内"当前操作/掀盖的是第几层"。常驻于右栏面板,画房间与掀盖都跟随它。归属 [[室内取景态]] 的 `roomFocus.floor`。
 
-- **编辑房间工具 (Room Edit Tool)** — 编辑房间视图内决定左键在楼层平面上含义的开关,三选一:`选择/移动`(默认,点选房间/墙、拖选中的调整)、`画房间`(拖矩形做加法,`applyRectEdit` 'draw')、`擦除`(拖矩形做减法,`applyRectEdit` 'erase')。画房间与擦除对称——一个加矩形、一个减矩形。加窗/加门不在工具条,是"选中墙后面板出按钮"。擦除边界:擦成不相连→拒绝并提示;擦到不剩→删除该房间(房间 = 一块连通区域,形状任意但须连通)。
+- **编辑房间工具 (Room Edit Tool)** — 编辑房间视图内决定左键在楼层平面上含义的开关 `view.roomTool`,三选一:`选择/移动 (select)`(默认,点选房间/墙、拖选中的调整)、`画房间 (draw)`(拖矩形做加法)、`擦除 (erase)`(拖矩形做减法)。加减对称,共用纯几何 `applyRectEdit`(`src/domain/rooms/rectEdit.js`,加=并集、减=差集后合并)。工具条只在有[[房间草稿态]]时出现,新建默认 draw、编辑已存房间默认 select。加窗/加门不在工具条,是"选中墙后面板出按钮"。擦除边界(`createEraseRoomRectCommand`):擦成不相连→命令返回 null、UI 提示"不能这么做";擦到不剩→删除该房间(新建草稿则丢弃,已存房间则移除)。房间 = 一块连通区域,形状任意但须连通。
 
 - **选中归属哪栋楼 (Selected Building)** — 视图选中可能是建筑本身，也可能是它名下的房间/墙/洞口（带 buildingId）——两种都归到那栋楼。纯视图派生逻辑，归属 domain 层 `selectedBuildingId(view)`（`src/domain/project/viewSelection.js`），scene 高亮与 BuildingInspector 面板共用。注意 gizmo 的 `selectedBuildingIdForGizmo` 语义不同（额外要求 `phase==='build'`），保持独立。
 

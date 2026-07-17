@@ -9,6 +9,27 @@ import {
   createViewRoomSunlightCommand
 } from '../../store/roomCommands.js';
 
+const ROOM_TOOLS = [
+  ['select', '选择', '点选房间或墙,拖动调整'],
+  ['draw', '画房间', '拖出矩形,加进房间'],
+  ['erase', '擦除', '拖出矩形,从房间里挖掉']
+];
+
+function toolBar(store, currentTool) {
+  const bar = createElement('div', { className: 'room-tools', testId: 'room-tools', attributes: { role: 'group', 'aria-label': '房间编辑工具' } });
+  for (const [value, label, title] of ROOM_TOOLS) {
+    const active = (currentTool ?? 'select') === value;
+    const btn = createElement('button', {
+      className: 'room-tools__btn' + (active ? ' is-active' : ''),
+      text: label, testId: `room-tool-${value}`,
+      attributes: { type: 'button', title, 'aria-pressed': String(active) }
+    });
+    if (!active) btn.addEventListener('click', () => store.setView({ roomTool: value }));
+    bar.append(btn);
+  }
+  return bar;
+}
+
 function field(label, control) {
   return createElement('label', { className: 'field' },
     createElement('span', { className: 'field__label', text: label }), control);
@@ -46,6 +67,7 @@ export function createRoomEditor({ store, buildingId, roomId = null }) {
         createElement('div', { className: 'room-session-summary' },
           createElement('strong', { text: `${editing.rects.length} 块` }),
           createElement('span', { text: `${area} m²` })),
+        toolBar(store, project.view.roomTool),
         field('名称', name),
         createElement('div', { className: 'inspector-actions' }, cancel, finish)
       );

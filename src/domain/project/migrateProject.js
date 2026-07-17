@@ -160,6 +160,7 @@ function normalizeV2(project) {
     selection: normalized.view?.selection ?? null,
     roomFocus: null,
     roomEditing: null,
+    roomTool: 'select',
     interiorRoomId: normalized.view?.interiorRoomId ?? null
   };
   return normalized;

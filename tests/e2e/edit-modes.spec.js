@@ -7,7 +7,9 @@ test('room creation starts directly without hidden edit modes', async ({ page, i
   await expect(page.getByTestId('building-context')).toBeVisible();
   await page.getByTestId('inspector-add-room-' + await page.locator('[data-testid^="building-tree-"]').getAttribute('data-testid').then(value => value.replace('building-tree-', ''))).click();
   await expect(page.getByTestId('room-session-title')).toHaveText('新建房间');
-  await expect(page.getByTestId('room-editor')).not.toContainText(/画区|擦除/);
+  // Tools are explicit (visible toolbar), not hidden modes; draw is default.
+  await expect(page.getByTestId('room-tools')).toBeVisible();
+  await expect(page.getByTestId('room-tool-draw')).toHaveAttribute('aria-pressed', 'true');
   await page.getByTestId('room-cancel').click();
   await expect(page.getByTestId('building-context')).toBeVisible();
 });

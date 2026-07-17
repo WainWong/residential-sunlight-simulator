@@ -26,6 +26,7 @@ export function createDefaultProject() {
       selection: null,
       roomFocus: null,
       roomEditing: null,
+      roomTool: 'select',
       interiorRoomId: null
     }
   };

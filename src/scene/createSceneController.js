@@ -22,7 +22,8 @@ import { pointerToNdc, resolvePickedEntity } from './picking.js';
 import { selectedBuildingId } from '../domain/project/viewSelection.js';
 import { applySunLighting } from './sunLighting.js';
 import { createSceneSynchronizer } from './syncScene.js';
-import { createAppendRoomRectCommand } from '../store/roomCommands.js';
+import { createAppendRoomRectCommand, createEraseRoomRectCommand } from '../store/roomCommands.js';
+import { showToast } from '../ui/Toast.js';
 import { createBuildingGestures } from './gizmos/createBuildingGestures.js';
 import { createOpeningGestures } from './gizmos/createOpeningGestures.js';
 import { createRoomGestures } from './gizmos/createRoomGestures.js';
@@ -316,7 +317,9 @@ export function createSceneController(canvas, { onSelect = () => {}, store = nul
       if (floorFocus.draft) { disposeDraft(); rebuildExistingOverlays(); }
       return;
     }
-    const draftSig = `${editing.roomId}:${editing.mode}`;
+    const tool = editing.mode === 'edit' && project.view.roomTool === 'draw'
+      ? 'draw' : project.view.roomTool; // 'select' | 'draw' | 'erase'
+    const draftSig = `${editing.roomId}:${editing.mode}:${tool}`;
     if (floorFocus.draft?.sig === draftSig) {
       if (editing.mode === 'edit') floorFocus.renderRoomPreview(editing.rects);
       return;
@@ -324,10 +327,12 @@ export function createSceneController(canvas, { onSelect = () => {}, store = nul
     if (floorFocus.draft) disposeDraft();
     rebuildExistingOverlays();
 
-    cameraParts.setEditControls(editing.mode === 'edit' ? null : 'draw');
+    // draw/erase reserve the left button for the drag; select leaves it orbiting.
+    const active = tool === 'draw' || tool === 'erase';
+    cameraParts.setEditControls(active ? 'draw' : null);
     if (editing.mode === 'edit') floorFocus.renderRoomPreview(editing.rects);
 
-    const roomGestures = editing.mode === 'edit' && editing.rects?.length
+    const roomGestures = editing.mode === 'edit' && !active && editing.rects?.length
       ? createRoomGestures({
           canvas, camera: cameraParts.camera, scene: sceneParts.scene, store,
           building: floorFocus.getBuilding(), floor: floorFocus.floor,
@@ -337,7 +342,10 @@ export function createSceneController(canvas, { onSelect = () => {}, store = nul
         })
       : null;
 
-    const getMode = () => editing.mode === 'edit' ? null : (floorFocus?.draft?.tool ?? 'draw');
+    const getMode = () => {
+      const t = store.getState().view.roomTool;
+      return t === 'draw' || t === 'erase' ? t : null;
+    };
     const drag = createRoomDrag({
       canvas, camera: cameraParts.camera, floorY: floorFocus.baseY,
       getBuilding: floorFocus.getBuilding, getMode,
@@ -345,23 +353,31 @@ export function createSceneController(canvas, { onSelect = () => {}, store = nul
         floorFocus.clearPreview();
         floorFocus.showDimLabel(rect);
         if (!rect) return;
+        if (getMode() === 'erase') {
+          // Preview the cut region itself, flagged invalid (it's being removed).
+          floorFocus.renderRoomPreview([rect], false);
+          return;
+        }
         const b = floorFocus.getBuilding();
         const pieces = floorFocus.clipDrawable(rect, b);
         if (pieces.length === 0) return;
         floorFocus.renderRoomPreview(pieces);
       },
-      onCommit: rect => {
+      onCommit: (rect, mode) => {
         floorFocus.clearPreview();
         if (!store?.getState()?.view?.roomEditing) return;
+        if (mode === 'erase') {
+          if (!store.execute(createEraseRoomRectCommand(rect))) {
+            showToast('不能这么做:擦除会把房间断成两块', 'error');
+          }
+          return;
+        }
         for (const piece of floorFocus.clipDrawable(rect, floorFocus.getBuilding())) {
           store.execute(createAppendRoomRectCommand(piece));
         }
       }
     });
-    floorFocus.draft = {
-      sig: draftSig, drag, roomGestures,
-      tool: editing.mode === 'edit' ? null : 'draw'
-    };
+    floorFocus.draft = { sig: draftSig, drag, roomGestures, tool };
   }
 
   // Reconcile floor-focus lifecycle from the view. The controller owns its own
