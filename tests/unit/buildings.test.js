@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { createFootprint } from '../../src/domain/buildings/createFootprint.js';
 import { createWallSegments } from '../../src/domain/buildings/createWallSegments.js';
-import { floorBaseY, totalBuildingHeight } from '../../src/domain/buildings/floorMath.js';
+import { bandTopY, floorBaseY, totalBuildingHeight } from '../../src/domain/buildings/floorMath.js';
 
 describe('building footprints', () => {
   it('creates a counter-clockwise bar footprint', () => {
@@ -61,5 +61,14 @@ describe('floor math', () => {
     expect(floorBaseY({ floor: 2, ...params })).toBe(4.5);
     expect(floorBaseY({ floor: 3, ...params })).toBe(7.5);
     expect(totalBuildingHeight(params)).toBe(10.5);
+  });
+
+  it('bandTopY is the next floor base, or total height on the top floor', () => {
+    const params = { floors: 3, floorHeight: 3, firstFloorHeight: 4.5 };
+    // lower floors → base of the floor above
+    expect(bandTopY({ floor: 1, ...params })).toBe(4.5);
+    expect(bandTopY({ floor: 2, ...params })).toBe(7.5);
+    // top floor → the roof (total height)
+    expect(bandTopY({ floor: 3, ...params })).toBe(10.5);
   });
 });

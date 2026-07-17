@@ -10,7 +10,7 @@ import {
   restoreBuildingVisibility,
   setFloorFocusVisibility
 } from './floorFocus.js';
-import { floorBaseY, totalBuildingHeight } from '../domain/buildings/floorMath.js';
+import { bandTopY } from '../domain/buildings/floorMath.js';
 import { deriveWalls } from '../domain/walls/deriveWalls.js';
 import { applyBuildingTransform } from './buildingSceneHelpers.js';
 import { createRoomOverlay } from './roomOverlay.js';
@@ -184,9 +184,7 @@ export function createSceneController(canvas, { onSelect = () => {}, store = nul
     const building = project.buildings.find(b => b.id === buildingId);
     if (!building) return;
 
-    const bandToY = floor >= building.params.floors
-      ? totalBuildingHeight(building.params)
-      : floorBaseY({ floor: floor + 1, ...building.params });
+    const bandToY = bandTopY({ floor, ...building.params });
     setFloorFocusVisibility(sceneParts.buildings, buildingId, floor, bandToY);
     const origin = sceneParts.aids.getObjectByName('coordinate-origin');
     if (origin) origin.visible = false;
@@ -310,7 +308,7 @@ export function createSceneController(canvas, { onSelect = () => {}, store = nul
       }
     });
     floorFocus = {
-      slab, existing, drag, roomGestures,
+      slab, existing, drag, roomGestures, sig: `${buildingId}:${floor}`,
       tool: editing.mode === 'edit' ? null : 'draw', clearPreview, dimLabel
     };
   }
@@ -323,8 +321,8 @@ export function createSceneController(canvas, { onSelect = () => {}, store = nul
     const sig = editing ? `${editing.buildingId}:${editing.floor}` : '';
     if (!editing) {
       if (floorFocus) {
+        // disposeFloorFocus already restores building visibility.
         disposeFloorFocus();
-        restoreBuildingVisibility(sceneParts.buildings);
         cameraParts.setEditControls(null);
       }
       return;
@@ -332,13 +330,10 @@ export function createSceneController(canvas, { onSelect = () => {}, store = nul
     if (!floorFocus || floorFocus.sig !== sig) {
       if (floorFocus) disposeFloorFocus();
       buildFloorFocus(project);
-      if (floorFocus) floorFocus.sig = sig;
     } else {
       const building = project.buildings.find(item => item.id === editing.buildingId);
       if (building) {
-        const bandToY = editing.floor >= building.params.floors
-          ? totalBuildingHeight(building.params)
-          : floorBaseY({ floor: editing.floor + 1, ...building.params });
+        const bandToY = bandTopY({ floor: editing.floor, ...building.params });
         setFloorFocusVisibility(sceneParts.buildings, editing.buildingId, editing.floor, bandToY);
       }
       const nextTool = editing.mode === 'edit' ? null : 'draw';

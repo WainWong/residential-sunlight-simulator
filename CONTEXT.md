@@ -8,6 +8,8 @@
 
 - **盖子 (Lid)** — 室内视图中，观察层顶面及以上被整块隐藏的几何：顶层房间的独立顶盖 mesh，或非顶层时上方的整段楼层。相机升到房间中段以上时隐藏，露出房间内部。
 
+- **观察层顶面 (Band Top)** — 某楼层"到哪为止"的高度：顶层是屋顶板底（整栋高），其余层是上一层楼板底。造楼层几何、揭盖/遮挡、楼层聚焦显隐共用。归属 domain 层 `bandTopY(params)`（`src/domain/buildings/floorMath.js`），原先此式在 segmentBuilding、室内视图、控制器多处各写一遍。
+
 - **室内取景 (Interior Frame)** — 由房间几何推导出的世界坐标包围信息 `{ center, radius }`，用于把相机飞到房间、并框定阴影相机范围。纯几何计算，归属 domain 层 `roomInteriorFrame(building, room)`。
 
 - **指针→地面落点 (Pointer Floor)** — 把一次指针事件投射到水平面 `y=planeY` 得到世界坐标落点。`src/scene/pointerFloor.js` 的 `createFloorPicker({ canvas, camera, planeY })` 独占这段射线逻辑(原先 roomDrag、房间手势、建筑手势各写一遍)。世界→建筑本地坐标的反向旋转统一走 domain 的 `worldPointToBuildingLocal`,不再手抄。

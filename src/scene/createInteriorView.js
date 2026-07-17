@@ -1,5 +1,5 @@
 import * as THREE from 'three';
-import { floorBaseY, totalBuildingHeight } from '../domain/buildings/floorMath.js';
+import { bandTopY, totalBuildingHeight } from '../domain/buildings/floorMath.js';
 import { roomInteriorFrame } from '../domain/rooms/roomGeometry.js';
 import { createFadeState } from './occlusionFade.js';
 import { eachEdge, isBuildingShell, isLidOrAbove, isSegment } from './sceneTags.js';
@@ -66,7 +66,7 @@ export function createInteriorView({ scene, sunlight, cameraRig, buildingsGroup,
     const params = building.params;
     const totalH = totalBuildingHeight(params);
     // 房间顶面高度:顶层是屋顶板底,其余层是上一层楼板底(即上方段的 fromY)。
-    const bandToY = floor >= params.floors ? totalH : floorBaseY({ floor: floor + 1, ...params });
+    const bandToY = bandTopY({ floor, ...params });
     // "揭盖"触发高度:相机升到房间中段以上就掀盖。
     const liftY = center.y + params.floorHeight * 0.5;
     const lid = lidAndAbove(building.id, bandToY);

@@ -5,7 +5,7 @@
 // 或裂缝。刀在与 footprint 墙重合的边上向外凸出 OPENING_CUT_EXTENSION,
 // 明确穿出墙面(多切的是空气,视觉无痕);内部边保持原位,刀的终止面削出
 // 的立面就是隔墙表面,与既有几何无重合对象。
-import { floorBaseY, totalBuildingHeight } from './floorMath.js';
+import { bandTopY, floorBaseY, totalBuildingHeight } from './floorMath.js';
 import { createFootprint } from './createFootprint.js';
 import { createWallSegments } from './createWallSegments.js';
 import { rectUnionToPolygons } from './rectUnion.js';
@@ -105,9 +105,7 @@ export function buildSegmentSpecs(building) {
   const bands = [...byFloor.entries()]
     .map(([floor, roomsOnFloor]) => {
       const fromY = floorBaseY({ floor, ...params }) + SLAB_THICKNESS;
-      const nextBase = floor >= params.floors
-        ? totalH
-        : floorBaseY({ floor: floor + 1, ...params });
+      const nextBase = bandTopY({ floor, ...params });
       const cutters = roomsOnFloor.flatMap(room =>
         rectUnionToPolygons(room.rects).map(poly => toCutter(poly, footprint, walls))
       );
