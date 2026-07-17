@@ -1,4 +1,5 @@
 import { listBuildingTypeDefinitions } from '../../domain/buildings/buildingTypes.js';
+import { selectedBuildingId as resolveSelectedBuildingId } from '../../domain/project/viewSelection.js';
 import { createElement } from '../../ui/createElement.js';
 import { createRemoveBuildingCommand, createUpdateBuildingCommand } from '../../store/projectCommands.js';
 import { createSelectEntityCommand, createStartRoomCommand } from '../../store/roomCommands.js';
@@ -98,8 +99,7 @@ export function createBuildingInspector({ store, confirmDelete = () => true }) {
   function render(project) {
     const selection = project.view.selection;
     const editing = project.view.roomEditing;
-    const selectedBuildingId = selection?.buildingId
-      ?? (selection?.kind === 'building' ? selection.id : null);
+    const selectedBuildingId = resolveSelectedBuildingId(project.view);
     const buildingRevision = selectedBuildingId
       ? project.buildings.find(building => building.id === selectedBuildingId)?.revision ?? 0
       : null;
@@ -118,7 +118,7 @@ export function createBuildingInspector({ store, confirmDelete = () => true }) {
         createElement('h2', { className: 'panel__title', text: '未选择对象' })));
       return;
     }
-    const buildingId = selection.buildingId ?? (selection.kind === 'building' ? selection.id : null);
+    const buildingId = resolveSelectedBuildingId(project.view);
     const building = project.buildings.find(item => item.id === buildingId);
     if (!building) { replaceContent(); return; }
     if (selection.kind === 'building') replaceContent(buildingPanel({ store, building, confirmDelete }));

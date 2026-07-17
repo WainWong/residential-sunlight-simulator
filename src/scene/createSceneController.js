@@ -19,7 +19,7 @@ import { rotateLocalToWorld } from '../domain/buildings/wallGeometry.js';
 import { createRenderer } from './createRenderer.js';
 import { createScene } from './createScene.js';
 import { pointerToNdc, resolvePickedEntity } from './picking.js';
-import { selectedBuildingId } from './sceneSelection.js';
+import { selectedBuildingId } from '../domain/project/viewSelection.js';
 import { applySunLighting } from './sunLighting.js';
 import { createSceneSynchronizer } from './syncScene.js';
 import { createAppendRoomRectCommand } from '../store/roomCommands.js';

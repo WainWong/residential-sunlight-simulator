@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { selectedBuildingId } from '../../src/scene/sceneSelection.js';
+import { selectedBuildingId } from '../../src/domain/project/viewSelection.js';
 
 describe('selectedBuildingId', () => {
   it('highlights the selected building without a separate preview mode', () => {

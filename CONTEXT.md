@@ -16,6 +16,10 @@
 
 - **mesh 标签契约 (Scene Tags)** — 场景网格用 `userData.kind` 字符串标注用途；可见性/遮挡/拾取据此过滤。`src/scene/sceneTags.js` 独占**会被读取**的标签名（`building-segment`/`building-lid`/`segment-edges`/`floor-lines`/房间几何四类）与其之上的谓词（`isSegment`、`isBuildingShell`、`isLidOrAbove`、`isFloorLines`、`isRoomGeometry`、`eachEdge`），让生产者与消费者共用同一定义。纯装饰、只写不读的标签不收录。
 
+## 项目 / 视图 (Project / View)
+
+- **选中归属哪栋楼 (Selected Building)** — 视图选中可能是建筑本身，也可能是它名下的房间/墙/洞口（带 buildingId）——两种都归到那栋楼。纯视图派生逻辑，归属 domain 层 `selectedBuildingId(view)`（`src/domain/project/viewSelection.js`），scene 高亮与 BuildingInspector 面板共用。注意 gizmo 的 `selectedBuildingIdForGizmo` 语义不同（额外要求 `phase==='build'`），保持独立。
+
 ## 状态 (Store)
 
 - **试运行校验 (canExecute)** — `store.canExecute(command)` 对状态快照跑一遍命令的 `apply`，返回它是否会提交（非 null），不改状态、不进历史。拖拽 gizmo 预览有效性时用它问「这样会不会有效」，而不必伸手进命令的 `apply` 协议或状态结构。见 `src/store/createStore.js`。
