@@ -39,12 +39,36 @@ export function createCameraRig(canvas, aspect = 1) {
     }
   }
 
-  function focusFloor({ center, radius }) {
-    const height = Math.max(24, radius * 1.65);
-    const offset = Math.max(5, radius * 0.28);
-    controls.target.set(center.x, center.y, center.z);
-    camera.position.set(center.x, center.y + height, center.z + offset);
-    controls.update();
+  // Smoothly frame a floor for room editing: animate to an oblique (~40°) pose
+  // rather than snapping to a near-top-down view, so the user keeps a sense of
+  // orientation and depth. Control mode (orbit vs draw-lock) is owned by the
+  // caller — this only moves the camera and never touches setEditControls, so it
+  // won't fight a draw tool that engages mid-flight. A new call cancels the
+  // previous flight.
+  let floorFlightId = 0;
+  function focusFloor({ center, radius }, { pitch = THREE.MathUtils.degToRad(40), durationMs = 500 } = {}) {
+    const fov = THREE.MathUtils.degToRad(camera.fov);
+    const dist = Math.max(12, (radius / Math.sin(fov / 2)) * 1.25);
+    const target = new THREE.Vector3(center.x, center.y, center.z);
+    const dest = new THREE.Vector3(
+      center.x,
+      center.y + Math.sin(pitch) * dist,
+      center.z + Math.cos(pitch) * dist
+    );
+    const fromPos = camera.position.clone();
+    const fromTgt = controls.target.clone();
+    const start = performance.now();
+    const id = ++floorFlightId;
+    function tick(now) {
+      if (id !== floorFlightId) return; // superseded by a newer focus
+      const t = Math.min(1, (now - start) / durationMs);
+      const e = t * t * (3 - 2 * t); // smoothstep
+      camera.position.lerpVectors(fromPos, dest, e);
+      controls.target.lerpVectors(fromTgt, target, e);
+      controls.update();
+      if (t < 1) requestAnimationFrame(tick);
+    }
+    requestAnimationFrame(tick);
   }
 
   function focusWall({ position, target }) {
