@@ -35,7 +35,7 @@ function roomsWithDraft(building, editing, rects) {
     ? { ...existing, floor: editing.floor, rects: structuredClone(rects) }
     : {
         id: editing.roomId, floor: editing.floor, name: editing.name ?? '',
-        type: editing.type ?? null, rects: structuredClone(rects), objects: []
+        rects: structuredClone(rects), objects: []
       };
   return existing
     ? building.rooms.map(room => room.id === draft.id ? draft : room)
@@ -118,7 +118,7 @@ export function createStartRoomCommand(buildingId, floor = 1) {
           selection: { kind: 'building', id: buildingId },
           roomEditing: {
             mode: 'create', buildingId, roomId: newId('room'), floor,
-            rects: [], type: null, name: ''
+            rects: [], name: ''
           }
         }
       };
@@ -142,7 +142,7 @@ export function createStartRoomEditCommand(buildingId, roomId) {
           selection: { kind: 'room', id: roomId, buildingId },
           roomEditing: {
             mode: 'edit', buildingId, roomId, floor: room.floor,
-            rects: structuredClone(room.rects), type: room.type, name: room.name
+            rects: structuredClone(room.rects), name: room.name
           }
         }
       };
@@ -212,8 +212,7 @@ export function createFinishRoomCommand() {
       const room = {
         id: editing.roomId,
         floor: editing.floor,
-        name: editing.name?.trim() || existing?.name || nextRoomName(currentRooms.filter(item => item.id !== editing.roomId), editing.type),
-        type: editing.type ?? existing?.type ?? null,
+        name: editing.name?.trim() || existing?.name || nextRoomName(currentRooms.filter(item => item.id !== editing.roomId)),
         rects: structuredClone(editing.rects),
         objects: structuredClone(existing?.objects ?? [])
       };

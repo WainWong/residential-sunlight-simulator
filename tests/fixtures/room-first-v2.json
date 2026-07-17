@@ -20,7 +20,6 @@
       "id": "r1",
       "floor": 1,
       "name": "客厅",
-      "type": "living",
       "rects": [{ "x0": -4, "z0": -5, "x1": 4, "z1": 3 }],
       "objects": []
     }],

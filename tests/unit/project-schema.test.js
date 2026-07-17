@@ -50,7 +50,7 @@ describe('project schema', () => {
   it('rejects duplicate entity ids and unsupported room and opening values', () => {
     const project = createDefaultProject();
     project.buildings.push(validBar({
-      rooms: [{ id: 'r1', floor: 1, name: '客厅', type: 'garage', rects: [], objects: [] }],
+      rooms: [{ id: 'r1', floor: 1, name: '客厅', rects: [], objects: [] }],
       openings: [{
         id: 'o1', floor: 1, connectedRoomIds: ['r1'], wallAnchor: {},
         preset: 'arch', bounds: { centerU: 0.5, width: 2, bottom: 0, top: 2 },
@@ -60,7 +60,6 @@ describe('project schema', () => {
     const result = validateProject(project);
     expect(result.errors).toContain('建筑 ID 不能重复：building-a');
     expect(result.errors).toContain('建筑 B 的建筑模板不受支持');
-    expect(result.errors.some(error => error.includes('房间类型'))).toBe(true);
     expect(result.errors.some(error => error.includes('开口预设'))).toBe(true);
   });
 

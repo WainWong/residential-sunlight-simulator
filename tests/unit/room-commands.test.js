@@ -40,7 +40,7 @@ describe('room commands', () => {
     store.execute(createFinishRoomCommand());
 
     const room = store.getState().buildings[0].rooms[0];
-    expect(room).toMatchObject({ floor: 2, name: '房间 1', type: null, objects: [] });
+    expect(room).toMatchObject({ floor: 2, name: '房间 1', objects: [] });
     expect(room.rects).toHaveLength(2);
     expect(store.getState().view).toMatchObject({
       phase: 'room',
@@ -119,13 +119,13 @@ describe('room commands', () => {
   it('updates room metadata and adds an explicit opening', () => {
     const project = projectWithBuilding();
     const building = project.buildings[0];
-    building.rooms.push({ id: 'r1', floor: 1, name: '房间 1', type: null,
+    building.rooms.push({ id: 'r1', floor: 1, name: '房间 1',
       rects: [{ x0: -4, z0: -2, x1: 4, z1: 2 }], objects: [] });
     const opening = createOpeningFromPreset({ wall: deriveWalls(building, 1)[0], preset: 'window', id: 'o1' });
     const store = createStore(project);
-    store.execute(createUpdateRoomCommand('b1', 'r1', { type: 'living', name: '客厅' }));
+    store.execute(createUpdateRoomCommand('b1', 'r1', { name: '客厅' }));
     store.execute(createAddOpeningCommand('b1', opening));
-    expect(store.getState().buildings[0].rooms[0]).toMatchObject({ type: 'living', name: '客厅' });
+    expect(store.getState().buildings[0].rooms[0]).toMatchObject({ name: '客厅' });
     expect(store.getState().buildings[0].openings).toHaveLength(1);
   });
 

@@ -122,12 +122,6 @@ export function validateBuildingRooms(building) {
   return { ok: true, reason: null };
 }
 
-export function nextRoomName(rooms = [], type = null) {
-  const labels = {
-    living: '客厅', bedroom: '卧室', study: '书房', kitchen: '厨房',
-    balcony: '阳台', other: '房间'
-  };
-  const base = labels[type] ?? '房间';
-  const count = rooms.filter(room => (room.type ?? null) === type).length + 1;
-  return `${base} ${count}`;
+export function nextRoomName(rooms = []) {
+  return `房间 ${rooms.length + 1}`;
 }

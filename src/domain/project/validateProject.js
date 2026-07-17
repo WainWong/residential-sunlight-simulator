@@ -7,7 +7,6 @@ import { openingFitsWall, openingsOverlap } from '../openings/openingGeometry.js
 import { validateBuildingRooms } from '../rooms/roomGeometry.js';
 import { deriveWalls } from '../walls/deriveWalls.js';
 const BUILDING_TEMPLATES = new Set(listBuildingTypeDefinitions().map(type => type.id));
-const ROOM_TYPES = new Set([null, 'living', 'bedroom', 'study', 'kitchen', 'balcony', 'other']);
 const OPENING_PRESETS = new Set(['window', 'floorWindow', 'doorway', 'parapet', 'custom']);
 const OPENING_FILLS = new Set(['glass', 'open']);
 const OPENING_STATUSES = new Set(['valid', 'invalid']);
@@ -61,7 +60,6 @@ function validateBuilding(building, errors, ids) {
     } else {
       entityIds.add(room.id);
     }
-    if (!ROOM_TYPES.has(room?.type ?? null)) errors.push(`${label} 的房间类型不受支持`);
     if (!Number.isInteger(room?.floor) || room.floor < 1 || room.floor > (params.floors ?? 0)) {
       errors.push(`${label} 的房间楼层无效`);
       roomStructureValid = false;

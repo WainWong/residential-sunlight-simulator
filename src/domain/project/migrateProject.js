@@ -5,7 +5,6 @@ import { openingFitsWall } from '../openings/openingGeometry.js';
 import { deriveWalls } from '../walls/deriveWalls.js';
 
 const CURRENT_SCHEMA_VERSION = 2;
-const ROOM_TYPES = new Set(['living', 'bedroom', 'study', 'kitchen', 'balcony', 'other']);
 
 function fallbackRoomName(index) {
   return `房间 ${index + 1}`;
@@ -16,7 +15,6 @@ function migrateRoom(area, index) {
     id: area.id,
     floor: area.floor ?? 1,
     name: area.name?.trim() || fallbackRoomName(index),
-    type: ROOM_TYPES.has(area.type) ? area.type : null,
     rects: Array.isArray(area.rects) ? area.rects.map(rect => ({ ...rect })) : [],
     objects: Array.isArray(area.objects) ? structuredClone(area.objects) : []
   };
@@ -145,7 +143,6 @@ function normalizeV2(project) {
       id: room.id,
       floor: room.floor ?? 1,
       name: room.name?.trim() || fallbackRoomName(index),
-      type: ROOM_TYPES.has(room.type) ? room.type : null,
       rects: Array.isArray(room.rects) ? room.rects.map(rect => ({ ...rect })) : [],
       objects: Array.isArray(room.objects) ? structuredClone(room.objects) : []
     }));

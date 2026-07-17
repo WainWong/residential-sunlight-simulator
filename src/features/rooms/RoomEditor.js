@@ -9,11 +9,6 @@ import {
   createViewRoomSunlightCommand
 } from '../../store/roomCommands.js';
 
-const ROOM_TYPES = [
-  ['', '未指定'], ['living', '客厅'], ['bedroom', '卧室'], ['study', '书房'],
-  ['kitchen', '厨房'], ['balcony', '阳台'], ['other', '其他']
-];
-
 function field(label, control) {
   return createElement('label', { className: 'field' },
     createElement('span', { className: 'field__label', text: label }), control);
@@ -33,15 +28,8 @@ export function createRoomEditor({ store, buildingId, roomId = null }) {
       const name = createElement('input', {
         className: 'input', attributes: { value: editing.name ?? '', placeholder: '完成后自动命名', 'aria-label': '房间名称' }
       });
-      const type = createElement('select', { className: 'input', attributes: { 'aria-label': '房间类型' } });
-      for (const [value, label] of ROOM_TYPES) {
-        const option = createElement('option', { text: label, attributes: { value } });
-        if ((editing.type ?? '') === value) option.selected = true;
-        type.append(option);
-      }
       const updateDraft = patch => store.setView({ roomEditing: { ...store.getState().view.roomEditing, ...patch } });
       name.addEventListener('input', () => updateDraft({ name: name.value }));
-      type.addEventListener('change', () => updateDraft({ type: type.value || null }));
       const cancel = createElement('button', {
         className: 'button button--secondary', text: '取消', testId: 'room-cancel', attributes: { type: 'button' }
       });
@@ -58,14 +46,13 @@ export function createRoomEditor({ store, buildingId, roomId = null }) {
         createElement('div', { className: 'room-session-summary' },
           createElement('strong', { text: `${editing.rects.length} 块` }),
           createElement('span', { text: `${area} m²` })),
-        field('名称', name), field('房间类型', type),
+        field('名称', name),
         createElement('div', { className: 'inspector-actions' }, cancel, finish)
       );
       return;
     }
 
     if (!room) { element.replaceChildren(); return; }
-    const typeLabel = ROOM_TYPES.find(([value]) => value === (room.type ?? ''))?.[1] ?? '未指定';
     const openingCount = (building.openings ?? []).filter(opening => (opening.connectedRoomIds ?? []).includes(room.id)).length;
     const edit = createElement('button', { className: 'button button--secondary', text: '编辑房间', attributes: { type: 'button' } });
     edit.addEventListener('click', () => store.execute(createStartRoomEditCommand(buildingId, room.id)));
@@ -83,7 +70,6 @@ export function createRoomEditor({ store, buildingId, roomId = null }) {
       createElement('h2', { className: 'panel__title', text: room.name }),
       field('名称', rename),
       createElement('dl', { className: 'metric-list' },
-        createElement('dt', { text: '类型' }), createElement('dd', { text: typeLabel }),
         createElement('dt', { text: '楼层' }), createElement('dd', { text: `${room.floor} 层` }),
         createElement('dt', { text: '面积' }), createElement('dd', { text: `${rectArea(room.rects).toFixed(1)} m²` }),
         createElement('dt', { text: '墙上开口' }), createElement('dd', { text: `${openingCount} 个` })),

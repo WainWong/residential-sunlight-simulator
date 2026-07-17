@@ -36,7 +36,7 @@ describe('migrateProject v1 to v2', () => {
 
     expect(out.schemaVersion).toBe(2);
     expect(room).toEqual({
-      id: 'a1', floor: 1, name: '客厅', type: null,
+      id: 'a1', floor: 1, name: '客厅',
       rects: [{ x0: -4, z0: -3, x1: 4, z1: 3 }], objects: []
     });
     expect(out.buildings[0].observationAreas).toBeUndefined();
