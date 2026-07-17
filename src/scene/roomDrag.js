@@ -1,6 +1,5 @@
-import * as THREE from 'three';
-import { rotateLocalToWorld } from '../domain/buildings/wallGeometry.js';
-import { pointerToNdc } from './picking.js';
+import { worldPointToBuildingLocal } from '../domain/buildings/buildingCoordinates.js';
+import { createFloorPicker } from './pointerFloor.js';
 
 const GRID_STEP = 0.1; // meters (10cm) snapping granularity for room drawing.
 
@@ -8,12 +7,11 @@ export function snapToGrid(value, step = GRID_STEP) {
   return Math.round(value / step) * step;
 }
 
+// 世界→本地地面坐标 = domain 的反向旋转 + 10cm 网格吸附。旋转数学统一走
+// worldPointToBuildingLocal,不再手抄。
 export function worldToLocalFloor([wx, wz], building) {
-  const dx = wx - building.position.x;
-  const dz = wz - building.position.z;
-  // world -> local is the inverse rotation, i.e. rotateLocalToWorld at -rotation
-  const [lx, lz] = rotateLocalToWorld([dx, dz], -building.rotation);
-  return [snapToGrid(lx), snapToGrid(lz)];
+  const { x, z } = worldPointToBuildingLocal(building, { x: wx, z: wz });
+  return [snapToGrid(x), snapToGrid(z)];
 }
 
 export function normalizeRect(p0, p1) {
@@ -81,18 +79,12 @@ export function applyRectEdit(rects, rect, mode) {
 }
 
 export function createRoomDrag({ canvas, camera, floorY, getBuilding, getMode, onPreview = () => {}, onCommit }) {
-  const raycaster = new THREE.Raycaster();
-  const plane = new THREE.Plane(new THREE.Vector3(0, 1, 0), -floorY);
-  const ndc = new THREE.Vector2();
-  const hit = new THREE.Vector3();
+  const pickFloorPoint = createFloorPicker({ canvas, camera, planeY: floorY });
   let start = null;
 
   function localAt(event) {
-    const rect = canvas.getBoundingClientRect();
-    const { x, y } = pointerToNdc(event, rect);
-    ndc.set(x, y);
-    raycaster.setFromCamera(ndc, camera);
-    if (!raycaster.ray.intersectPlane(plane, hit)) return null;
+    const hit = pickFloorPoint(event);
+    if (!hit) return null;
     return worldToLocalFloor([hit.x, hit.z], getBuilding());
   }
   function onDown(e) {

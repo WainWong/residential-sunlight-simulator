@@ -1,4 +1,5 @@
 import * as THREE from 'three';
+import { worldPointToBuildingLocal } from '../../domain/buildings/buildingCoordinates.js';
 import { floorBaseY } from '../../domain/buildings/floorMath.js';
 import { rotateLocalToWorld } from '../../domain/buildings/wallGeometry.js';
 import { deriveWalls } from '../../domain/walls/deriveWalls.js';
@@ -79,10 +80,7 @@ export function createOpeningGestures({ canvas, camera, scene, store, setCameraL
     pointer.set(ndc.x, ndc.y);
     raycaster.setFromCamera(pointer, camera);
     if (!raycaster.ray.intersectPlane(dragPlane, hitPoint)) return null;
-    const [localX, localZ] = rotateLocalToWorld([
-      hitPoint.x - context.building.position.x,
-      hitPoint.z - context.building.position.z
-    ], -context.building.rotation);
+    const { x: localX, z: localZ } = worldPointToBuildingLocal(context.building, hitPoint);
     const directionX = (context.wall.end[0] - context.wall.start[0]) / context.wall.length;
     const directionZ = (context.wall.end[1] - context.wall.start[1]) / context.wall.length;
     return {

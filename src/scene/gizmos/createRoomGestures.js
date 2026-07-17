@@ -1,7 +1,8 @@
 import * as THREE from 'three';
-import { rotateLocalToWorld } from '../../domain/buildings/wallGeometry.js';
+import { worldPointToBuildingLocal } from '../../domain/buildings/buildingCoordinates.js';
 import { createReplaceRoomRectsCommand } from '../../store/roomCommands.js';
 import { pointerToNdc } from '../picking.js';
+import { createFloorPicker } from '../pointerFloor.js';
 import { createRoomRectGizmo, resolveRoomHandle, roomRectFromHandle } from './roomGizmo.js';
 
 export function createRoomGestures({
@@ -10,8 +11,7 @@ export function createRoomGestures({
 }) {
   const raycaster = new THREE.Raycaster();
   const pointer = new THREE.Vector2();
-  const plane = new THREE.Plane(new THREE.Vector3(0, 1, 0), -floorY);
-  const hitPoint = new THREE.Vector3();
+  const pickFloorPoint = createFloorPicker({ canvas, camera, planeY: floorY });
   const label = document.createElement('div');
   label.className = 'scene-dim-label';
   label.hidden = true;
@@ -37,15 +37,9 @@ export function createRoomGestures({
   }
 
   function localPoint(event) {
-    const ndc = pointerToNdc(event, canvas.getBoundingClientRect());
-    pointer.set(ndc.x, ndc.y);
-    raycaster.setFromCamera(pointer, camera);
-    if (!raycaster.ray.intersectPlane(plane, hitPoint)) return null;
-    const [x, z] = rotateLocalToWorld([
-      hitPoint.x - building.position.x,
-      hitPoint.z - building.position.z
-    ], -building.rotation);
-    return { x, z };
+    const hit = pickFloorPoint(event);
+    if (!hit) return null;
+    return worldPointToBuildingLocal(building, hit);
   }
 
   function start(event) {
