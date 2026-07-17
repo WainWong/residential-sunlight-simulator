@@ -12,7 +12,6 @@ import {
 } from './floorFocus.js';
 import { floorBaseY, totalBuildingHeight } from '../domain/buildings/floorMath.js';
 import { deriveWalls } from '../domain/walls/deriveWalls.js';
-import { SLAB_THICKNESS } from '../domain/buildings/segmentBuilding.js';
 import { applyBuildingTransform } from './buildingSceneHelpers.js';
 import { createRoomOverlay } from './roomOverlay.js';
 import { clipRectToFootprint } from '../domain/buildings/footprintClip.js';
@@ -24,18 +23,11 @@ import { selectedBuildingId } from './sceneSelection.js';
 import { applySunLighting } from './sunLighting.js';
 import { createSceneSynchronizer } from './syncScene.js';
 import { createAppendRoomRectCommand } from '../store/roomCommands.js';
-import { createFadeState } from './occlusionFade.js';
 import { createBuildingGestures } from './gizmos/createBuildingGestures.js';
 import { createOpeningGestures } from './gizmos/createOpeningGestures.js';
 import { createRoomGestures } from './gizmos/createRoomGestures.js';
 import { createWallOverlay, wallCameraPose } from './wallOverlay.js';
-
-// 段 mesh 的描边线是它的 'segment-edges' 子对象;淡化/还原时要连着一起改。
-function forEachEdge(mesh, fn) {
-  for (const child of mesh.children) {
-    if (child.userData?.kind === 'segment-edges') fn(child);
-  }
-}
+import { createInteriorView } from './createInteriorView.js';
 
 export function createSceneController(canvas, { onSelect = () => {}, store = null, compassNeedle = null, compassReadout = null } = {}) {
   const quality = createQualitySettings('medium');
@@ -159,171 +151,12 @@ export function createSceneController(canvas, { onSelect = () => {}, store = nul
 
   canvas.addEventListener('pointermove', hoverAtPointer);
 
-  let interior = null;
-  // 观察视角下被淡化的段网格:mesh → { state, fade, sharedMaterial,
-  // sharedEdgeMaterial }。仅登记 building-segment(building-lid 归揭盖管)。
-  const fadeMap = new Map();
-  const _occDir = new THREE.Vector3(); // updateOcclusion 每帧复用,避免分配
-
-  // The room is the building itself — openings are cut in the geometry so the
-  // scene's real sun light + shadow map pours in physically. No mesh is hidden.
-  // Focus the sun's shadow camera on the interior room so shadow texels are
-  // dense there (crisp edges); applySunLighting re-targets the light at the
-  // origin every solar update, so this runs after each of those too.
-  function frameShadowsOnInterior() {
-    if (!interior) return;
-    const light = sceneParts.sunlight;
-    light.target.position.set(interior.center.x, 0, interior.center.z);
-    light.target.updateMatrixWorld();
-    const cam = light.shadow.camera;
-    const half = interior.shadowHalf;
-    cam.left = -half; cam.right = half; cam.top = half; cam.bottom = -half;
-    cam.updateProjectionMatrix();
-    light.shadow.needsUpdate = true;
-  }
-
-  function restoreShadowFrame() {
-    const light = sceneParts.sunlight;
-    const cam = light.shadow.camera;
-    cam.left = -120; cam.right = 120; cam.top = 120; cam.bottom = -120;
-    cam.updateProjectionMatrix();
-    light.shadow.mapSize.set(2048, 2048);
-    light.shadow.map?.dispose();
-    light.shadow.map = null;
-    light.shadow.needsUpdate = true;
-  }
-
-  // 统一几何:房间就是建筑本体(CSG 挖好洞/掏好空腔的分段网格)。进入室内
-  // 只飞入相机;墙体始终实心可见。相机升到天花板以上时,把"盖子"(房间上方
-  // 的顶盖 mesh + 所有更高的楼层段)整块隐藏 —— 单块 mesh 的 visible 开关,
-  // 没有淡出/背面剔除/剖切那些和实心网格较劲的毛病。
-  //
-  // 盖子 = 观察层顶面(bandToY)及以上的东西:顶层房间的独立顶盖 mesh,或
-  // 非顶层时上方的整段楼层。楼下段、观察层墙身不在其中,始终可见。
-  function lidAndAbove(buildingId, bandToY) {
-    const meshes = [];
-    for (const child of sceneParts.buildings.children) {
-      if (child.userData?.entityId !== buildingId) continue;
-      child.traverse(m => {
-        const kind = m.userData?.kind;
-        if (kind !== 'building-segment' && kind !== 'building-lid') return;
-        // 顶盖(fromY≈bandToY-SLAB)与上方段(fromY≈bandToY)都归"盖子";
-        // 观察层墙身 fromY < bandToY,楼下段更低,都留下。
-        if (m.userData.fromY > bandToY - SLAB_THICKNESS - 0.01) meshes.push(m);
-      });
-    }
-    return meshes;
-  }
-
-  function enterInterior({ building, floor, center, radius }) {
-    if (interior) exitInterior();
-    fadeMap.clear();
-    const params = building.params;
-    const totalH = totalBuildingHeight(params);
-    // 房间顶面高度:顶层是屋顶板底,其余层是上一层楼板底(即上方段的 fromY)。
-    const bandToY = floor >= params.floors ? totalH : floorBaseY({ floor: floor + 1, ...params });
-    // "揭盖"触发高度:相机升到房间中段以上就掀盖(轨道很容易到,且此时视线
-    // 确实在往房间里俯瞰);低于此为第一人称,盖子回位。
-    const liftY = center.y + params.floorHeight * 0.5;
-    const lid = lidAndAbove(building.id, bandToY);
-
-    cameraParts.flyToArea({ center, radius });
-    // The frustum must contain the whole building AND its shadow throw (a 99m
-    // tower at low sun throws ~2× its height) — clipping the caster produces
-    // spike artifacts on the ground. Precision is recovered by raising the map
-    // size while inside (restored on exit).
-    const shadowHalf = Math.max(60, radius * 3, totalH * 1.6);
-    const light = sceneParts.sunlight;
-    light.shadow.mapSize.set(4096, 4096);
-    light.shadow.map?.dispose();
-    light.shadow.map = null;
-    // Dim the sky ambient so sun patches vs shadow read with more contrast.
-    const hemi = sceneParts.scene.getObjectByName('ambient-sky');
-    if (hemi) hemi.intensity = 0.9;
-    interior = {
-      buildingId: building.id, bandToY, liftY, lid,
-      shadowHalf, center: new THREE.Vector3(center.x, center.y, center.z)
-    };
-    frameShadowsOnInterior();
-  }
-
-  function exitInterior() {
-    if (!interior) return;
-    for (const mesh of interior.lid) mesh.visible = true;
-    for (const [mesh, entry] of fadeMap) {
-      mesh.material.dispose();
-      mesh.material = entry.sharedMaterial;
-      forEachEdge(mesh, child => {
-        child.material.dispose();
-        child.material = entry.sharedEdgeMaterial;
-      });
-    }
-    fadeMap.clear();
-    const hemi = sceneParts.scene.getObjectByName('ambient-sky');
-    if (hemi) hemi.intensity = 1.5;
-    cameraParts.setEditControls(null);
-    interior = null;
-    restoreShadowFrame();
-  }
-
-  // 相机在房间中段以下 → 第一人称(盖子在位,四周墙+天花板完整);升到以上
-  // → 揭盖:顶盖与上方楼层整块隐藏,露出房间地板与墙,看清光斑分布。
-  function updateOcclusion() {
-    if (!interior) return;
-    const lifted = cameraParts.camera.position.y > interior.liftY;
-    for (const mesh of interior.lid) mesh.visible = !lifted;
-
-    // 聚焦建筑的段 mesh(排除顶盖):射线 相机→房间中心,命中且在中心之前者遮挡。
-    const cam = cameraParts.camera.position;
-    _occDir.copy(interior.center).sub(cam);
-    const distToCenter = _occDir.length();
-    _occDir.normalize();
-    raycaster.set(cam, _occDir);
-    raycaster.far = distToCenter;
-
-    const segments = [];
-    for (const child of sceneParts.buildings.children) {
-      if (child.userData?.entityId !== interior.buildingId) continue;
-      child.traverse(m => {
-        if (m.userData?.kind === 'building-segment' && m.visible) segments.push(m);
-      });
-    }
-    const segmentSet = new Set(segments);
-    const hits = raycaster.intersectObjects(segments, false);
-    const occluders = new Set(hits.map(h => h.object));
-
-    // 已登记但本帧不再存在的 mesh(段重建)从表中移除,不再触碰。
-    for (const mesh of fadeMap.keys()) {
-      if (!segmentSet.has(mesh)) fadeMap.delete(mesh);
-    }
-
-    for (const mesh of segments) {
-      const occluding = occluders.has(mesh);
-      let entry = fadeMap.get(mesh);
-      if (!entry) {
-        if (!occluding) continue; // 未遮挡且未登记:保持共享实心材质,不克隆
-        entry = {
-          state: createFadeState(), fade: 1.0,
-          sharedMaterial: mesh.material, sharedEdgeMaterial: null
-        };
-        mesh.material = mesh.material.clone();
-        mesh.material.transparent = true;
-        forEachEdge(mesh, child => {
-          entry.sharedEdgeMaterial = child.material;
-          child.material = child.material.clone();
-          child.material.transparent = true;
-        });
-        fadeMap.set(mesh, entry);
-      }
-      entry.fade = entry.state.update(entry.fade, occluding);
-      mesh.material.opacity = entry.fade;
-      mesh.material.transparent = entry.fade < 1;
-      forEachEdge(mesh, child => {
-        child.material.opacity = entry.fade;
-        child.material.transparent = entry.fade < 1;
-      });
-    }
-  }
+  const interiorView = createInteriorView({
+    scene: sceneParts.scene,
+    sunlight: sceneParts.sunlight,
+    cameraRig: cameraParts,
+    buildingsGroup: sceneParts.buildings
+  });
 
   function disposeFloorFocus() {
     if (!floorFocus) return;
@@ -471,7 +304,10 @@ export function createSceneController(canvas, { onSelect = () => {}, store = nul
       },
       onCommit: rect => {
         clearPreview();
-        if (store?.getState()?.view?.roomEditing) store.execute(createAppendRoomRectCommand(rect));
+        if (!store?.getState()?.view?.roomEditing) return;
+        for (const piece of clipDrawable(rect, getBuilding())) {
+          store.execute(createAppendRoomRectCommand(piece));
+        }
       }
     });
     floorFocus = {
@@ -559,7 +395,7 @@ export function createSceneController(canvas, { onSelect = () => {}, store = nul
   rendererParts.renderer.setAnimationLoop(() => {
     cameraParts.controls.update();
     buildingGestures.updateOverlay();
-    updateOcclusion();
+    interiorView.tick();
     rendererParts.renderer.render(sceneParts.scene, cameraParts.camera);
     updateCompass();
   });
@@ -572,22 +408,13 @@ export function createSceneController(canvas, { onSelect = () => {}, store = nul
       buildingGestures.updateProject(project);
       openingGestures.updateProject(project);
       syncSelectedWall(project);
-      // revision 变化会重建段网格,interior.lid 里的旧 mesh 随之失效 →
-      // 按最新网格重新收集"盖子",并立即按当前相机高度决定其可见性。
-      if (interior) {
-        const alive = lidAndAbove(interior.buildingId, interior.bandToY);
-        const lidSet = new Set(interior.lid);
-        if (alive.length !== interior.lid.length || alive.some(m => !lidSet.has(m))) {
-          interior.lid = alive;
-          const lifted = cameraParts.camera.position.y > interior.liftY;
-          for (const mesh of alive) mesh.visible = !lifted;
-        }
-      }
+      // revision 变化会重建段网格 → 室内视图按最新网格重新收集"盖子"。
+      interiorView.onProjectChange(project);
       canvas.dataset.buildingCount = String(project.buildings.length);
     },
     updateSolar(simulationState, phase = 'present') {
       applySunLighting(sceneParts.sunlight, simulationState.solar, { phase });
-      frameShadowsOnInterior();
+      interiorView.onSolarUpdate();
       const direction = simulationState.solar.direction;
       canvas.dataset.sunDirection = [direction.x, direction.y, direction.z]
         .map(value => value.toFixed(4))
@@ -620,10 +447,10 @@ export function createSceneController(canvas, { onSelect = () => {}, store = nul
       cameraParts.focusWall(wallCameraPose(context.building, context.wall));
       return true;
     },
-    enterInterior(payload) { enterInterior(payload); },
-    exitInterior() { exitInterior(); },
+    enterInterior(building, room) { interiorView.enter(building, room); },
+    exitInterior() { interiorView.exit(); },
     dispose() {
-      exitInterior();
+      interiorView.dispose();
       canvas.removeEventListener('click', selectAtPointer);
       canvas.removeEventListener('pointermove', hoverAtPointer);
       buildingGestures.dispose();

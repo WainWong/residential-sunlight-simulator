@@ -18,8 +18,6 @@ import {
   createViewRoomSunlightCommand
 } from './store/roomCommands.js';
 import { createStore } from './store/createStore.js';
-import { floorBaseY } from './domain/buildings/floorMath.js';
-import { rotateLocalToWorld } from './domain/buildings/wallGeometry.js';
 import { createElement } from './ui/createElement.js';
 import { showToast } from './ui/Toast.js';
 
@@ -107,21 +105,9 @@ export function mountApp(root) {
     if (interiorKey) withController(controller => controller?.exitInterior());
     interiorKey = key;
     if (!building || !room) return;
-    const baseY = floorBaseY({ floor: room.floor, ...building.params });
-    const corners = room.rects.flatMap(rect =>
-      [[rect.x0, rect.z0], [rect.x0, rect.z1], [rect.x1, rect.z0], [rect.x1, rect.z1]].map(([x, z]) => {
-        const [wx, wz] = rotateLocalToWorld([x, z], building.rotation);
-        return [wx + building.position.x, wz + building.position.z];
-      }));
-    if (corners.length === 0) return;
-    const xs = corners.map(point => point[0]); const zs = corners.map(point => point[1]);
-    const center = {
-      x: (Math.min(...xs) + Math.max(...xs)) / 2,
-      y: baseY + building.params.floorHeight / 2,
-      z: (Math.min(...zs) + Math.max(...zs)) / 2
-    };
-    const radius = Math.max(6, Math.hypot(Math.max(...xs) - Math.min(...xs), Math.max(...zs) - Math.min(...zs)) / 2);
-    withController(controller => controller?.enterInterior({ building, floor: room.floor, center, radius }));
+    // 世界坐标取景由室内视图内部经 roomInteriorFrame 求得 —— main.js 只需转发
+    // "看哪个房间"。
+    withController(controller => controller?.enterInterior(building, room));
   }
 
   let prevEditing = Boolean(store.getState().view.roomEditing);
