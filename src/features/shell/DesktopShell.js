@@ -1,5 +1,6 @@
 import { createElement } from '../../ui/createElement.js';
 import {
+  createEnterRoomViewCommand,
   createRemoveRoomCommand,
   createSelectEntityCommand,
   createStartRoomCommand,
@@ -37,7 +38,11 @@ export function createProjectTree({ store, onAdd }) {
         attributes: { type: 'button', title: '添加房间', 'aria-label': `为${building.name}添加房间` }
       });
       addRoom.hidden = locked;
-      addRoom.addEventListener('click', () => store.execute(createStartRoomCommand(building.id, 1)));
+      addRoom.addEventListener('click', () => {
+        const focus = store.getState().view.roomFocus;
+        const floor = focus?.buildingId === building.id ? focus.floor : 1;
+        store.execute(createStartRoomCommand(building.id, floor));
+      });
       const header = createElement('div', { className: 'tree-building-row' }, row, addRoom);
       const children = (building.rooms ?? []).map(room => {
         const active = project.view.selection?.kind === 'room' && project.view.selection.id === room.id;
@@ -48,7 +53,7 @@ export function createProjectTree({ store, onAdd }) {
         label.addEventListener('click', () => {
           const command = locked
             ? createViewRoomSunlightCommand(building.id, room.id)
-            : createSelectEntityCommand({ kind: 'room', id: room.id, buildingId: building.id });
+            : createEnterRoomViewCommand(building.id, room.floor, room.id);
           store.execute(command);
         });
         const del = createElement('button', {

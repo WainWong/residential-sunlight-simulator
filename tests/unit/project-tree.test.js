@@ -32,6 +32,8 @@ describe('room-first project tree', () => {
     expect(row.textContent).toContain('房间 1');
     row.click();
     expect(store.getState().view.selection).toMatchObject({ kind: 'room', id: room.id });
+    expect(store.getState().view.phase).toBe('room');
+    expect(store.getState().view.roomFocus).toMatchObject({ buildingId: 'b1', floor: room.floor });
     row.parentElement.querySelector('.tree-row__del').click();
     expect(store.getState().buildings[0].rooms).toHaveLength(0);
   });

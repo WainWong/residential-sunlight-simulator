@@ -83,22 +83,26 @@ export function createSetRoomFloorCommand(floor) {
   };
 }
 
-export function createEnterRoomViewCommand(buildingId, floor = 1) {
+export function createEnterRoomViewCommand(buildingId, floor = 1, roomId = null) {
   return {
     label: '进入编辑房间',
     apply(state) {
       const building = findBuilding(state, buildingId);
       if (!building) return null;
       const clampedFloor = Math.min(Math.max(1, floor), building.params.floors);
+      const room = roomId ? building.rooms?.find(r => r.id === roomId) : null;
       return {
         ...state,
         view: {
           ...state.view,
           phase: 'room',
-          roomFocus: { buildingId, floor: clampedFloor },
+          roomFocus: { buildingId, floor: room ? room.floor : clampedFloor },
           roomEditing: null,
+          roomTool: 'select',
           interiorRoomId: null,
-          selection: { kind: 'building', id: buildingId }
+          selection: room
+            ? { kind: 'room', id: room.id, buildingId }
+            : { kind: 'building', id: buildingId }
         }
       };
     }
