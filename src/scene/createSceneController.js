@@ -277,9 +277,8 @@ export function createSceneController(canvas, { onSelect = () => {}, store = nul
     // overlap them. The room being edited is excluded because its
     // working rects live in the session, not in the saved building.
     function existingRectsOnFloor(b) {
-      const st = store?.getState()?.view?.roomEditing;
       return (b?.rooms ?? [])
-        .filter(room => room.floor === st?.floor && room.id !== st?.roomId)
+        .filter(room => room.floor === editing.floor && room.id !== editing.roomId)
         .flatMap(a => a.rects ?? []);
     }
     function clipDrawable(rect, b) {

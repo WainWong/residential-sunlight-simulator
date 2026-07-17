@@ -35,6 +35,14 @@ export function createStore(initialState) {
       setState(next);
       return true;
     },
+    // Dry-run a command against a snapshot: true if it would commit (apply
+    // returns non-null), false if it would abort validation. Nothing is
+    // mutated and no history entry is made. Lets callers (e.g. drag gizmos
+    // previewing validity mid-gesture) ask "would this be valid?" without
+    // reaching into the command's apply protocol or the state shape.
+    canExecute(command) {
+      return command.apply(structuredClone(state)) != null;
+    },
     undo() {
       const entry = undoStack.pop();
       if (!entry) return false;

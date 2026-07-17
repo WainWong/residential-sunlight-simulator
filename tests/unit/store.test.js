@@ -22,6 +22,22 @@ describe('project command store', () => {
     expect(listener).toHaveBeenCalledTimes(3);
   });
 
+  it('canExecute dry-runs without mutating state or history', () => {
+    const store = createStore(createDefaultProject());
+    const listener = vi.fn();
+    store.subscribe(listener);
+
+    const valid = { label: '有效', apply: state => ({ ...state, name: '试运行' }) };
+    const invalid = { label: '无效', apply: () => null };
+
+    expect(store.canExecute(valid)).toBe(true);
+    expect(store.canExecute(invalid)).toBe(false);
+    // No mutation, no notification, no undo entry.
+    expect(store.getState().name).toBe('未命名项目');
+    expect(listener).not.toHaveBeenCalled();
+    expect(store.canUndo()).toBe(false);
+  });
+
   it('does not add camera-only view updates to undo history', () => {
     const store = createStore(createDefaultProject());
     store.setView({ camera: { x: 3, y: 8, z: 12 } });

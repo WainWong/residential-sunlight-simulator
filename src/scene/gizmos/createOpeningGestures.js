@@ -121,7 +121,7 @@ export function createOpeningGestures({ canvas, camera, scene, store, setCameraL
       { bounds }
     );
     gesture.bounds = bounds;
-    gesture.valid = command.apply(structuredClone(store.getState())) != null;
+    gesture.valid = store.canExecute(command);
     gesture.moved = true;
     rebuildGizmo(gesture.context, bounds);
     label.textContent = `${bounds.width.toFixed(2)} 米 · ${bounds.bottom.toFixed(2)}–${bounds.top.toFixed(2)} 米`;

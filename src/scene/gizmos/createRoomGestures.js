@@ -65,7 +65,7 @@ export function createRoomGestures({
     nextRects[gesture.handle.rectIndex] = roomRectFromHandle(original, gesture.handle, point, gesture.start);
     const command = createReplaceRoomRectsCommand(nextRects);
     gesture.previewRects = nextRects;
-    gesture.valid = command.apply(structuredClone(store.getState())) != null;
+    gesture.valid = store.canExecute(command);
     gesture.moved = true;
     rebuildGizmo(nextRects);
     onPreview(nextRects, gesture.valid);
