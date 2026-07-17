@@ -1,8 +1,8 @@
 import * as THREE from 'three';
 import { createFootprint } from '../domain/buildings/createFootprint.js';
 import { floorBaseY } from '../domain/buildings/floorMath.js';
-import { SLAB_THICKNESS } from '../domain/buildings/segmentBuilding.js';
 import { applyBuildingTransform, getOuterRing } from './buildingSceneHelpers.js';
+import { isBuildingShell, isFloorLines, isLidOrAbove, isRoomGeometry } from './sceneTags.js';
 
 export function floorFocusTarget(building, floor) {
   const y = floorBaseY({ floor, ...building.params });
@@ -14,33 +14,30 @@ export function restoreBuildingVisibility(buildingRoot) {
   });
 }
 
-const ROOM_GEOMETRY_KINDS = new Set(['room-floor', 'room-wall', 'opening-glass', 'opening-open']);
-
 export function setFloorFocusVisibility(buildingRoot, buildingId, floor, bandToY) {
   restoreBuildingVisibility(buildingRoot);
-  const hiddenFromY = bandToY - SLAB_THICKNESS - 0.01;
   for (const buildingGroup of buildingRoot.children) {
     if (buildingGroup.userData?.entityId !== buildingId) continue;
     buildingGroup.traverse(object => {
-      const kind = object.userData?.kind;
-      if (ROOM_GEOMETRY_KINDS.has(kind)) {
+      if (isRoomGeometry(object)) {
         object.visible = object.userData.floor < floor;
         return;
       }
-      if (kind === 'floor-lines') {
+      if (isFloorLines(object)) {
         object.visible = false;
         return;
       }
-      if (kind !== 'building-segment' && kind !== 'building-lid') return;
-      object.visible = !(object.userData.fromY > hiddenFromY);
+      if (!isBuildingShell(object)) return;
+      object.visible = !isLidOrAbove(object, bandToY);
     });
   }
 }
 
 
 const slabMaterial = new THREE.MeshBasicMaterial({
-  color: 0xdfe6e9, transparent: true, opacity: 0.55, side: THREE.DoubleSide, depthWrite: false
+  color: 0xf4ead2, transparent: true, opacity: 0.92, side: THREE.DoubleSide, depthWrite: false
 });
+const slabOutlineMaterial = new THREE.LineBasicMaterial({ color: 0x8b691f, transparent: true, opacity: 0.95 });
 
 export function createFloorSlab(building, floor) {
   const footprint = createFootprint(building.template, building.params);
@@ -55,10 +52,26 @@ export function createFloorSlab(building, floor) {
   group.userData.dispose = () => {
     group.traverse(child => child.geometry?.dispose());
   };
-  const slab = new THREE.Mesh(new THREE.ShapeGeometry(shape), slabMaterial);
+  const slabGeometry = new THREE.ShapeGeometry(shape);
+  const slab = new THREE.Mesh(slabGeometry, slabMaterial);
+  slab.name = 'floor-slab-surface';
   slab.rotation.x = -Math.PI / 2;
   slab.position.y = y + 0.01;
-  group.add(slab);
+
+  const outline = new THREE.LineSegments(new THREE.EdgesGeometry(slabGeometry), slabOutlineMaterial);
+  outline.name = 'floor-slab-outline';
+  outline.rotation.x = -Math.PI / 2;
+  outline.position.y = y + 0.035;
+
+  const gridSize = Math.max(1, Math.ceil(Math.max(building.params.length, building.params.depth)));
+  const grid = new THREE.GridHelper(gridSize, gridSize, 0x9b7a2f, 0xc9b98e);
+  grid.name = 'floor-drawing-grid';
+  grid.position.y = y + 0.025;
+  grid.material.transparent = true;
+  grid.material.opacity = 0.42;
+  grid.userData.cellSize = 1;
+
+  group.add(slab, outline, grid);
   applyBuildingTransform(group, building);
   return group;
 }

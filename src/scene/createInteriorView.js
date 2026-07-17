@@ -1,15 +1,8 @@
 import * as THREE from 'three';
 import { floorBaseY, totalBuildingHeight } from '../domain/buildings/floorMath.js';
-import { SLAB_THICKNESS } from '../domain/buildings/segmentBuilding.js';
 import { roomInteriorFrame } from '../domain/rooms/roomGeometry.js';
 import { createFadeState } from './occlusionFade.js';
-
-// 段 mesh 的描边线是它的 'segment-edges' 子对象;淡化/还原时要连着一起改。
-function forEachEdge(mesh, fn) {
-  for (const child of mesh.children) {
-    if (child.userData?.kind === 'segment-edges') fn(child);
-  }
-}
+import { eachEdge, isBuildingShell, isLidOrAbove, isSegment } from './sceneTags.js';
 
 // 室内视图 (Interior View):进入某个房间内部、观察真实太阳光斑的视图模式。
 // 统一几何下"房间就是建筑本体"(CSG 挖好洞的分段网格),进屋只飞相机;墙体
@@ -58,9 +51,7 @@ export function createInteriorView({ scene, sunlight, cameraRig, buildingsGroup,
     for (const child of buildingsGroup.children) {
       if (child.userData?.entityId !== buildingId) continue;
       child.traverse(m => {
-        const kind = m.userData?.kind;
-        if (kind !== 'building-segment' && kind !== 'building-lid') return;
-        if (m.userData.fromY > bandToY - SLAB_THICKNESS - 0.01) meshes.push(m);
+        if (isBuildingShell(m) && isLidOrAbove(m, bandToY)) meshes.push(m);
       });
     }
     return meshes;
@@ -103,7 +94,7 @@ export function createInteriorView({ scene, sunlight, cameraRig, buildingsGroup,
     for (const [mesh, entry] of fadeMap) {
       mesh.material.dispose();
       mesh.material = entry.sharedMaterial;
-      forEachEdge(mesh, child => {
+      eachEdge(mesh, child => {
         child.material.dispose();
         child.material = entry.sharedEdgeMaterial;
       });
@@ -151,7 +142,7 @@ export function createInteriorView({ scene, sunlight, cameraRig, buildingsGroup,
     for (const child of buildingsGroup.children) {
       if (child.userData?.entityId !== interior.buildingId) continue;
       child.traverse(m => {
-        if (m.userData?.kind === 'building-segment' && m.visible) segments.push(m);
+        if (isSegment(m) && m.visible) segments.push(m);
       });
     }
     const segmentSet = new Set(segments);
@@ -174,7 +165,7 @@ export function createInteriorView({ scene, sunlight, cameraRig, buildingsGroup,
         };
         mesh.material = mesh.material.clone();
         mesh.material.transparent = true;
-        forEachEdge(mesh, child => {
+        eachEdge(mesh, child => {
           entry.sharedEdgeMaterial = child.material;
           child.material = child.material.clone();
           child.material.transparent = true;
@@ -184,7 +175,7 @@ export function createInteriorView({ scene, sunlight, cameraRig, buildingsGroup,
       entry.fade = entry.state.update(entry.fade, occluding);
       mesh.material.opacity = entry.fade;
       mesh.material.transparent = entry.fade < 1;
-      forEachEdge(mesh, child => {
+      eachEdge(mesh, child => {
         child.material.opacity = entry.fade;
         child.material.transparent = entry.fade < 1;
       });

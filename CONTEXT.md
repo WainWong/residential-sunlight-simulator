@@ -9,3 +9,5 @@
 - **盖子 (Lid)** — 室内视图中，观察层顶面及以上被整块隐藏的几何：顶层房间的独立顶盖 mesh，或非顶层时上方的整段楼层。相机升到房间中段以上时隐藏，露出房间内部。
 
 - **室内取景 (Interior Frame)** — 由房间几何推导出的世界坐标包围信息 `{ center, radius }`，用于把相机飞到房间、并框定阴影相机范围。纯几何计算，归属 domain 层 `roomInteriorFrame(building, room)`。
+
+- **mesh 标签契约 (Scene Tags)** — 场景网格用 `userData.kind` 字符串标注用途；可见性/遮挡/拾取据此过滤。`src/scene/sceneTags.js` 独占**会被读取**的标签名（`building-segment`/`building-lid`/`segment-edges`/`floor-lines`/房间几何四类）与其之上的谓词（`isSegment`、`isBuildingShell`、`isLidOrAbove`、`isFloorLines`、`isRoomGeometry`、`eachEdge`），让生产者与消费者共用同一定义。纯装饰、只写不读的标签不收录。

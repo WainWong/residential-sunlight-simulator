@@ -7,6 +7,7 @@ import { buildSegmentSpecs, SLAB_THICKNESS } from '../domain/buildings/segmentBu
 import { createFootprint } from '../domain/buildings/createFootprint.js';
 import { totalBuildingHeight } from '../domain/buildings/floorMath.js';
 import { getOuterRing } from './buildingSceneHelpers.js';
+import { BUILDING_LID, BUILDING_SEGMENT, SEGMENT_EDGES } from './sceneTags.js';
 
 const CUT_Y_OVERSHOOT = 0.5;
 const EPS = 1e-4;
@@ -60,7 +61,7 @@ function edgeLines(rings, fromY, toY) {
   const geo = new THREE.BufferGeometry();
   geo.setAttribute('position', new THREE.Float32BufferAttribute(vertices, 3));
   const lines = new THREE.LineSegments(geo, edgeMaterial);
-  lines.userData.kind = 'segment-edges';
+  lines.userData.kind = SEGMENT_EDGES;
   return lines;
 }
 
@@ -166,7 +167,7 @@ export function buildSegmentMeshes(building, material) {
     const geometry = segmentGeometry(spec, footprint);
     const mesh = new THREE.Mesh(geometry, material);
     mesh.userData = {
-      kind: 'building-segment', entityId: building.id,
+      kind: BUILDING_SEGMENT, entityId: building.id,
       fromY: spec.fromY, toY: spec.toY, hasCutters: spec.cutters.length > 0
     };
     // 描边作为子对象:随段的变换与可见性走,拾取仍解析到父级 entityId。
@@ -180,7 +181,7 @@ export function buildSegmentMeshes(building, material) {
         const lidGeom = lidGeometry(room, spec.toY);
         const lid = new THREE.Mesh(lidGeom, material);
         lid.userData = {
-          kind: 'building-lid', entityId: building.id,
+          kind: BUILDING_LID, entityId: building.id,
           fromY: spec.toY - SLAB_THICKNESS, toY: spec.toY
         };
         // 顶盖描边:房间空腔轮廓(外环 + 洞环),薄板 fromY..toY。

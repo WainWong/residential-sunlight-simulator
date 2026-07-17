@@ -2,6 +2,7 @@ import * as THREE from 'three';
 import { floorBaseY } from '../domain/buildings/floorMath.js';
 import { rectUnionToPolygons } from '../domain/buildings/rectUnion.js';
 import { deriveWalls } from '../domain/walls/deriveWalls.js';
+import { OPENING_GLASS, OPENING_OPEN, ROOM_FLOOR, ROOM_WALL } from './sceneTags.js';
 
 const WALL_THICKNESS = 0.12;
 const EPS = 1e-5;
@@ -43,7 +44,7 @@ function addRoomFloors(group, building) {
       const mesh = new THREE.Mesh(geometry, floorMaterial);
       mesh.position.y = y;
       mesh.userData.selection = { kind: 'room', id: room.id, buildingId: building.id };
-      mesh.userData.kind = 'room-floor';
+      mesh.userData.kind = ROOM_FLOOR;
       group.add(mesh);
       mesh.userData.floor = room.floor;
     }
@@ -73,7 +74,7 @@ function addWallCell(group, building, wall, material, u0, u1, y0, y1) {
   mesh.rotation.y = -Math.atan2(dirZ, dirX);
   mesh.castShadow = true;
   mesh.receiveShadow = true;
-  mesh.userData.kind = 'room-wall';
+  mesh.userData.kind = ROOM_WALL;
   mesh.userData.wallId = wall.id;
   mesh.userData.floor = wall.floor;
   mesh.userData.wallPick = { start: [...wall.start], end: [...wall.end] };
@@ -100,7 +101,7 @@ function addOpeningSurface(group, building, wall, opening) {
     wall.start[1] + dirZ * center + wall.normal[1] * (WALL_THICKNESS / 2 + 0.004)
   );
   mesh.rotation.y = -Math.atan2(dirZ, dirX);
-  mesh.userData.kind = opening.fill === 'glass' ? 'opening-glass' : 'opening-open';
+  mesh.userData.kind = opening.fill === 'glass' ? OPENING_GLASS : OPENING_OPEN;
   mesh.userData.selection = { kind: 'opening', id: opening.id, buildingId: building.id };
   mesh.userData.floor = wall.floor;
   group.add(mesh);

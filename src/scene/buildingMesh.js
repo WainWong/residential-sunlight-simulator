@@ -4,6 +4,7 @@ import { floorBaseY, totalBuildingHeight } from '../domain/buildings/floorMath.j
 import { applyBuildingTransform, getOuterRing } from './buildingSceneHelpers.js';
 import { buildSegmentMeshes } from './buildSegmentMeshes.js';
 import { createRoomGeometry } from './roomGeometry.js';
+import { FLOOR_LINES } from './sceneTags.js';
 
 // 白底 × 顶点色:顶点色携带最终色调(墙灰、地板/顶面米色,见 buildSegmentMeshes),
 // 所以外墙灰度和以前一致,水平面转米色,室内地板/墙一眼可分。
@@ -51,7 +52,7 @@ function floorLines(footprint, building) {
   const geometry = new THREE.BufferGeometry();
   geometry.setAttribute('position', new THREE.Float32BufferAttribute(vertices, 3));
   const lines = new THREE.LineSegments(geometry, floorLineMaterial);
-  lines.userData.kind = 'floor-lines';
+  lines.userData.kind = FLOOR_LINES;
   return lines;
 }
 
