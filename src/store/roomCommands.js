@@ -190,7 +190,9 @@ export function createAppendRoomRectCommand(rect) {
         .filter(room => room.floor === editing.floor && room.id !== editing.roomId)
         .flatMap(room => room.rects ?? []);
       const rects = [...editing.rects, normalized];
-      const validity = validateRoomRects(rects, occupied);
+      // 绘制过程允许暂时不连通(见 CONTEXT 画房间预览的 (ii)),连通性留到"完成房间"
+      // (createFinishRoomCommand)统一校验;这里只挡重叠/越界/占用他室。
+      const validity = validateRoomRects(rects, occupied, { allowDisconnected: true });
       if (!validity.ok) return null;
       return {
         ...state,
@@ -265,6 +267,11 @@ export function createFinishRoomCommand() {
       const editing = state.view.roomEditing;
       const building = editing && findBuilding(state, editing.buildingId);
       if (!editing || !building || editing.rects.length === 0) return null;
+      // 完成时统一校验连通性:绘制期允许暂时分离,但一个房间最终必须连通。
+      const occupied = (building.rooms ?? [])
+        .filter(room => room.floor === editing.floor && room.id !== editing.roomId)
+        .flatMap(room => room.rects ?? []);
+      if (!validateRoomRects(editing.rects, occupied).ok) return null;
       const currentRooms = building.rooms ?? [];
       const existing = currentRooms.find(room => room.id === editing.roomId);
       const room = {

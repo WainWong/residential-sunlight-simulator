@@ -1,5 +1,6 @@
 import { rectArea } from '../../domain/rooms/roomGeometry.js';
 import { createElement } from '../../ui/createElement.js';
+import { showToast } from '../../ui/Toast.js';
 import {
   createCancelRoomCommand,
   createFinishRoomCommand,
@@ -64,7 +65,11 @@ export function createRoomEditor({ store, buildingId, roomId = null }) {
         className: 'button button--primary', text: '完成房间', testId: 'room-finish', attributes: { type: 'button', 'data-primary-control': '' }
       });
       finish.disabled = editing.rects.length === 0;
-      finish.addEventListener('click', () => store.execute(createFinishRoomCommand()));
+      finish.addEventListener('click', () => {
+        if (!store.execute(createFinishRoomCommand())) {
+          showToast('房间必须是连通的一整块,请把分开的部分连起来', 'error');
+        }
+      });
       const area = rectArea(editing.rects).toFixed(1);
       element.replaceChildren(
         createElement('div', { className: 'panel__label', text: editing.mode === 'edit' ? '编辑房间' : '新建房间', testId: 'room-session-title' }),

@@ -341,7 +341,7 @@ export function createSceneController(canvas, { onSelect = () => {}, store = nul
     }
 
     floorFocus = {
-      buildingId, floor, baseY: target.y,
+      buildingId, floor, baseY: target.y, previewY,
       sig: `${buildingId}:${floor}`,
       buildingRevision: building.revision,
       ceiling: effectiveCeiling(project.view),
@@ -367,9 +367,9 @@ export function createSceneController(canvas, { onSelect = () => {}, store = nul
     const active = isDrawingToolActive(project.view); // draw/erase reserve the left button
     const draftSig = `${editing.roomId}:${editing.mode}`;
     if (floorFocus.draft?.sig === draftSig) {
-      // Refresh the edit-mode preview only when the rects actually changed
-      // (new array reference per edit command), not on every store notification.
-      if (editing.mode === 'edit' && floorFocus.draft.rects !== editing.rects) {
+      // 已画的块随 rects 变化(每次 append/replace 是新数组)持续显示为半透明累积;
+      // 不在每次无关通知时重画。create 与 edit 一致。
+      if (floorFocus.draft.rects !== editing.rects) {
         floorFocus.draft.rects = editing.rects;
         floorFocus.renderRoomPreview(editing.rects);
       }
@@ -378,14 +378,14 @@ export function createSceneController(canvas, { onSelect = () => {}, store = nul
     }
     if (floorFocus.draft) disposeDraft();
     rebuildExistingOverlays();
-    if (editing.mode === 'edit') floorFocus.renderRoomPreview(editing.rects);
+    if (editing.rects?.length) floorFocus.renderRoomPreview(editing.rects);
 
     const getMode = () => {
       const t = store.getState().view.roomTool;
       return t === 'draw' || t === 'erase' ? t : null;
     };
     const drag = createRoomDrag({
-      canvas, camera: cameraParts.camera, floorY: floorFocus.baseY,
+      canvas, camera: cameraParts.camera, floorY: floorFocus.previewY,
       getBuilding: floorFocus.getBuilding, getMode,
       onPreview: rect => {
         floorFocus.clearPreview();
@@ -438,7 +438,7 @@ export function createSceneController(canvas, { onSelect = () => {}, store = nul
       draft.roomGestures = createRoomGestures({
         canvas, camera: cameraParts.camera, scene: sceneParts.scene, store,
         building: floorFocus.getBuilding(), floor: floorFocus.floor,
-        floorY: floorFocus.baseY, rects: editing.rects,
+        floorY: floorFocus.previewY, rects: editing.rects,
         onPreview: floorFocus.renderRoomPreview,
         setCameraLocked: locked => cameraParts.setEditControls(locked ? 'draw' : null)
       });

@@ -76,7 +76,7 @@ function connected(rects) {
   return seen.size === rects.length;
 }
 
-export function validateRoomRects(rects, occupiedRects = []) {
+export function validateRoomRects(rects, occupiedRects = [], { allowDisconnected = false } = {}) {
   const normalized = normalizeRects(rects);
   if (normalized.length === 0) return { ok: false, reason: 'empty' };
   for (let i = 0; i < normalized.length; i += 1) {
@@ -84,7 +84,7 @@ export function validateRoomRects(rects, occupiedRects = []) {
       if (rectsOverlap(normalized[i], normalized[j])) return { ok: false, reason: 'overlap' };
     }
   }
-  if (!connected(normalized)) return { ok: false, reason: 'disconnected' };
+  if (!allowDisconnected && !connected(normalized)) return { ok: false, reason: 'disconnected' };
   if (normalized.some(rect => normalizeRects(occupiedRects).some(other => rectsOverlap(rect, other)))) {
     return { ok: false, reason: 'occupied' };
   }

@@ -151,6 +151,21 @@ describe('room commands', () => {
     expect(store.getState().view.roomEditing.rects).toHaveLength(1);
   });
 
+  it('allows disconnected blocks while drawing but blocks finishing until connected', () => {
+    const store = createStore(projectWithBuilding());
+    store.execute(createStartRoomCommand('b1', 1));
+    // two separate, non-overlapping blocks — allowed during drawing (deferred check)
+    expect(store.execute(createAppendRoomRectCommand({ x0: -4, z0: -2, x1: -2, z1: 2 }))).toBe(true);
+    expect(store.execute(createAppendRoomRectCommand({ x0: 2, z0: -2, x1: 4, z1: 2 }))).toBe(true);
+    expect(store.getState().view.roomEditing.rects).toHaveLength(2);
+    // cannot finish while disconnected
+    expect(store.execute(createFinishRoomCommand())).toBe(false);
+    // bridge them → now connected → finish succeeds
+    expect(store.execute(createAppendRoomRectCommand({ x0: -2, z0: -1, x1: 2, z1: 1 }))).toBe(true);
+    expect(store.execute(createFinishRoomCommand())).toBe(true);
+    expect(store.getState().buildings[0].rooms).toHaveLength(1);
+  });
+
   it('cancels without writing a room and supports entity selection', () => {
     const store = createStore(projectWithBuilding());
     store.execute(createStartRoomCommand('b1', 1));
