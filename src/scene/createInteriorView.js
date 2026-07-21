@@ -2,7 +2,8 @@ import * as THREE from 'three';
 import { bandTopY, totalBuildingHeight } from '../domain/buildings/floorMath.js';
 import { roomInteriorFrame } from '../domain/rooms/roomGeometry.js';
 import { createFadeState } from './occlusionFade.js';
-import { eachEdge, isBuildingShell, isLidOrAbove, isSegment } from './sceneTags.js';
+import { applyCeiling } from './ceilingVisibility.js';
+import { eachEdge, isSegment } from './sceneTags.js';
 
 // 室内视图 (Interior View):进入某个房间内部、观察真实太阳光斑的视图模式。
 // 统一几何下"房间就是建筑本体"(CSG 挖好洞的分段网格),进屋只飞相机;墙体
@@ -44,20 +45,19 @@ export function createInteriorView({ scene, sunlight, cameraRig, buildingsGroup,
     sunlight.shadow.needsUpdate = true;
   }
 
-  // 盖子 = 观察层顶面(bandToY)及以上的东西:顶层房间的独立顶盖 mesh,或
-  // 非顶层时上方的整段楼层。楼下段、观察层墙身不在其中,始终可见。
-  function lidAndAbove(buildingId, bandToY) {
-    const meshes = [];
-    for (const child of buildingsGroup.children) {
-      if (child.userData?.entityId !== buildingId) continue;
-      child.traverse(m => {
-        if (isBuildingShell(m) && isLidOrAbove(m, bandToY)) meshes.push(m);
-      });
-    }
-    return meshes;
+  function buildingGroupOf(buildingId) {
+    return buildingsGroup.children.find(child => child.userData?.entityId === buildingId) ?? null;
   }
 
-  function enter(building, room) {
+  // 按当前天花档(view.ceiling)显隐本房间的盖子。与编辑房间共用 applyCeiling —
+  // 显示/半透明/隐藏,不再随相机高度自动揭盖。
+  function applyCeilingNow() {
+    if (!interior) return;
+    const group = buildingGroupOf(interior.buildingId);
+    if (group) applyCeiling(group, interior.bandToY, interior.ceiling);
+  }
+
+  function enter(building, room, ceiling = 'hide') {
     if (interior) exit();
     const frame = roomInteriorFrame(building, room);
     if (!frame) return;
@@ -67,9 +67,6 @@ export function createInteriorView({ scene, sunlight, cameraRig, buildingsGroup,
     const totalH = totalBuildingHeight(params);
     // 房间顶面高度:顶层是屋顶板底,其余层是上一层楼板底(即上方段的 fromY)。
     const bandToY = bandTopY({ floor, ...params });
-    // "揭盖"触发高度:相机升到房间中段以上就掀盖。
-    const liftY = center.y + params.floorHeight * 0.5;
-    const lid = lidAndAbove(building.id, bandToY);
 
     cameraRig.flyToArea({ center, radius });
     // 视锥必须容纳整栋楼及其阴影投射(低日照时约 2× 楼高) —— 裁掉投射者会在
@@ -82,15 +79,25 @@ export function createInteriorView({ scene, sunlight, cameraRig, buildingsGroup,
     const hemi = scene.getObjectByName('ambient-sky');
     if (hemi) hemi.intensity = 0.9;
     interior = {
-      buildingId: building.id, bandToY, liftY, lid,
+      buildingId: building.id, bandToY, ceiling,
       shadowHalf, center: new THREE.Vector3(center.x, center.y, center.z)
     };
+    applyCeilingNow();
     frameShadowsOnInterior();
+  }
+
+  // 天花档切换:两视图共享全局 view.ceiling,采光视图收到新值即重新应用。
+  function setCeiling(ceiling) {
+    if (!interior || interior.ceiling === ceiling) return;
+    interior.ceiling = ceiling;
+    applyCeilingNow();
   }
 
   function exit() {
     if (!interior) return;
-    for (const mesh of interior.lid) mesh.visible = true;
+    // 还原盖子(把 hide/ghost 恢复成完整可见的实心外观)。
+    const group = buildingGroupOf(interior.buildingId);
+    if (group) applyCeiling(group, interior.bandToY, 'show');
     for (const [mesh, entry] of fadeMap) {
       mesh.material.dispose();
       mesh.material = entry.sharedMaterial;
@@ -107,29 +114,19 @@ export function createInteriorView({ scene, sunlight, cameraRig, buildingsGroup,
     restoreShadowFrame();
   }
 
-  // 楼改动会重建段网格,interior.lid 里的旧 mesh 随之失效 → 按最新网格重新
-  // 收集"盖子",并立即按当前相机高度决定其可见性。
+  // 楼改动会重建段网格 → 重建后按当前天花档重新应用显隐。
   function onProjectChange() {
-    if (!interior) return;
-    const alive = lidAndAbove(interior.buildingId, interior.bandToY);
-    const lidSet = new Set(interior.lid);
-    if (alive.length !== interior.lid.length || alive.some(m => !lidSet.has(m))) {
-      interior.lid = alive;
-      const lifted = camera.position.y > interior.liftY;
-      for (const mesh of alive) mesh.visible = !lifted;
-    }
+    applyCeilingNow();
   }
 
   function onSolarUpdate() {
     frameShadowsOnInterior();
   }
 
-  // 相机在房间中段以下 → 第一人称(盖子在位);升到以上 → 揭盖,露出房间。
+  // 每帧:挡在相机与房间之间的外墙淡化(侧墙遮挡,非天花)。盖子由天花档静态
+  // 控制,不再随相机高度变。
   function tick() {
     if (!interior) return;
-    const lifted = camera.position.y > interior.liftY;
-    for (const mesh of interior.lid) mesh.visible = !lifted;
-
     // 聚焦建筑的段 mesh(排除顶盖):射线 相机→房间中心,命中且在中心之前者遮挡。
     const cam = camera.position;
     _occDir.copy(interior.center).sub(cam);
@@ -185,6 +182,7 @@ export function createInteriorView({ scene, sunlight, cameraRig, buildingsGroup,
   return {
     enter,
     exit,
+    setCeiling,
     onProjectChange,
     onSolarUpdate,
     tick,

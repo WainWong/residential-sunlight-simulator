@@ -171,12 +171,12 @@ export function createAppShell({ store, simulationController, onAddBuilding, onC
   }
 
   // Ceiling (天花) show/ghost/hide control — only in 编辑房间 (the interior
-  // sunlight view manages its own lid by camera height). Rebuild only when its
-  // visibility or active value changes.
+  // Ceiling (天花) show/ghost/hide control — shown in both 编辑房间 and 查看采光;
+  // both drive the same shared, manual view.ceiling (no more camera auto-lift).
   let ceilingKey = null;
   function renderCeilingControl(project, phase) {
-    const show = phase === 'room';
-    const nextKey = show ? `room:${project.view.ceiling}` : '';
+    const show = phase === 'room' || phase === 'sunlight';
+    const nextKey = show ? `${phase}:${project.view.ceiling}` : '';
     if (nextKey === ceilingKey) return;
     ceilingKey = nextKey;
     viewport.ceilingControl.hidden = !show;

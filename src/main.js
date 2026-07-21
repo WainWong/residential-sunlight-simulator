@@ -106,8 +106,8 @@ export function mountApp(root) {
     interiorKey = key;
     if (!building || !room) return;
     // 世界坐标取景由室内视图内部经 roomInteriorFrame 求得 —— main.js 只需转发
-    // "看哪个房间"。
-    withController(controller => controller?.enterInterior(building, room));
+    // "看哪个房间" + 当前天花档(与编辑房间共享)。
+    withController(controller => controller?.enterInterior(building, room, project.view.ceiling));
   }
 
   let prevEditing = Boolean(store.getState().view.roomEditing || store.getState().view.roomFocus);

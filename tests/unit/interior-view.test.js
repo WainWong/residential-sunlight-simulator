@@ -81,51 +81,52 @@ describe('createInteriorView', () => {
     deps = makeDeps([segment, lid, above]);
   });
 
-  it('collects lid-and-above meshes on enter and leaves lower segments alone', () => {
+  it('applies the ceiling mode to lid-and-above meshes on enter, lower segments untouched', () => {
     const view = createInteriorView(deps);
-    view.enter(building, room);
-    view.tick(); // visibility is applied per-frame, as in the animation loop
+    view.enter(building, room, 'hide');
     expect(view.active).toBe(true);
-    // camera flew to the room frame
-    expect(deps.flown).toHaveLength(1);
-    // hemisphere dimmed for contrast
-    expect(deps.hemi.intensity).toBe(0.9);
-    // camera at y=0 (below liftY) → first-person: lid/ceiling in place (visible).
-    expect(lid.visible).toBe(true);
-    expect(above.visible).toBe(true);
+    expect(deps.flown).toHaveLength(1);       // camera flew to the room frame
+    expect(deps.hemi.intensity).toBe(0.9);    // hemisphere dimmed for contrast
+    // 'hide' → lid and the segment above are hidden; the observation-floor wall stays.
+    expect(lid.visible).toBe(false);
+    expect(above.visible).toBe(false);
     expect(segment.visible).toBe(true);
   });
 
-  it('hides the lid (reveals the room) when the camera rises above liftY', () => {
+  it('show keeps the lid; ghost keeps it visible but translucent', () => {
     const view = createInteriorView(deps);
-    view.enter(building, room);
-    // Below liftY: first-person, lid in place.
-    view.tick();
+    view.enter(building, room, 'show');
     expect(lid.visible).toBe(true);
-    // liftY = center.y (1.5) + floorHeight/2 (1.5) = 3. Rise above → lift the lid off.
-    deps.cameraRig.camera.position.y = 5;
-    view.tick();
+    expect(above.visible).toBe(true);
+    view.setCeiling('ghost');
+    expect(lid.visible).toBe(true);
+    expect(lid.material.opacity).toBeCloseTo(0.22, 6);
+    view.setCeiling('hide');
     expect(lid.visible).toBe(false);
-    expect(above.visible).toBe(false);
   });
 
-  it('re-collects the lid on project change after meshes are rebuilt', () => {
+  it('does not lift the lid when the camera rises (no auto-lift any more)', () => {
     const view = createInteriorView(deps);
-    view.enter(building, room);
-    // Camera above liftY → room revealed, lid should be hidden.
+    view.enter(building, room, 'show');
     deps.cameraRig.camera.position.y = 5;
-    // Simulate a rebuild: replace the lid mesh with a fresh instance.
+    view.tick();
+    expect(lid.visible).toBe(true); // camera height no longer affects the lid
+  });
+
+  it('re-applies the ceiling on project change after meshes are rebuilt', () => {
+    const view = createInteriorView(deps);
+    view.enter(building, room, 'hide');
     const newLid = makeMesh({ kind: 'building-lid', entityId: 'b1', fromY: 3 });
     newLid.visible = true;
     deps.buildingsGroup.children[0].children = [segment, newLid, above];
     view.onProjectChange();
-    // fresh lid picked up and hidden per current camera height
-    expect(newLid.visible).toBe(false);
+    expect(newLid.visible).toBe(false); // fresh lid picked up and hidden
   });
 
   it('restores visibility, ambient and edit controls on exit', () => {
     const view = createInteriorView(deps);
-    view.enter(building, room);
+    view.enter(building, room, 'hide');
+    expect(lid.visible).toBe(false);
     view.exit();
     expect(view.active).toBe(false);
     expect(lid.visible).toBe(true);

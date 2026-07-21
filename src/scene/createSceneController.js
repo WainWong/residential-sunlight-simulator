@@ -511,8 +511,10 @@ export function createSceneController(canvas, { onSelect = () => {}, store = nul
       buildingGestures.updateProject(project);
       openingGestures.updateProject(project);
       syncSelectedWall(project);
-      // revision 变化会重建段网格 → 室内视图按最新网格重新收集"盖子"。
-      interiorView.onProjectChange(project);
+      // revision 变化会重建段网格 → 室内视图按最新网格重新应用天花档;天花档本身
+      // 变化(view.ceiling)也在此推给室内视图,与编辑房间共用同一状态。
+      interiorView.onProjectChange();
+      interiorView.setCeiling(project.view.ceiling);
       canvas.dataset.buildingCount = String(project.buildings.length);
     },
     updateSolar(simulationState, phase = 'present') {
@@ -550,7 +552,7 @@ export function createSceneController(canvas, { onSelect = () => {}, store = nul
       cameraParts.focusWall(wallCameraPose(context.building, context.wall));
       return true;
     },
-    enterInterior(building, room) { interiorView.enter(building, room); },
+    enterInterior(building, room, ceiling = 'hide') { interiorView.enter(building, room, ceiling); },
     exitInterior() { interiorView.exit(); },
     dispose() {
       interiorView.dispose();
