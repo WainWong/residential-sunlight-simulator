@@ -14,7 +14,40 @@ export function restoreBuildingVisibility(buildingRoot) {
   });
 }
 
-export function setFloorFocusVisibility(buildingRoot, buildingId, floor, bandToY) {
+// 天花(观察层顶面及以上的外壳,即"盖子")的三档显隐:
+//  - 'hide'  掀开,完全隐藏(默认,方便画/看室内)
+//  - 'ghost' 半透明,既看得进去又保留有盖的空间感
+//  - 'show'  完整盖着(外观如常)
+// 纯视觉,不影响采光计算。
+const GHOST_OPACITY = 0.22;
+
+function applyCeilingMode(object, mode) {
+  if (mode === 'hide') {
+    object.visible = false;
+    return;
+  }
+  object.visible = true;
+  // 半透明只对有材质的网格生效;描边等子对象跟随可见性即可。
+  const material = object.material;
+  if (!material) return;
+  if (mode === 'ghost') {
+    if (!object.userData._ceilingGhosted) {
+      object.userData._ceilingSharedMaterial = material;
+      object.material = material.clone();
+      object.material.transparent = true;
+      object.userData._ceilingGhosted = true;
+    }
+    object.material.opacity = GHOST_OPACITY;
+    object.material.depthWrite = false;
+  } else if (object.userData._ceilingGhosted) {
+    // 'show':还原共享实心材质
+    object.material.dispose();
+    object.material = object.userData._ceilingSharedMaterial;
+    object.userData._ceilingGhosted = false;
+  }
+}
+
+export function setFloorFocusVisibility(buildingRoot, buildingId, floor, bandToY, ceiling = 'hide') {
   restoreBuildingVisibility(buildingRoot);
   for (const buildingGroup of buildingRoot.children) {
     if (buildingGroup.userData?.entityId !== buildingId) continue;
@@ -28,7 +61,11 @@ export function setFloorFocusVisibility(buildingRoot, buildingId, floor, bandToY
         return;
       }
       if (!isBuildingShell(object)) return;
-      object.visible = !isLidOrAbove(object, bandToY);
+      if (isLidOrAbove(object, bandToY)) {
+        applyCeilingMode(object, ceiling);
+      } else {
+        object.visible = true;
+      }
     });
   }
 }

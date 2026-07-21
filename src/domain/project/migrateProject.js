@@ -161,6 +161,7 @@ function normalizeV2(project) {
     roomFocus: null,
     roomEditing: null,
     roomTool: 'select',
+    ceiling: 'hide',
     interiorRoomId: normalized.view?.interiorRoomId ?? null
   };
   return normalized;

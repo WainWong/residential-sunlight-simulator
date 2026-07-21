@@ -267,6 +267,52 @@
   pointer-events: none;
 }
 
+.viewport__ceiling {
+  position: absolute;
+  bottom: 14px;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 6;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 5px 8px;
+  border-radius: 999px;
+  background: rgb(255 255 255 / 88%);
+  box-shadow: 0 1px 6px rgb(15 23 42 / 12%);
+}
+
+.viewport__ceiling[hidden] { display: none; }
+
+.viewport__ceiling-label {
+  font-size: 11px;
+  font-weight: 700;
+  color: var(--ink-600, #475569);
+}
+
+.viewport__ceiling-options { display: inline-flex; gap: 2px; }
+
+.viewport__ceiling-btn {
+  min-height: 28px;
+  padding: 0 12px;
+  border: 0;
+  border-radius: 999px;
+  background: transparent;
+  color: var(--ink-700, #334155);
+  font-size: 12px;
+  font-weight: 650;
+  cursor: pointer;
+  transition: background-color 140ms ease, color 140ms ease;
+}
+
+.viewport__ceiling-btn:hover { background: rgb(15 23 42 / 8%); }
+
+.viewport__ceiling-btn.is-active {
+  background: var(--sun-500);
+  color: var(--ink-950);
+  cursor: default;
+}
+
 .viewport__empty {
   position: absolute;
   inset: auto auto 18px 50%;

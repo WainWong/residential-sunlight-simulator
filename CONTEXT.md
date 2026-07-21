@@ -8,6 +8,8 @@
 
 - **盖子 (Lid)** — 室内视图中，观察层顶面及以上被整块隐藏的几何：顶层房间的独立顶盖 mesh，或非顶层时上方的整段楼层。相机升到房间中段以上时隐藏，露出房间内部。
 
+- **天花显隐 (Ceiling Display)** — 编辑房间视图里，用户对"盖子"(见 [[盖子]])的显式三档控制 `view.ceiling`：`show`(完整盖着) / `ghost`(半透明，看得进又有空间感) / `hide`(掀开，默认)。**纯视觉，不影响采光计算**——采光始终把天花/地板/屋顶当障碍物(见 [[开口的采光语义]])。归属场景角落控件 + `setFloorFocusVisibility(..., ceiling)`。查看采光的室内视图仍按相机高度自动揭盖，不受此控件管辖。
+
 - **观察层顶面 (Band Top)** — 某楼层"到哪为止"的高度：顶层是屋顶板底（整栋高），其余层是上一层楼板底。造楼层几何、揭盖/遮挡、楼层聚焦显隐共用。归属 domain 层 `bandTopY(params)`（`src/domain/buildings/floorMath.js`），原先此式在 segmentBuilding、室内视图、控制器多处各写一遍。
 
 - **室内取景 (Interior Frame)** — 由房间几何推导出的世界坐标包围信息 `{ center, radius }`，用于把相机飞到房间、并框定阴影相机范围。纯几何计算，归属 domain 层 `roomInteriorFrame(building, room)`。

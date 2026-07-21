@@ -1,4 +1,5 @@
 import { createElement } from '../../ui/createElement.js';
+import { segmentedButtons } from '../../ui/segmentedButtons.js';
 import { createBuildingInspector } from '../buildings/BuildingInspector.js';
 import { createResultsPanel } from '../results/ResultsPanel.js';
 import { createTimeline } from '../timeline/Timeline.js';
@@ -80,9 +81,12 @@ function createViewport(store) {
     attributes: { type: 'button', title: '当前对象', 'aria-label': '打开当前对象面板' }
   });
   inspectorToggle.addEventListener('click', () => toggleTabletPanel('inspector'));
+  // 天花显隐(编辑房间时):显示 / 半透明 / 隐藏。纯视觉,不影响采光。
+  const ceilingControl = createElement('div', { className: 'viewport__ceiling', testId: 'ceiling-control' },
+    createElement('span', { className: 'viewport__ceiling-label', text: '天花' }));
   const element = createElement('main', { className: 'viewport' },
     createElement('canvas', { className: 'scene-canvas', attributes: { id: 'scene-canvas', 'aria-label': '三维采光场景' } }),
-    breadcrumb, returnBuild, treeToggle, inspectorToggle,
+    breadcrumb, returnBuild, treeToggle, inspectorToggle, ceilingControl,
     createElement('div', { className: 'viewport__compass-wrap' },
       createElement('div', { className: 'viewport__compass', attributes: { 'aria-label': '北向指南针' } },
         createElement('div', { className: 'viewport__compass-needle', testId: 'compass-needle' },
@@ -94,8 +98,14 @@ function createViewport(store) {
       createElement('div', { className: 'viewport__compass-readout', testId: 'compass-readout', text: '正北 0°' })),
     createElement('div', { className: 'viewport__scale', text: '每格 10 米', testId: 'grid-scale' }),
     createElement('div', { className: 'viewport__empty', text: '从左侧添加建筑', testId: 'empty-sandbox-hint' }));
-  return { element, breadcrumb, returnBuild };
+  return { element, breadcrumb, returnBuild, ceilingControl };
 }
+
+const CEILING_OPTIONS = [
+  { value: 'show', label: '显示' },
+  { value: 'ghost', label: '半透明' },
+  { value: 'hide', label: '隐藏' }
+];
 
 function breadcrumbText(project) {
   const selection = project.view.selection;
@@ -157,6 +167,30 @@ export function createAppShell({ store, simulationController, onAddBuilding, onC
     headerParts.undo.disabled = !store.canUndo();
     headerParts.redo.disabled = !store.canRedo();
     navigation.querySelector('[data-panel="results"]').hidden = !sunlight;
+    renderCeilingControl(project, phase);
+  }
+
+  // Ceiling (天花) show/ghost/hide control — only in 编辑房间 (the interior
+  // sunlight view manages its own lid by camera height). Rebuild only when its
+  // visibility or active value changes.
+  let ceilingKey = null;
+  function renderCeilingControl(project, phase) {
+    const show = phase === 'room';
+    const nextKey = show ? `room:${project.view.ceiling}` : '';
+    if (nextKey === ceilingKey) return;
+    ceilingKey = nextKey;
+    viewport.ceilingControl.hidden = !show;
+    viewport.ceilingControl.replaceChildren(
+      createElement('span', { className: 'viewport__ceiling-label', text: '天花' }),
+      ...(show
+        ? [segmentedButtons({
+            options: CEILING_OPTIONS.map(o => ({ ...o, testId: `ceiling-${o.value}` })),
+            activeValue: project.view.ceiling,
+            onSelect: value => store.setView({ ceiling: value }),
+            className: 'viewport__ceiling-options', btnClassName: 'viewport__ceiling-btn'
+          })]
+        : [])
+    );
   }
   store.subscribe(render);
   render(store.getState());

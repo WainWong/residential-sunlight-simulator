@@ -5,7 +5,7 @@ import { createDefaultProject } from '../../src/domain/project/defaultProject.js
 import { createSimulationController } from '../../src/features/results/createSimulationController.js';
 import { createAppShell } from '../../src/features/shell/AppShell.js';
 import { createAddBuildingCommand, createClearBuildingsCommand } from '../../src/store/projectCommands.js';
-import { createSetTaskPhaseCommand, createAppendRoomRectCommand, createFinishRoomCommand, createSelectEntityCommand, createStartRoomCommand } from '../../src/store/roomCommands.js';
+import { createSetTaskPhaseCommand, createAppendRoomRectCommand, createFinishRoomCommand, createSelectEntityCommand, createStartRoomCommand, createEnterRoomViewCommand } from '../../src/store/roomCommands.js';
 
 function mount() {
   const store = createStore(createDefaultProject());
@@ -21,6 +21,20 @@ function mount() {
 }
 
 describe('room-first AppShell', () => {
+  it('shows the ceiling control only in the room view and toggles view.ceiling', () => {
+    const { store, shell } = mount();
+    store.execute(createAddBuildingCommand({ id: 'b1' }));
+    const control = shell.querySelector('[data-testid="ceiling-control"]');
+    expect(control.hidden).toBe(true); // building phase
+    store.execute(createEnterRoomViewCommand('b1', 1));
+    expect(control.hidden).toBe(false);
+    // default hidden ceiling
+    expect(shell.querySelector('[data-testid="ceiling-hide"]').getAttribute('aria-pressed')).toBe('true');
+    shell.querySelector('[data-testid="ceiling-ghost"]').click();
+    expect(store.getState().view.ceiling).toBe('ghost');
+    expect(shell.querySelector('[data-testid="ceiling-ghost"]').getAttribute('aria-pressed')).toBe('true');
+  });
+
   it('uses the inspector in build and results only in sunlight', () => {
     const { store, shell } = mount();
     expect(shell.querySelector('[data-testid="building-inspector"]').hidden).toBe(false);

@@ -246,7 +246,7 @@ export function createSceneController(canvas, { onSelect = () => {}, store = nul
     if (!building) return;
 
     const bandToY = bandTopY({ floor, ...building.params });
-    setFloorFocusVisibility(sceneParts.buildings, buildingId, floor, bandToY);
+    setFloorFocusVisibility(sceneParts.buildings, buildingId, floor, bandToY, project.view.ceiling);
     const origin = sceneParts.aids.getObjectByName('coordinate-origin');
     if (origin) origin.visible = false;
 
@@ -325,6 +325,7 @@ export function createSceneController(canvas, { onSelect = () => {}, store = nul
       buildingId, floor, baseY: target.y,
       sig: `${buildingId}:${floor}`,
       buildingRevision: building.revision,
+      ceiling: project.view.ceiling,
       slab, existing: [], dimLabel, clearPreview,
       showDimLabel, renderRoomPreview, clipDrawable, getBuilding,
       draft: null
@@ -440,13 +441,15 @@ export function createSceneController(canvas, { onSelect = () => {}, store = nul
       if (floorFocus) disposeFloorFocus();
       buildFloorFocus(project);
     } else {
-      // Re-apply the lid visibility only when the focused building's meshes were
-      // rebuilt (revision bump resets mesh.visible); skip on unrelated changes.
+      // Re-apply the lid visibility when the focused building's meshes were
+      // rebuilt (revision bump resets mesh.visible) or the ceiling mode changed.
       const building = project.buildings.find(item => item.id === focus.buildingId);
-      if (building && building.revision !== floorFocus.buildingRevision) {
+      const ceiling = project.view.ceiling;
+      if (building && (building.revision !== floorFocus.buildingRevision || ceiling !== floorFocus.ceiling)) {
         floorFocus.buildingRevision = building.revision;
+        floorFocus.ceiling = ceiling;
         const bandToY = bandTopY({ floor: focus.floor, ...building.params });
-        setFloorFocusVisibility(sceneParts.buildings, focus.buildingId, focus.floor, bandToY);
+        setFloorFocusVisibility(sceneParts.buildings, focus.buildingId, focus.floor, bandToY, ceiling);
       }
     }
     syncDraft(project);

@@ -52,4 +52,23 @@ describe('floorFocus', () => {
 
     expect(active.children.every(child => child.visible)).toBe(true);
   });
+
+  it('ceiling modes: hide removes the lid, show/ghost keep it visible', () => {
+    const mk = () => buildingGroup('b1', [
+      { kind: 'building-segment', fromY: 0 },
+      { kind: 'building-lid', fromY: 5.85 },
+      { kind: 'building-segment', fromY: 6 }
+    ]);
+    const lidVisibility = ceiling => {
+      const root = new THREE.Group();
+      const b = mk();
+      root.add(b);
+      floorFocus.setFloorFocusVisibility(root, 'b1', 2, 6, ceiling);
+      // children[1] = lid, children[2] = segment above the band
+      return [b.children[1].visible, b.children[2].visible];
+    };
+    expect(lidVisibility('hide')).toEqual([false, false]);
+    expect(lidVisibility('ghost')).toEqual([true, true]);
+    expect(lidVisibility('show')).toEqual([true, true]);
+  });
 });
