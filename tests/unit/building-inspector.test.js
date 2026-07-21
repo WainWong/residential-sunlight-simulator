@@ -59,6 +59,10 @@ describe('contextual building inspector', () => {
   it('routes from a room session to a room panel with sunlight action', () => {
     const { store, element } = mount();
     store.execute(createAddBuildingCommand({ id: 'b1' }));
+    // model B: first click enters room view (floor unselected); pick a floor,
+    // then the second click starts the draft.
+    element.querySelector('[data-testid="inspector-add-room-b1"]').click();
+    element.querySelector('[data-testid="floor-option-1"]').click();
     element.querySelector('[data-testid="inspector-add-room-b1"]').click();
     expect(element.querySelector('[data-testid="room-session-title"]').textContent).toBe('新建房间');
     store.execute(createAppendRoomRectCommand({ x0: -4, z0: -3, x1: 4, z1: 3 }));

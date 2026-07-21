@@ -10,6 +10,7 @@ import {
   restoreBuildingVisibility,
   setFloorFocusVisibility
 } from './floorFocus.js';
+import { applyCeiling } from './ceilingVisibility.js';
 import { bandTopY } from '../domain/buildings/floorMath.js';
 import { deriveWalls } from '../domain/walls/deriveWalls.js';
 import { applyBuildingTransform } from './buildingSceneHelpers.js';
@@ -209,6 +210,15 @@ export function createSceneController(canvas, { onSelect = () => {}, store = nul
     for (const overlay of floorFocus.existing) {
       overlay.userData.dispose();
       sceneParts.scene.remove(overlay);
+    }
+    // 还原天花:若离开前处于半透明/隐藏,必须解除克隆材质并复位,否则楼顶会
+    // 一直挂着半透明(restoreBuildingVisibility 只翻 visible,不碰材质)。
+    if (floorFocus.floor != null) {
+      const building = currentProject?.buildings.find(b => b.id === floorFocus.buildingId);
+      if (building) {
+        const group = sceneParts.buildings.children.find(c => c.userData?.entityId === floorFocus.buildingId);
+        if (group) applyCeiling(group, bandTopY({ floor: floorFocus.floor, ...building.params }), 'show');
+      }
     }
     floorFocus = null;
     restoreBuildingVisibility(sceneParts.buildings);
@@ -433,8 +443,10 @@ export function createSceneController(canvas, { onSelect = () => {}, store = nul
   // unconditionally on every project change.
   function syncFloorFocus(project) {
     const focus = project.view.roomFocus;
-    const sig = focus ? `${focus.buildingId}:${focus.floor}` : '';
-    if (!focus) {
+    // roomFocus.floor 为 null = 编辑房间相但"未选层":整栋实心显示,不掀盖、不画。
+    const hasFloor = focus && focus.floor != null;
+    const sig = hasFloor ? `${focus.buildingId}:${focus.floor}` : '';
+    if (!hasFloor) {
       if (floorFocus) disposeFloorFocus();
       return;
     }

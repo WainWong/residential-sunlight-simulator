@@ -104,19 +104,21 @@ export function createSetRoomFloorCommand(floor) {
   };
 }
 
-export function createEnterRoomViewCommand(buildingId, floor = 1, roomId = null) {
+export function createEnterRoomViewCommand(buildingId, floor = null, roomId = null) {
   return {
     label: '进入编辑房间',
     apply(state) {
       const building = findBuilding(state, buildingId);
       if (!building) return null;
-      const clampedFloor = clamp(floor, 1, building.params.floors);
       const room = roomId ? building.rooms?.find(r => r.id === roomId) : null;
+      // 未指定房间且未指定楼层 → 楼层"未选"(null);由用户显式点楼层选择器再定。
+      const focusFloor = room ? room.floor
+        : (floor == null ? null : clamp(floor, 1, building.params.floors));
       return {
         ...state,
         view: draftClearedView(state.view, {
           phase: 'room',
-          roomFocus: { buildingId, floor: room ? room.floor : clampedFloor },
+          roomFocus: { buildingId, floor: focusFloor },
           interiorRoomId: null,
           selection: room
             ? { kind: 'room', id: room.id, buildingId }

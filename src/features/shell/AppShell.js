@@ -27,7 +27,8 @@ function createHeader({ store, onClearSandbox, locationControl }) {
     const view = store.getState().view;
     const buildingId = selectedBuildingId(view);
     if (!buildingId) return;
-    const floor = view.roomFocus?.buildingId === buildingId ? view.roomFocus.floor : 1;
+    // 保留已选楼层(若在同栋楼);否则进入"未选层"态,由用户显式选层。
+    const floor = view.roomFocus?.buildingId === buildingId ? view.roomFocus.floor : null;
     store.execute(createEnterRoomViewCommand(buildingId, floor));
   });
   sunlight.addEventListener('click', () => {
@@ -177,7 +178,9 @@ export function createAppShell({ store, simulationController, onAddBuilding, onC
   // so the control is hidden rather than left inert.
   let ceilingKey = null;
   function renderCeilingControl(project, phase) {
-    const show = phase === 'room'
+    // 天花只在"选定了具体对象"时出现:编辑房间需选中某层(roomFocus.floor),
+    // 查看采光需正看某房间(interiorRoomId)。未选定时无盖可掀,控件不出现。
+    const show = (phase === 'room' && project.view.roomFocus?.floor != null)
       || (phase === 'sunlight' && project.view.interiorRoomId != null);
     const nextKey = show ? `${phase}:${project.view.ceiling}` : '';
     if (nextKey === ceilingKey) return;

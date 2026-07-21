@@ -26,7 +26,7 @@
   - **查看采光 (`'sunlight'`)** — 只看不改。进某房间看室内采光([[室内视图]])、看全天日照曲线。
   边界原则:每个视图里"点击/拖拽的含义"固定,不跨视图猜测。取代早先的两值 `phase`(`build`/`sunlight`)。
 
-- **室内取景态 (Room Focus)** — 编辑房间视图的**持久**状态 `view.roomFocus = { buildingId, floor } | null`,贯穿整个"编辑房间"视图。它单独驱动掀盖、楼板、已存房间叠层、相机聚焦——**与是否正在画某个房间无关**。进入编辑房间时置,离开(切到别的视图/加楼/清空)时清。这是"画完房间盖子不再合回去"的根:合盖只在 `roomFocus` 清空时发生。scene 的 `syncFloorFocus` 按它的签名 `buildingId:floor` 做增删。
+- **室内取景态 (Room Focus)** — 编辑房间视图的**持久**状态 `view.roomFocus = { buildingId, floor } | null`,贯穿整个"编辑房间"视图。`floor` 可为 **null = 楼层未选**:刚进编辑房间(未指定房间)默认未选,楼层选择器全不高亮、不掀盖、天花控件不出现;显式点某层(或点某房间进入)才定 floor。选层后单独驱动掀盖、楼板、已存房间叠层、相机聚焦——**与是否正在画某个房间无关**。进入时置,离开(切视图/加楼/清空)时清。合盖只在 `roomFocus` 清空/floor 变更/离开时发生。**加房间强制先选层**(未选层时"添加房间"提示先选层)。scene 的 `syncFloorFocus` 在 `floor==null` 时整栋实心、不建焦点。
 
 - **房间草稿态 (Room Draft)** — `view.roomEditing`,降级为**临时**子状态:只在正画一个新房间(`mode:'create'`)或改一个已存房间(`mode:'edit'`)时存在,驱动绘制拖拽、缩放手势、预览、工具/模式。`createFinishRoomCommand`/`createCancelRoomCommand` 只清它、保留 [[室内取景态]],于是画完/取消后仍停在编辑房间视图。scene 里 `syncDraft` 按它的签名 `roomId:mode` 挂载/卸载草稿子件。
 

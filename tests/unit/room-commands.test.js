@@ -64,6 +64,17 @@ describe('room commands', () => {
     expect(store.getState().view.phase).toBe('room');
   });
 
+  it('enters the room view with the floor unselected by default', () => {
+    const store = createStore(projectWithBuilding());
+    store.execute(createEnterRoomViewCommand('b1'));
+    const view = store.getState().view;
+    expect(view.phase).toBe('room');
+    expect(view.roomFocus).toEqual({ buildingId: 'b1', floor: null });
+    expect(view.roomEditing).toBeNull();
+    // a draft cannot start without a chosen floor
+    expect(createStartRoomCommand('b1', null).apply(store.getState())).toBeNull();
+  });
+
   it('enters the room view without starting a draft and clamps the floor', () => {
     const store = createStore(projectWithBuilding());
     store.execute(createEnterRoomViewCommand('b1', 99));

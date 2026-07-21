@@ -1,9 +1,10 @@
 import { listBuildingTypeDefinitions } from '../../domain/buildings/buildingTypes.js';
 import { selectedBuildingId as resolveSelectedBuildingId } from '../../domain/project/viewSelection.js';
 import { createElement } from '../../ui/createElement.js';
+import { showToast } from '../../ui/Toast.js';
 import { segmentedButtons } from '../../ui/segmentedButtons.js';
 import { createRemoveBuildingCommand, createUpdateBuildingCommand } from '../../store/projectCommands.js';
-import { createSelectEntityCommand, createStartRoomCommand, createSetRoomFloorCommand } from '../../store/roomCommands.js';
+import { createSelectEntityCommand, createStartRoomCommand, createSetRoomFloorCommand, createEnterRoomViewCommand } from '../../store/roomCommands.js';
 import { createOpeningEditor } from '../openings/OpeningEditor.js';
 import { createRoomEditor } from '../rooms/RoomEditor.js';
 
@@ -50,8 +51,15 @@ function buildingPanel({ store, building, confirmDelete }) {
     attributes: { type: 'button', 'data-primary-control': '' }
   });
   addRoom.addEventListener('click', () => {
-    const focus = store.getState().view.roomFocus;
-    const floor = focus?.buildingId === building.id ? focus.floor : 1;
+    const view = store.getState().view;
+    if (view.phase !== 'room') {
+      // 从编辑建筑进入:先进编辑房间(楼层未选),由用户选层后再画。
+      store.execute(createEnterRoomViewCommand(building.id));
+      return;
+    }
+    const focus = view.roomFocus;
+    const floor = focus?.buildingId === building.id ? focus.floor : null;
+    if (floor == null) { showToast('请先在右下选择楼层,再添加房间', 'info'); return; }
     store.execute(createStartRoomCommand(building.id, floor));
   });
   const remove = createElement('button', { className: 'button button--danger', text: '删除建筑', attributes: { type: 'button' } });

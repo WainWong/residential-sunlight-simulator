@@ -4,7 +4,7 @@ import { createStore } from '../../src/store/createStore.js';
 import { createDefaultProject } from '../../src/domain/project/defaultProject.js';
 import { createProjectTree } from '../../src/features/shell/DesktopShell.js';
 import { createAddBuildingCommand } from '../../src/store/projectCommands.js';
-import { createAppendRoomRectCommand, createFinishRoomCommand, createSetTaskPhaseCommand } from '../../src/store/roomCommands.js';
+import { createAppendRoomRectCommand, createFinishRoomCommand, createSetTaskPhaseCommand, createStartRoomCommand } from '../../src/store/roomCommands.js';
 
 function mount() {
   const store = createStore(createDefaultProject());
@@ -24,7 +24,7 @@ describe('room-first project tree', () => {
   it('renders, selects and deletes rooms as building children', () => {
     const { store, tree } = mount();
     store.execute(createAddBuildingCommand({ id: 'b1' }));
-    tree.querySelector('[data-testid="add-room-b1"]').click();
+    store.execute(createStartRoomCommand('b1', 1));
     store.execute(createAppendRoomRectCommand({ x0: -4, z0: -3, x1: 4, z1: 3 }));
     store.execute(createFinishRoomCommand());
     const room = store.getState().buildings[0].rooms[0];

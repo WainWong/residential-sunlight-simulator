@@ -26,7 +26,13 @@ describe('room-first components', () => {
     const store = createStore(fixture());
     const tree = createProjectTree({ store, onAdd: vi.fn() });
     document.body.append(tree);
+    // model B: the tree "+" enters the room view (floor still unselected).
     tree.querySelector('[data-testid="add-room-b1"]').click();
+    expect(store.getState().view.phase).toBe('room');
+    expect(store.getState().view.roomFocus).toMatchObject({ buildingId: 'b1', floor: null });
+    expect(store.getState().view.roomEditing).toBeNull();
+    // a floor must be chosen before a draft can start
+    store.execute(createStartRoomCommand('b1', 1));
     expect(store.getState().view.roomEditing).toMatchObject({ buildingId: 'b1', floor: 1 });
 
     store.execute(createAppendRoomRectCommand({ x0: -4, z0: -3, x1: 4, z1: 3 }));
