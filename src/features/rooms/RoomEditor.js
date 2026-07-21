@@ -1,5 +1,6 @@
 import { rectArea } from '../../domain/rooms/roomGeometry.js';
 import { createElement } from '../../ui/createElement.js';
+import { segmentedButtons } from '../../ui/segmentedButtons.js';
 import {
   createCancelRoomCommand,
   createFinishRoomCommand,
@@ -10,24 +11,18 @@ import {
 } from '../../store/roomCommands.js';
 
 const ROOM_TOOLS = [
-  ['select', '选择', '点选房间或墙,拖动调整'],
-  ['draw', '画房间', '拖出矩形,加进房间'],
-  ['erase', '擦除', '拖出矩形,从房间里挖掉']
+  { value: 'select', label: '选择', title: '点选房间或墙,拖动调整' },
+  { value: 'draw', label: '画房间', title: '拖出矩形,加进房间' },
+  { value: 'erase', label: '擦除', title: '拖出矩形,从房间里挖掉' }
 ];
 
 function toolBar(store, currentTool) {
-  const bar = createElement('div', { className: 'room-tools', testId: 'room-tools', attributes: { role: 'group', 'aria-label': '房间编辑工具' } });
-  for (const [value, label, title] of ROOM_TOOLS) {
-    const active = (currentTool ?? 'select') === value;
-    const btn = createElement('button', {
-      className: 'room-tools__btn' + (active ? ' is-active' : ''),
-      text: label, testId: `room-tool-${value}`,
-      attributes: { type: 'button', title, 'aria-pressed': String(active) }
-    });
-    if (!active) btn.addEventListener('click', () => store.setView({ roomTool: value }));
-    bar.append(btn);
-  }
-  return bar;
+  return segmentedButtons({
+    options: ROOM_TOOLS.map(t => ({ ...t, testId: `room-tool-${t.value}` })),
+    activeValue: currentTool,
+    onSelect: value => store.setView({ roomTool: value }),
+    className: 'room-tools', btnClassName: 'room-tools__btn', testId: 'room-tools'
+  });
 }
 
 function field(label, control) {

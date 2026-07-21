@@ -1,4 +1,5 @@
 import { clipRectToFootprint } from '../domain/buildings/footprintClip.js';
+import { clamp } from '../domain/buildings/types/shared.js';
 import { reprojectBuildingOpenings } from '../domain/openings/openingGeometry.js';
 import { applyRectEdit } from '../domain/rooms/rectEdit.js';
 import { nextRoomName, normalizeRects, validateRoomRects } from '../domain/rooms/roomGeometry.js';
@@ -8,6 +9,29 @@ const newId = prefix => globalThis.crypto?.randomUUID?.() ?? fallbackId(prefix);
 
 function findBuilding(state, buildingId) {
   return state.buildings.find(building => building.id === buildingId) ?? null;
+}
+
+// Clearing a room draft always resets the transient tool — "no draft ⇒ select".
+// Keeping this in one place means new commands that end a draft can't forget it.
+function draftClearedView(view, patch = {}) {
+  return { ...view, roomEditing: null, roomTool: 'select', ...patch };
+}
+
+// Remove a room (and its openings) from a building, resetting activeRoomId if it
+// pointed at the removed room. Shared by createRemoveRoomCommand and erase-to-empty.
+function removeRoomFrom(state, buildingId, roomId) {
+  const next = updateBuilding(state, buildingId, current => ({
+    ...current,
+    rooms: (current.rooms ?? []).filter(room => room.id !== roomId),
+    openings: (current.openings ?? []).filter(opening => !(opening.connectedRoomIds ?? []).includes(roomId))
+  }));
+  return {
+    ...next,
+    simulation: {
+      ...next.simulation,
+      activeRoomId: next.simulation.activeRoomId === roomId ? null : next.simulation.activeRoomId
+    }
+  };
 }
 
 function updateBuilding(state, buildingId, update) {
@@ -65,19 +89,16 @@ export function createSetRoomFloorCommand(floor) {
       if (!focus) return null;
       const building = findBuilding(state, focus.buildingId);
       if (!building) return null;
-      const clampedFloor = Math.min(Math.max(1, floor), building.params.floors);
+      const clampedFloor = clamp(floor, 1, building.params.floors);
       if (clampedFloor === focus.floor) return null;
       return {
         ...state,
-        view: {
-          ...state.view,
+        // Switching floors abandons any in-progress draft — a draft belongs to
+        // the floor it was started on.
+        view: draftClearedView(state.view, {
           roomFocus: { ...focus, floor: clampedFloor },
-          // Switching floors abandons any in-progress draft — a draft belongs to
-          // the floor it was started on.
-          roomEditing: null,
-          roomTool: 'select',
           selection: { kind: 'building', id: focus.buildingId }
-        }
+        })
       };
     }
   };
@@ -89,21 +110,18 @@ export function createEnterRoomViewCommand(buildingId, floor = 1, roomId = null)
     apply(state) {
       const building = findBuilding(state, buildingId);
       if (!building) return null;
-      const clampedFloor = Math.min(Math.max(1, floor), building.params.floors);
+      const clampedFloor = clamp(floor, 1, building.params.floors);
       const room = roomId ? building.rooms?.find(r => r.id === roomId) : null;
       return {
         ...state,
-        view: {
-          ...state.view,
+        view: draftClearedView(state.view, {
           phase: 'room',
           roomFocus: { buildingId, floor: room ? room.floor : clampedFloor },
-          roomEditing: null,
-          roomTool: 'select',
           interiorRoomId: null,
           selection: room
             ? { kind: 'room', id: room.id, buildingId }
             : { kind: 'building', id: buildingId }
-        }
+        })
       };
     }
   };
@@ -212,22 +230,10 @@ export function createEraseRoomRectCommand(rect) {
       if (remaining.length === 0) {
         // Nothing left → delete. A saved room (edit mode) is removed; an
         // unsaved create draft is simply discarded.
-        const cleared = {
-          ...state.view, roomEditing: null, roomTool: 'select',
-          selection: { kind: 'building', id: editing.buildingId }
-        };
+        const view = draftClearedView(state.view, { selection: { kind: 'building', id: editing.buildingId } });
         const existing = (building.rooms ?? []).some(room => room.id === editing.roomId);
-        if (!existing) return { ...state, view: cleared };
-        const next = updateBuilding(state, editing.buildingId, current => ({
-          ...current,
-          rooms: current.rooms.filter(room => room.id !== editing.roomId),
-          openings: (current.openings ?? []).filter(opening => !(opening.connectedRoomIds ?? []).includes(editing.roomId))
-        }));
-        return {
-          ...next,
-          simulation: { ...next.simulation, activeRoomId: next.simulation.activeRoomId === editing.roomId ? null : next.simulation.activeRoomId },
-          view: cleared
-        };
+        if (!existing) return { ...state, view };
+        return { ...removeRoomFrom(state, editing.buildingId, editing.roomId), view };
       }
       const occupied = (building.rooms ?? [])
         .filter(room => room.floor === editing.floor && room.id !== editing.roomId)
@@ -245,7 +251,7 @@ export function createCancelRoomCommand() {
     label: '取消房间编辑',
     apply(state) {
       if (!state.view.roomEditing) return null;
-      return { ...state, view: { ...state.view, roomEditing: null, roomTool: 'select' } };
+      return { ...state, view: draftClearedView(state.view) };
     }
   };
 }
@@ -279,12 +285,9 @@ export function createFinishRoomCommand() {
       return {
         ...next,
         simulation: { ...next.simulation, activeRoomId: room.id },
-        view: {
-          ...next.view,
-          roomEditing: null,
-          roomTool: 'select',
+        view: draftClearedView(next.view, {
           selection: { kind: 'room', id: room.id, buildingId: editing.buildingId }
-        }
+        })
       };
     }
   };
@@ -310,14 +313,9 @@ export function createRemoveRoomCommand(buildingId, roomId) {
     apply(state) {
       const building = findBuilding(state, buildingId);
       if (!building?.rooms?.some(room => room.id === roomId)) return null;
-      const next = updateBuilding(state, buildingId, current => ({
-        ...current,
-        rooms: current.rooms.filter(room => room.id !== roomId),
-        openings: (current.openings ?? []).filter(opening => !(opening.connectedRoomIds ?? []).includes(roomId))
-      }));
+      const next = removeRoomFrom(state, buildingId, roomId);
       return {
         ...next,
-        simulation: { ...next.simulation, activeRoomId: next.simulation.activeRoomId === roomId ? null : next.simulation.activeRoomId },
         view: { ...next.view, selection: next.view.selection?.id === roomId ? { kind: 'building', id: buildingId } : next.view.selection }
       };
     }

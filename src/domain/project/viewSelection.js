@@ -6,3 +6,16 @@ export function selectedBuildingId(view) {
   return selection?.buildingId
     ?? (selection?.kind === 'building' ? selection.id : null);
 }
+
+// 处于"可编辑"相 (Edit Phase) —— 编辑建筑或编辑房间,而非只读的查看采光。
+// scene 的墙 hover、开洞手势据此决定是否响应。
+export function isEditPhase(view) {
+  return view?.phase === 'building' || view?.phase === 'room';
+}
+
+// 左键是否正握着"画/擦"工具 (Drawing Tool Active)。握着时左键用于绘制,松开
+// (选择)时左键回到拾取/环绕。scene 的拾取门控与绘制手势据此判断。
+export function isDrawingToolActive(view) {
+  return view?.roomTool === 'draw' || view?.roomTool === 'erase';
+}
+

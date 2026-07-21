@@ -19,7 +19,7 @@ import { rotateLocalToWorld } from '../domain/buildings/wallGeometry.js';
 import { createRenderer } from './createRenderer.js';
 import { createScene } from './createScene.js';
 import { pointerToNdc, resolvePickedEntity } from './picking.js';
-import { selectedBuildingId } from '../domain/project/viewSelection.js';
+import { selectedBuildingId, isEditPhase, isDrawingToolActive } from '../domain/project/viewSelection.js';
 import { applySunLighting } from './sunLighting.js';
 import { createSceneSynchronizer } from './syncScene.js';
 import { createAppendRoomRectCommand, createEraseRoomRectCommand } from '../store/roomCommands.js';
@@ -74,8 +74,9 @@ export function createSceneController(canvas, { onSelect = () => {}, store = nul
   function selectAtPointer(event) {
     if (buildingGestures.consumeSuppressedClick() || openingGestures.consumeSuppressedClick()) return;
     // While a draw/erase tool is engaged, left clicks draw rather than select.
-    // In the room view with no active tool, clicks still select (to pick walls, etc.).
-    if (floorFocus?.draft?.tool) return;
+    // In the room view with no active tool (select), clicks still select — e.g.
+    // to pick a wall for adding an opening.
+    if (isDrawingToolActive(currentProject?.view)) return;
     const rect = canvas.getBoundingClientRect();
     const ndc = pointerToNdc(event, rect);
     pointer.set(ndc.x, ndc.y);
@@ -131,8 +132,7 @@ export function createSceneController(canvas, { onSelect = () => {}, store = nul
   }
 
   function hoverAtPointer(event) {
-    const phase = currentProject?.view?.phase;
-    if (floorFocus || (phase !== 'building' && phase !== 'room')) {
+    if (floorFocus || !isEditPhase(currentProject?.view)) {
       clearHoverWall();
       return;
     }
@@ -300,6 +300,7 @@ export function createSceneController(canvas, { onSelect = () => {}, store = nul
     floorFocus = {
       buildingId, floor, baseY: target.y,
       sig: `${buildingId}:${floor}`,
+      buildingRevision: building.revision,
       slab, existing: [], dimLabel, clearPreview,
       showDimLabel, renderRoomPreview, clipDrawable, getBuilding,
       draft: null
@@ -307,9 +308,11 @@ export function createSceneController(canvas, { onSelect = () => {}, store = nul
     rebuildExistingOverlays();
   }
 
-  // Attach/detach the draft sub-state (draw drag + resize gestures + tool). Driven
-  // by view.roomEditing — created when a room draft starts, torn down when it ends,
-  // while the floor focus (lid) stays put.
+  // Attach/detach the draft sub-state (draw drag + resize gestures) driven by
+  // view.roomEditing (its lifecycle) and view.roomTool (left-button behaviour).
+  // The draw drag reads the tool live via getMode, so switching tools only needs
+  // to re-apply camera controls and add/remove the edit-mode resize gestures —
+  // never a geometry/overlay rebuild.
   function syncDraft(project) {
     const editing = project.view.roomEditing;
     if (!floorFocus) return;
@@ -317,30 +320,21 @@ export function createSceneController(canvas, { onSelect = () => {}, store = nul
       if (floorFocus.draft) { disposeDraft(); rebuildExistingOverlays(); }
       return;
     }
-    const tool = editing.mode === 'edit' && project.view.roomTool === 'draw'
-      ? 'draw' : project.view.roomTool; // 'select' | 'draw' | 'erase'
-    const draftSig = `${editing.roomId}:${editing.mode}:${tool}`;
+    const active = isDrawingToolActive(project.view); // draw/erase reserve the left button
+    const draftSig = `${editing.roomId}:${editing.mode}`;
     if (floorFocus.draft?.sig === draftSig) {
-      if (editing.mode === 'edit') floorFocus.renderRoomPreview(editing.rects);
+      // Refresh the edit-mode preview only when the rects actually changed
+      // (new array reference per edit command), not on every store notification.
+      if (editing.mode === 'edit' && floorFocus.draft.rects !== editing.rects) {
+        floorFocus.draft.rects = editing.rects;
+        floorFocus.renderRoomPreview(editing.rects);
+      }
+      syncDraftTool(active);
       return;
     }
     if (floorFocus.draft) disposeDraft();
     rebuildExistingOverlays();
-
-    // draw/erase reserve the left button for the drag; select leaves it orbiting.
-    const active = tool === 'draw' || tool === 'erase';
-    cameraParts.setEditControls(active ? 'draw' : null);
     if (editing.mode === 'edit') floorFocus.renderRoomPreview(editing.rects);
-
-    const roomGestures = editing.mode === 'edit' && !active && editing.rects?.length
-      ? createRoomGestures({
-          canvas, camera: cameraParts.camera, scene: sceneParts.scene, store,
-          building: floorFocus.getBuilding(), floor: floorFocus.floor,
-          floorY: floorFocus.baseY, rects: editing.rects,
-          onPreview: floorFocus.renderRoomPreview,
-          setCameraLocked: locked => cameraParts.setEditControls(locked ? 'draw' : null)
-        })
-      : null;
 
     const getMode = () => {
       const t = store.getState().view.roomTool;
@@ -377,7 +371,35 @@ export function createSceneController(canvas, { onSelect = () => {}, store = nul
         }
       }
     });
-    floorFocus.draft = { sig: draftSig, drag, roomGestures, tool };
+    floorFocus.draft = {
+      sig: draftSig, drag, roomGestures: null, active: null,
+      rects: editing.mode === 'edit' ? editing.rects : null
+    };
+    syncDraftTool(active);
+  }
+
+  // Reconcile only the tool-dependent bits of a live draft: camera controls
+  // (draw/erase lock rotation for left-drag; select orbits) and the edit-mode
+  // resize gestures (present only in select mode). Cheap — no overlay rebuild.
+  function syncDraftTool(active) {
+    const draft = floorFocus?.draft;
+    if (!draft || draft.active === active) return;
+    draft.active = active;
+    cameraParts.setEditControls(active ? 'draw' : null);
+    const editing = currentProject?.view?.roomEditing;
+    const wantGestures = editing?.mode === 'edit' && !active && editing.rects?.length;
+    if (wantGestures && !draft.roomGestures) {
+      draft.roomGestures = createRoomGestures({
+        canvas, camera: cameraParts.camera, scene: sceneParts.scene, store,
+        building: floorFocus.getBuilding(), floor: floorFocus.floor,
+        floorY: floorFocus.baseY, rects: editing.rects,
+        onPreview: floorFocus.renderRoomPreview,
+        setCameraLocked: locked => cameraParts.setEditControls(locked ? 'draw' : null)
+      });
+    } else if (!wantGestures && draft.roomGestures) {
+      draft.roomGestures.dispose();
+      draft.roomGestures = null;
+    }
   }
 
   // Reconcile floor-focus lifecycle from the view. The controller owns its own
@@ -394,8 +416,11 @@ export function createSceneController(canvas, { onSelect = () => {}, store = nul
       if (floorFocus) disposeFloorFocus();
       buildFloorFocus(project);
     } else {
+      // Re-apply the lid visibility only when the focused building's meshes were
+      // rebuilt (revision bump resets mesh.visible); skip on unrelated changes.
       const building = project.buildings.find(item => item.id === focus.buildingId);
-      if (building) {
+      if (building && building.revision !== floorFocus.buildingRevision) {
+        floorFocus.buildingRevision = building.revision;
         const bandToY = bandTopY({ floor: focus.floor, ...building.params });
         setFloorFocusVisibility(sceneParts.buildings, focus.buildingId, focus.floor, bandToY);
       }

@@ -1,6 +1,7 @@
 import { listBuildingTypeDefinitions } from '../../domain/buildings/buildingTypes.js';
 import { selectedBuildingId as resolveSelectedBuildingId } from '../../domain/project/viewSelection.js';
 import { createElement } from '../../ui/createElement.js';
+import { segmentedButtons } from '../../ui/segmentedButtons.js';
 import { createRemoveBuildingCommand, createUpdateBuildingCommand } from '../../store/projectCommands.js';
 import { createSelectEntityCommand, createStartRoomCommand, createSetRoomFloorCommand } from '../../store/roomCommands.js';
 import { createOpeningEditor } from '../openings/OpeningEditor.js';
@@ -92,21 +93,18 @@ function buildingPanel({ store, building, confirmDelete }) {
 
 function floorSelectorBar({ store, building, floor }) {
   const floors = building.params.floors;
-  const bar = createElement('div', { className: 'floor-selector', testId: 'floor-selector' },
-    createElement('span', { className: 'floor-selector__label', text: '当前楼层' }));
-  const buttons = createElement('div', { className: 'floor-selector__floors' });
   // Top floor first, ground floor last — reads like a building seen side-on.
+  const options = [];
   for (let f = floors; f >= 1; f -= 1) {
-    const btn = createElement('button', {
-      className: 'floor-selector__btn' + (f === floor ? ' is-active' : ''),
-      text: `${f}`, testId: `floor-option-${f}`,
-      attributes: { type: 'button', 'aria-pressed': String(f === floor), 'aria-label': `第 ${f} 层` }
-    });
-    if (f !== floor) btn.addEventListener('click', () => store.execute(createSetRoomFloorCommand(f)));
-    buttons.append(btn);
+    options.push({ value: f, label: `${f}`, testId: `floor-option-${f}`, ariaLabel: `第 ${f} 层` });
   }
-  bar.append(buttons);
-  return bar;
+  return createElement('div', { className: 'floor-selector', testId: 'floor-selector' },
+    createElement('span', { className: 'floor-selector__label', text: '当前楼层' }),
+    segmentedButtons({
+      options, activeValue: floor,
+      onSelect: f => store.execute(createSetRoomFloorCommand(f)),
+      className: 'floor-selector__floors', btnClassName: 'floor-selector__btn'
+    }));
 }
 
 export function createBuildingInspector({ store, confirmDelete = () => true }) {
@@ -122,14 +120,17 @@ export function createBuildingInspector({ store, confirmDelete = () => true }) {
     contentHost.replaceChildren(...(content ? [content] : []));
   }
 
+  let floorBarKey = null;
   function renderFloorBar(project) {
     const focus = project.view.phase === 'room' ? project.view.roomFocus : null;
     const building = focus && project.buildings.find(b => b.id === focus.buildingId);
-    floorBar.replaceChildren(
-      ...(building && building.params.floors > 1
-        ? [floorSelectorBar({ store, building, floor: focus.floor })]
-        : [])
-    );
+    const show = building && building.params.floors > 1;
+    // Rebuilding the floor buttons on every unrelated store change is wasteful;
+    // gate on what the bar actually depends on.
+    const nextKey = show ? `${building.id}:${focus.floor}:${building.params.floors}` : '';
+    if (nextKey === floorBarKey) return;
+    floorBarKey = nextKey;
+    floorBar.replaceChildren(...(show ? [floorSelectorBar({ store, building, floor: focus.floor })] : []));
   }
 
   function render(project) {
