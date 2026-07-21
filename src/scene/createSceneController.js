@@ -390,8 +390,10 @@ export function createSceneController(canvas, { onSelect = () => {}, store = nul
         }
         const b = floorFocus.getBuilding();
         const pieces = floorFocus.clipDrawable(rect, b);
-        if (pieces.length === 0) return;
-        floorFocus.renderRoomPreview(pieces);
+        // 有可落地部分就预览裁剪后的真实形状;完全落在footprint外或压在已有房间上
+        // (裁成空)则把原始拖拽矩形标红预览,让用户始终看得到自己在画什么。
+        if (pieces.length > 0) floorFocus.renderRoomPreview(pieces);
+        else floorFocus.renderRoomPreview([rect], false);
       },
       onCommit: (rect, mode) => {
         floorFocus.clearPreview();
