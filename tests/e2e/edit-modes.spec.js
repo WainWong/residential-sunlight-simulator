@@ -6,10 +6,9 @@ test('room creation starts directly without hidden edit modes', async ({ page, i
   await page.getByRole('button', { name: '添加建筑' }).click();
   await expect(page.getByTestId('building-context')).toBeVisible();
   const addRoom = page.getByTestId('inspector-add-room-' + await page.locator('[data-testid^="building-tree-"]').getAttribute('data-testid').then(value => value.replace('building-tree-', '')));
-  // model B: enter room view, pick a floor, then start the draft.
+  // 一步流程:添加房间 → 选层面板 → 点某层立即开画。
   await addRoom.click();
-  await page.getByTestId('floor-option-1').click();
-  await addRoom.click();
+  await page.getByTestId('pick-floor-1').click();
   await expect(page.getByTestId('room-session-title')).toHaveText('新建房间');
   // Tools are explicit (visible toolbar), not hidden modes; draw is default.
   await expect(page.getByTestId('room-tools')).toBeVisible();

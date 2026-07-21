@@ -222,6 +222,13 @@
   justify-content: flex-end;
 }
 
+.floor-pick__floors {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin: 4px 0 8px;
+}
+
 .floor-selector__btn {
   min-width: 34px;
   min-height: 34px;

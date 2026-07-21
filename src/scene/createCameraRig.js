@@ -13,30 +13,39 @@ export function createCameraRig(canvas, aspect = 1) {
   controls.maxDistance = 500;
   controls.maxPolarAngle = Math.PI * 0.49;
   controls.target.set(0, 18, 0);
+
+  // 全局操作模型:左键=仅选择/绘制(交给场景自己的指针监听,OrbitControls 不占用
+  // 左键)、右键=旋转、中键=平移、Shift+左键=平移(触摸板/无中键后备)、滚轮=缩放。
+  // 触摸端:单指旋转、双指缩放/平移。右键旋转需在 canvas 上屏蔽浏览器右键菜单。
+  controls.enableRotate = true;
+  controls.enableZoom = true;
+  controls.enablePan = true;
+  controls.mouseButtons = { LEFT: -1, MIDDLE: THREE.MOUSE.PAN, RIGHT: THREE.MOUSE.ROTATE };
+  controls.touches = { ONE: THREE.TOUCH.ROTATE, TWO: THREE.TOUCH.DOLLY_PAN };
   controls.update();
+
+  // Shift 按住时,左键临时改为平移(无中键的触摸板后备);松开还原为"不占用"。
+  const onModifier = event => {
+    controls.mouseButtons.LEFT = event.shiftKey ? THREE.MOUSE.PAN : -1;
+  };
+  window.addEventListener('keydown', onModifier);
+  window.addEventListener('keyup', onModifier);
+  // 右键用于旋转 → 屏蔽 canvas 的浏览器右键菜单,否则每次旋转都会弹出菜单。
+  const onContextMenu = event => event.preventDefault();
+  canvas.addEventListener('contextmenu', onContextMenu);
 
   function resize(width, height) {
     camera.aspect = width / Math.max(height, 1);
     camera.updateProjectionMatrix();
   }
 
-  // Configure controls for room editing. A draw gesture reserves
-  // left-drag for editing and locks rotation; with no tool selected (null) the
-  // user can orbit to inspect orientation. Passing null also restores the
-  // normal building-view controls when leaving room editing.
-  function setEditControls(tool) {
+  // 保留此 API 供手势子系统调用,但在新操作模型下左键本就不归 OrbitControls,
+  // 无需再按工具锁旋转 —— 右键始终可旋转。仅保证控件处于启用态。
+  function setEditControls() {
     controls.enabled = true;
+    controls.enableRotate = true;
     controls.enableZoom = true;
     controls.enablePan = true;
-    if (tool === 'draw' || tool === 'erase') {
-      controls.enableRotate = false;
-      controls.mouseButtons = { LEFT: -1, MIDDLE: THREE.MOUSE.DOLLY, RIGHT: THREE.MOUSE.PAN };
-      controls.touches = { ONE: -1, TWO: THREE.TOUCH.DOLLY_PAN };
-    } else {
-      controls.enableRotate = true;
-      controls.mouseButtons = { LEFT: THREE.MOUSE.ROTATE, MIDDLE: THREE.MOUSE.DOLLY, RIGHT: THREE.MOUSE.PAN };
-      controls.touches = { ONE: THREE.TOUCH.ROTATE, TWO: THREE.TOUCH.DOLLY_PAN };
-    }
   }
 
   // Smoothly frame a floor for room editing: animate to an oblique (~40°) pose
@@ -106,6 +115,11 @@ export function createCameraRig(canvas, aspect = 1) {
 
   return {
     camera, controls, resize, setEditControls, focusFloor, focusWall, flyToArea,
-    dispose: () => controls.dispose()
+    dispose: () => {
+      window.removeEventListener('keydown', onModifier);
+      window.removeEventListener('keyup', onModifier);
+      canvas.removeEventListener('contextmenu', onContextMenu);
+      controls.dispose();
+    }
   };
 }

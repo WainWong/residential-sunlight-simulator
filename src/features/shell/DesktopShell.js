@@ -1,5 +1,4 @@
 import { createElement } from '../../ui/createElement.js';
-import { showToast } from '../../ui/Toast.js';
 import {
   createEnterRoomViewCommand,
   createRemoveRoomCommand,
@@ -40,12 +39,9 @@ export function createProjectTree({ store, onAdd }) {
       });
       addRoom.hidden = locked;
       addRoom.addEventListener('click', () => {
-        const view = store.getState().view;
-        if (view.phase !== 'room') { store.execute(createEnterRoomViewCommand(building.id)); return; }
-        const focus = view.roomFocus;
-        const floor = focus?.buildingId === building.id ? focus.floor : null;
-        if (floor == null) { showToast('请先在右下选择楼层,再添加房间', 'info'); return; }
-        store.execute(createStartRoomCommand(building.id, floor));
+        // 一步到位:单层直接开画;多层进"选择楼层"引导。
+        if (building.params.floors <= 1) store.execute(createStartRoomCommand(building.id, 1));
+        else store.execute(createEnterRoomViewCommand(building.id));
       });
       const header = createElement('div', { className: 'tree-building-row' }, row, addRoom);
       const children = (building.rooms ?? []).map(room => {

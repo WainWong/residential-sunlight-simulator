@@ -6,10 +6,9 @@ test('creates an L-capable room session and commits it to the tree', async ({ pa
   await page.goto('/');
   await page.getByRole('button', { name: '添加建筑' }).click();
   await expect(page.getByLabel('三维采光场景')).toHaveAttribute('data-building-count', '1', { timeout: 15000 });
-  // model B: enter the room view, choose a floor, then start the draft.
+  // 一步流程:添加房间 → 多层楼选层面板 → 点某层立即开画。
   await page.locator('[data-testid^="add-room-"]').click();
-  await page.getByTestId('floor-option-1').click();
-  await page.locator('[data-testid^="inspector-add-room-"]').click();
+  await page.getByTestId('pick-floor-1').click();
   await expect(page.getByTestId('room-session-title')).toHaveText('新建房间');
   await expect(page.getByTestId('room-finish')).toBeDisabled();
   await dragRoomRect(page);
@@ -24,8 +23,7 @@ test('cancel leaves the building without a partial room', async ({ page, isMobil
   await page.goto('/');
   await page.getByRole('button', { name: '添加建筑' }).click();
   await page.locator('[data-testid^="add-room-"]').click();
-  await page.getByTestId('floor-option-1').click();
-  await page.locator('[data-testid^="inspector-add-room-"]').click();
+  await page.getByTestId('pick-floor-1').click();
   await page.getByTestId('room-cancel').click();
   await expect(page.locator('[data-testid^="room-tree-"]')).toHaveCount(0);
 });
