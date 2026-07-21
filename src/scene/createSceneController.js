@@ -245,6 +245,10 @@ export function createSceneController(canvas, { onSelect = () => {}, store = nul
       });
   }
 
+  // 有效天花档:画/擦工具激活时强制"隐藏"(掀掉上方楼层),让贴在本层顶面的预览
+  // 不被上层楼挡;否则用用户选的 view.ceiling。
+  const effectiveCeiling = view => isDrawingToolActive(view) ? 'hide' : view.ceiling;
+
   // The persistent "编辑房间" view: lift the lid on one floor of one building and
   // frame the camera on it. Driven by view.roomFocus — it stays for the whole
   // room-editing view, independent of whether a room is actively being drafted.
@@ -257,13 +261,15 @@ export function createSceneController(canvas, { onSelect = () => {}, store = nul
     if (!building) return;
 
     const bandToY = bandTopY({ floor, ...building.params });
-    setFloorFocusVisibility(sceneParts.buildings, buildingId, floor, bandToY, project.view.ceiling);
+    setFloorFocusVisibility(sceneParts.buildings, buildingId, floor, bandToY, effectiveCeiling(project.view));
     const origin = sceneParts.aids.getObjectByName('coordinate-origin');
     if (origin) origin.visible = false;
 
     // Keep the current camera angle when entering; do not snap to top-down.
     // `target.y` is the draw-plane height and overlay baseY.
     const { target } = floorFocusTarget(building, floor);
+    // 预览贴在本层顶面(bandTop);拾取平面仍在本层地面(target.y),XZ 坐标即房间坐标。
+    const previewY = bandTopY({ floor, ...building.params });
     cameraParts.focusFloor({
       center: { x: building.position.x, y: target.y, z: building.position.z },
       radius: Math.max(building.params.length, building.params.depth) / 2
@@ -288,7 +294,7 @@ export function createSceneController(canvas, { onSelect = () => {}, store = nul
       const cx = (rect.x0 + rect.x1) / 2;
       const cz = (rect.z0 + rect.z1) / 2;
       const [wx, wz] = b ? rotateLocalToWorld([cx, cz], b.rotation) : [cx, cz];
-      _dimVec.set(wx + (b?.position.x ?? 0), target.y, wz + (b?.position.z ?? 0));
+      _dimVec.set(wx + (b?.position.x ?? 0), previewY, wz + (b?.position.z ?? 0));
       _dimVec.project(cameraParts.camera);
       const rectPx = canvas.getBoundingClientRect();
       const px = (_dimVec.x * 0.5 + 0.5) * rectPx.width;
@@ -309,8 +315,10 @@ export function createSceneController(canvas, { onSelect = () => {}, store = nul
     const renderRoomPreview = (rects, valid = true) => {
       clearPreview();
       if (!rects?.length) return;
+      // 预览贴在当前层"顶面"(bandTop)——朝上的面,斜俯不被本层墙挡;配合绘制时
+      // 掀掉上方楼层,预览始终可见,位置真实(所见即所得)。
       previewGroup = createRoomOverlay({
-        rects, baseY: target.y, draft: true, invalid: !valid
+        rects, baseY: previewY, draft: true, invalid: !valid
       });
       applyBuildingTransform(previewGroup, building);
       sceneParts.drafts.add(previewGroup);
@@ -336,7 +344,7 @@ export function createSceneController(canvas, { onSelect = () => {}, store = nul
       buildingId, floor, baseY: target.y,
       sig: `${buildingId}:${floor}`,
       buildingRevision: building.revision,
-      ceiling: project.view.ceiling,
+      ceiling: effectiveCeiling(project.view),
       slab, existing: [], dimLabel, clearPreview,
       showDimLabel, renderRoomPreview, clipDrawable, getBuilding,
       draft: null
@@ -459,7 +467,7 @@ export function createSceneController(canvas, { onSelect = () => {}, store = nul
       // Re-apply the lid visibility when the focused building's meshes were
       // rebuilt (revision bump resets mesh.visible) or the ceiling mode changed.
       const building = project.buildings.find(item => item.id === focus.buildingId);
-      const ceiling = project.view.ceiling;
+      const ceiling = effectiveCeiling(project.view);
       if (building && (building.revision !== floorFocus.buildingRevision || ceiling !== floorFocus.ceiling)) {
         floorFocus.buildingRevision = building.revision;
         floorFocus.ceiling = ceiling;
