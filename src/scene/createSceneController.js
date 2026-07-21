@@ -73,6 +73,10 @@ export function createSceneController(canvas, { onSelect = () => {}, store = nul
 
   function selectAtPointer(event) {
     if (buildingGestures.consumeSuppressedClick() || openingGestures.consumeSuppressedClick()) return;
+    // A camera orbit/pan ends with a browser 'click'; ignore it so dragging the
+    // view never counts as picking an entity (which in sunlight phase would snap
+    // back to the exterior).
+    if (pointerDragged) return;
     // While a draw/erase tool is engaged, left clicks draw rather than select.
     // In the room view with no active tool (select), clicks still select — e.g.
     // to pick a wall for adding an opening.
@@ -85,6 +89,26 @@ export function createSceneController(canvas, { onSelect = () => {}, store = nul
     const entityId = resolvePickedEntity(intersections);
     if (entityId) onSelect(entityId);
   }
+
+  // Distinguish a click from a drag (orbit/pan): if the pointer moved beyond a
+  // few pixels between down and up, the trailing 'click' is suppressed.
+  const CLICK_DRAG_THRESHOLD = 6;
+  let pointerDownPos = null;
+  let pointerDragged = false;
+  const onPointerDownTrack = event => {
+    pointerDownPos = { x: event.clientX, y: event.clientY };
+    pointerDragged = false;
+  };
+  const onPointerMoveTrack = event => {
+    if (!pointerDownPos) return;
+    if (Math.hypot(event.clientX - pointerDownPos.x, event.clientY - pointerDownPos.y) > CLICK_DRAG_THRESHOLD) {
+      pointerDragged = true;
+    }
+  };
+  const onPointerUpTrack = () => { pointerDownPos = null; };
+  canvas.addEventListener('pointerdown', onPointerDownTrack);
+  canvas.addEventListener('pointermove', onPointerMoveTrack);
+  window.addEventListener('pointerup', onPointerUpTrack);
 
   canvas.addEventListener('click', selectAtPointer);
 
@@ -528,6 +552,9 @@ export function createSceneController(canvas, { onSelect = () => {}, store = nul
     dispose() {
       interiorView.dispose();
       canvas.removeEventListener('click', selectAtPointer);
+      canvas.removeEventListener('pointerdown', onPointerDownTrack);
+      canvas.removeEventListener('pointermove', onPointerMoveTrack);
+      window.removeEventListener('pointerup', onPointerUpTrack);
       canvas.removeEventListener('pointermove', hoverAtPointer);
       buildingGestures.dispose();
       openingGestures.dispose();

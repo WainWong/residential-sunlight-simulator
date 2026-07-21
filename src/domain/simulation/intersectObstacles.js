@@ -53,6 +53,31 @@ export function intersectRayQuad(origin, direction, quad) {
 
 const PORTAL_PLANE_TOL = 0.05; // meters: hit counts as "at the portal plane"
 
+function pointInRing(px, pz, ring) {
+  let inside = false;
+  for (let i = 0, j = ring.length - 1; i < ring.length; j = i++) {
+    const xi = ring[i][0], zi = ring[i][1];
+    const xj = ring[j][0], zj = ring[j][1];
+    if ((zi > pz) !== (zj > pz)
+      && px < ((xj - xi) * (pz - zi)) / ((zj - zi) || 1e-12) + xi) inside = !inside;
+  }
+  return inside;
+}
+
+// Ray vs a horizontal footprint cap at y=cap.y. Solid = inside the outer ring
+// and outside every hole ring (courtyard voids let the ray pass).
+export function intersectRayCap(origin, direction, cap) {
+  if (Math.abs(direction[1]) < EPSILON) return null;
+  const distance = (cap.y - origin[1]) / direction[1];
+  if (distance <= EPSILON) return null;
+  const px = origin[0] + direction[0] * distance;
+  const pz = origin[2] + direction[2] * distance;
+  const [outer, ...holes] = cap.rings;
+  if (!pointInRing(px, pz, outer)) return null;
+  for (const hole of holes) if (pointInRing(px, pz, hole)) return null;
+  return distance;
+}
+
 // Does a world point (an obstacle hit) fall inside one of the portal openings?
 // Openings are holes in walls: a wall hit inside a portal lets the ray through.
 function pointInsideAPortal(point, portals) {
@@ -74,9 +99,11 @@ function pointInsideAPortal(point, portals) {
 export function firstBlockingDistance(origin, direction, obstacles, portals = []) {
   const hits = [];
   for (const obstacle of obstacles) {
-    const distance = obstacle.a
-      ? intersectRayQuad(origin, direction, obstacle)
-      : intersectRayAabb(origin, direction, obstacle);
+    const distance = obstacle.cap
+      ? intersectRayCap(origin, direction, obstacle)
+      : obstacle.a
+        ? intersectRayQuad(origin, direction, obstacle)
+        : intersectRayAabb(origin, direction, obstacle);
     if (distance != null) hits.push(distance);
   }
   hits.sort((a, b) => a - b);

@@ -94,7 +94,7 @@ export function buildSegmentSpecs(building) {
   const footprint = createFootprint(building.template, params);
   const walls = createWallSegments(footprint);
 
-  // 按楼层聚合房间 → 每个被占用楼层一个 band
+  // 按楼层聚合房间
   const byFloor = new Map();
   for (const room of building.rooms ?? []) {
     if (!(room.rects?.length > 0)) continue;
@@ -102,23 +102,28 @@ export function buildSegmentSpecs(building) {
     byFloor.get(room.floor).push(room);
   }
 
-  const bands = [...byFloor.entries()]
-    .map(([floor, roomsOnFloor]) => {
-      const fromY = floorBaseY({ floor, ...params }) + SLAB_THICKNESS;
-      const nextBase = bandTopY({ floor, ...params });
-      const cutters = roomsOnFloor.flatMap(room =>
-        rectUnionToPolygons(room.rects).map(poly => toCutter(poly, footprint, walls))
-      );
-      // 房间多边形(未外凸,即刀在 footprint 内挖出的真实空腔轮廓):顶层房间
-      // 用它单独造顶盖 mesh,好让"揭盖"能把顶盖整块隐藏。
-      const rooms = roomsOnFloor.flatMap(room => rectUnionToPolygons(room.rects));
-      return { fromY, toY: nextBase, cutters, rooms };
-    })
-    .sort((a, b) => a.fromY - b.fromY);
+  // 每个楼层都切成一个独立 band(含房间的带刀,不含的是纯实体盒)。逐层切分而不是
+  // 只切"有房间的层",是为了"揭盖"能按楼层可靠地隐藏某层顶面及以上——空楼没有
+  // 房间时,整栋才不会退化成一整块 fromY:0 的壳,导致掀不动盖。
+  const bands = [];
+  for (let floor = 1; floor <= params.floors; floor += 1) {
+    const roomsOnFloor = byFloor.get(floor) ?? [];
+    const fromY = floorBaseY({ floor, ...params }) + SLAB_THICKNESS;
+    const toY = bandTopY({ floor, ...params });
+    const cutters = roomsOnFloor.flatMap(room =>
+      rectUnionToPolygons(room.rects).map(poly => toCutter(poly, footprint, walls))
+    );
+    // 房间多边形(未外凸,即刀在 footprint 内挖出的真实空腔轮廓):顶层房间
+    // 用它单独造顶盖 mesh,好让"揭盖"能把顶盖整块隐藏。
+    const rooms = roomsOnFloor.flatMap(room => rectUnionToPolygons(room.rects));
+    bands.push({ fromY, toY, cutters, rooms });
+  }
 
   const specs = [];
   let cursor = 0;
   for (const band of bands) {
+    // 楼板夹层(相邻 band 之间的 SLAB_THICKNESS 实体)也作为独立段,fromY 落在
+    // 该楼层基面,归属"上一层的顶"一侧。
     if (band.fromY - cursor > EPS) specs.push({ fromY: cursor, toY: band.fromY, cutters: [], rooms: [] });
     specs.push(band);
     cursor = band.toY;

@@ -1,5 +1,6 @@
 import { floorBaseY } from '../buildings/floorMath.js';
 import { rotateLocalToWorld } from '../buildings/wallGeometry.js';
+import { buildHorizontalCaps } from './buildHorizontalCaps.js';
 import { buildObstacles } from './buildObstacles.js';
 import { buildRoomOpeningPortals } from './buildRoomOpeningPortals.js';
 import { buildRoomWallQuads } from './buildRoomWallQuads.js';
@@ -14,11 +15,15 @@ export function findRoom(project, roomId) {
 }
 
 export function buildRoomSimulationGeometry(project) {
+  const buildings = project.buildings ?? [];
   return {
-    openings: (project.buildings ?? []).flatMap(buildRoomOpeningPortals),
+    openings: buildings.flatMap(buildRoomOpeningPortals),
     obstacles: [
-      ...buildObstacles(project.buildings ?? []),
-      ...(project.buildings ?? []).flatMap(buildRoomWallQuads)
+      ...buildObstacles(buildings),
+      ...buildings.flatMap(buildRoomWallQuads),
+      // Ceilings, inter-floor slabs and the roof — a room is a closed box; light
+      // escapes only through a wall opening, never through a missing ceiling.
+      ...buildHorizontalCaps(buildings)
     ]
   };
 }

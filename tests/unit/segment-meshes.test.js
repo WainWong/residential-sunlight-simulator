@@ -33,9 +33,11 @@ describe('buildSegmentMeshes', () => {
     }
   });
 
-  it('no-area building → single segment', () => {
+  it('no-area building → one solid segment per floor (+ slab interlayers)', () => {
     const { meshes } = buildSegmentMeshes(bar(), material);
-    expect(meshes).toHaveLength(1);
+    // 逐层切分:6 层 → 6 楼层段 + 6 楼板段
+    expect(meshes).toHaveLength(12);
+    expect(meshes.every(m => m.userData.kind === 'building-segment')).toBe(true);
     expect(meshes[0].userData).toMatchObject({ kind: 'building-segment', entityId: 'b1' });
   });
 

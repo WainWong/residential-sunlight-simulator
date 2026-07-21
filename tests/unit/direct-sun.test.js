@@ -118,5 +118,20 @@ describe('direct sunlight', () => {
 
     expect(result).toMatchObject({ hasDirectSun: false, litRatio: 0 });
   });
+
+  it('a ceiling cap over the room blocks a steep overhead ray', () => {
+    // A wide/high window the steep ray *does* exit through, so the only thing
+    // that can darken the sample is the ceiling cap between it and that exit.
+    const bigWindow = {
+      ...southWindow, plane: { point: [0, 1.5, -1], normal: [0, 0, -1], tangent: [1, 0, 0] },
+      bounds: { minU: -20, maxU: 20, minV: 0, maxV: 40 }
+    };
+    const steep = [0, 0.95, -0.31];
+    const lit = evaluateDirectSun({ area, openings: [bigWindow], obstacles: [], sunDirection: steep });
+    expect(lit.hasDirectSun).toBe(true);
+    const ceiling = { cap: true, y: 2.4, rings: [[[-10, -10], [10, -10], [10, 10], [-10, 10]]] };
+    const dark = evaluateDirectSun({ area, openings: [bigWindow], obstacles: [ceiling], sunDirection: steep });
+    expect(dark.hasDirectSun).toBe(false);
+  });
 });
 
