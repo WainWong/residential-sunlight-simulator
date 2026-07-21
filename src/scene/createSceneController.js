@@ -193,6 +193,7 @@ export function createSceneController(canvas, { onSelect = () => {}, store = nul
     floorFocus.draft.drag?.dispose();
     floorFocus.draft.roomGestures?.dispose();
     floorFocus.clearPreview();
+    floorFocus.clearDragRect();
     floorFocus.dimLabel.hidden = true;
     floorFocus.draft = null;
     cameraParts.setEditControls(null);
@@ -304,24 +305,30 @@ export function createSceneController(canvas, { onSelect = () => {}, store = nul
       dimLabel.hidden = false;
     }
 
-    let previewGroup = null;
-    const clearPreview = () => {
-      if (previewGroup) {
-        previewGroup.userData.dispose();
-        sceneParts.drafts.remove(previewGroup);
-        previewGroup = null;
-      }
+    // 两条独立渲染通道,互不清除:
+    //  - committedGroup:房间当前已落地的完整形状(editing.rects),常驻显示。
+    //  - dragGroup:拖动中的临时矩形,松手即清 —— 清它不影响已落地的累积块。
+    let committedGroup = null;
+    let dragGroup = null;
+    const disposeGroup = g => { if (g) { g.userData.dispose(); sceneParts.drafts.remove(g); } };
+    const makeOverlay = (rects, valid) => {
+      const g = createRoomOverlay({ rects, baseY: previewY, draft: true, invalid: !valid });
+      applyBuildingTransform(g, building);
+      sceneParts.drafts.add(g);
+      return g;
     };
+    const clearPreview = () => { disposeGroup(committedGroup); committedGroup = null; };
+    // 累积块(已落地房间形状)。贴当前层顶面(bandTop),斜俯不被本层墙挡,位置真实。
     const renderRoomPreview = (rects, valid = true) => {
-      clearPreview();
+      disposeGroup(committedGroup); committedGroup = null;
       if (!rects?.length) return;
-      // 预览贴在当前层"顶面"(bandTop)——朝上的面,斜俯不被本层墙挡;配合绘制时
-      // 掀掉上方楼层,预览始终可见,位置真实(所见即所得)。
-      previewGroup = createRoomOverlay({
-        rects, baseY: previewY, draft: true, invalid: !valid
-      });
-      applyBuildingTransform(previewGroup, building);
-      sceneParts.drafts.add(previewGroup);
+      committedGroup = makeOverlay(rects, valid);
+    };
+    // 拖动中的临时形状,独立于累积块。
+    const renderDragRect = (rects, valid = true) => {
+      disposeGroup(dragGroup); dragGroup = null;
+      if (!rects?.length) return;
+      dragGroup = makeOverlay(rects, valid);
     };
 
     const getBuilding = () => store.getState().buildings.find(b => b.id === buildingId);
@@ -345,8 +352,8 @@ export function createSceneController(canvas, { onSelect = () => {}, store = nul
       sig: `${buildingId}:${floor}`,
       buildingRevision: building.revision,
       ceiling: effectiveCeiling(project.view),
-      slab, existing: [], dimLabel, clearPreview,
-      showDimLabel, renderRoomPreview, clipDrawable, getBuilding,
+      slab, existing: [], dimLabel, clearPreview, clearDragRect: () => { disposeGroup(dragGroup); dragGroup = null; },
+      showDimLabel, renderRoomPreview, renderDragRect, clipDrawable, getBuilding,
       draft: null
     };
     rebuildExistingOverlays();
@@ -388,23 +395,19 @@ export function createSceneController(canvas, { onSelect = () => {}, store = nul
       canvas, camera: cameraParts.camera, floorY: floorFocus.previewY,
       getBuilding: floorFocus.getBuilding, getMode,
       onPreview: rect => {
-        floorFocus.clearPreview();
         floorFocus.showDimLabel(rect);
-        if (!rect) return;
+        if (!rect) { floorFocus.clearDragRect(); return; }
         if (getMode() === 'erase') {
-          // Preview the cut region itself, flagged invalid (it's being removed).
-          floorFocus.renderRoomPreview([rect], false);
+          floorFocus.renderDragRect([rect], false); // 擦除:临时框标红(表示要挖掉)
           return;
         }
-        const b = floorFocus.getBuilding();
-        const pieces = floorFocus.clipDrawable(rect, b);
-        // 有可落地部分就预览裁剪后的真实形状;完全落在footprint外或压在已有房间上
-        // (裁成空)则把原始拖拽矩形标红预览,让用户始终看得到自己在画什么。
-        if (pieces.length > 0) floorFocus.renderRoomPreview(pieces);
-        else floorFocus.renderRoomPreview([rect], false);
+        const pieces = floorFocus.clipDrawable(rect, floorFocus.getBuilding());
+        // 拖动的临时形状:落地部分显示裁剪后真实形状;裁成空则原始框标红。
+        if (pieces.length > 0) floorFocus.renderDragRect(pieces);
+        else floorFocus.renderDragRect([rect], false);
       },
       onCommit: (rect, mode) => {
-        floorFocus.clearPreview();
+        floorFocus.clearDragRect();
         if (!store?.getState()?.view?.roomEditing) return;
         if (mode === 'erase') {
           if (!store.execute(createEraseRoomRectCommand(rect))) {
