@@ -16,6 +16,7 @@
 .room-tools__btn { min-height: 40px; border: 0; border-radius: 8px; background: transparent; color: var(--ink-700, #334155); font-size: 13px; font-weight: 650; cursor: pointer; transition: background-color 140ms ease, color 140ms ease; }
 .room-tools__btn:hover { background: rgb(15 23 42 / 8%); }
 .room-tools__btn.is-active { background: var(--sun-500); color: var(--ink-950); cursor: default; }
+.floor-rooms__list { display: flex; flex-direction: column; gap: 4px; }
 .context-primary { width: 100%; }
 .opening-presets { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-top: 8px; }
 .opening-preset { min-height: 48px; border: 1px solid var(--line); border-radius: 6px; background: white; color: var(--ink-900); cursor: pointer; }

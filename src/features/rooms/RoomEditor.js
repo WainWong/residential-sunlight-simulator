@@ -1,6 +1,5 @@
 import { rectArea } from '../../domain/rooms/roomGeometry.js';
 import { createElement } from '../../ui/createElement.js';
-import { segmentedButtons } from '../../ui/segmentedButtons.js';
 import {
   createCancelRoomCommand,
   createFinishRoomCommand,
@@ -10,19 +9,30 @@ import {
   createViewRoomSunlightCommand
 } from '../../store/roomCommands.js';
 
+// 左键已全局解放为"选择",所以工具条不再有独立"选择"按钮:只有画房间/擦除两个
+// 开关。再点一次当前激活的开关即关掉(回到"选择/调整"静息态,左键点选、可拖手柄
+// 改已有房间)。新建房间默认激活"画房间"。
 const ROOM_TOOLS = [
-  { value: 'select', label: '选择', title: '点选房间或墙,拖动调整' },
   { value: 'draw', label: '画房间', title: '拖出矩形,加进房间' },
   { value: 'erase', label: '擦除', title: '拖出矩形,从房间里挖掉' }
 ];
 
 function toolBar(store, currentTool) {
-  return segmentedButtons({
-    options: ROOM_TOOLS.map(t => ({ ...t, testId: `room-tool-${t.value}` })),
-    activeValue: currentTool,
-    onSelect: value => store.setView({ roomTool: value }),
-    className: 'room-tools', btnClassName: 'room-tools__btn', testId: 'room-tools'
+  const bar = createElement('div', {
+    className: 'room-tools', testId: 'room-tools', attributes: { role: 'group', 'aria-label': '房间编辑工具' }
   });
+  for (const { value, label, title } of ROOM_TOOLS) {
+    const active = currentTool === value;
+    const btn = createElement('button', {
+      className: 'room-tools__btn' + (active ? ' is-active' : ''),
+      text: label, testId: `room-tool-${value}`,
+      attributes: { type: 'button', title, 'aria-pressed': String(active) }
+    });
+    // 点激活项 → 关掉(回静息 select);点非激活项 → 切到它。
+    btn.addEventListener('click', () => store.setView({ roomTool: active ? 'select' : value }));
+    bar.append(btn);
+  }
+  return bar;
 }
 
 function field(label, control) {

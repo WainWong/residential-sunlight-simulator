@@ -3,7 +3,7 @@ import { selectedBuildingId as resolveSelectedBuildingId } from '../../domain/pr
 import { createElement } from '../../ui/createElement.js';
 import { segmentedButtons } from '../../ui/segmentedButtons.js';
 import { createRemoveBuildingCommand, createUpdateBuildingCommand } from '../../store/projectCommands.js';
-import { createSelectEntityCommand, createStartRoomCommand, createSetRoomFloorCommand, createEnterRoomViewCommand, createSetTaskPhaseCommand } from '../../store/roomCommands.js';
+import { createSelectEntityCommand, createStartRoomCommand, createStartRoomEditCommand, createSetRoomFloorCommand, createEnterRoomViewCommand, createSetTaskPhaseCommand } from '../../store/roomCommands.js';
 import { createOpeningEditor } from '../openings/OpeningEditor.js';
 import { createRoomEditor } from '../rooms/RoomEditor.js';
 
@@ -116,6 +116,32 @@ function floorPickPanel({ store, building }) {
     createElement('div', { className: 'inspector-actions' }, back));
 }
 
+// 该层房间列表(编辑房间视图,已选层、未选具体房间时的右侧内容)。点房间进入编辑,
+// 顶部一个"新建房间"入口在本层开画。不显示建筑信息(那属于编辑建筑视图)。
+function floorRoomsPanel({ store, building, floor }) {
+  const rooms = (building.rooms ?? []).filter(r => r.floor === floor);
+  const addRoom = createElement('button', {
+    className: 'button button--primary context-primary', text: '＋ 新建房间',
+    testId: 'floor-add-room', attributes: { type: 'button', 'data-primary-control': '' }
+  });
+  addRoom.addEventListener('click', () => store.execute(createStartRoomCommand(building.id, floor)));
+  const rows = rooms.map(room => {
+    const btn = createElement('button', {
+      className: 'tree-row--room', text: `${room.name}`,
+      testId: `floor-room-${room.id}`, attributes: { type: 'button' }
+    });
+    btn.addEventListener('click', () => store.execute(createStartRoomEditCommand(building.id, room.id)));
+    return btn;
+  });
+  return createElement('section', { className: 'floor-rooms', testId: 'floor-rooms' },
+    createElement('div', { className: 'panel__label', text: `${building.name} · ${floor} 层` }),
+    createElement('h2', { className: 'panel__title', text: '本层房间' }),
+    rooms.length === 0
+      ? createElement('p', { className: 'context-note', text: '本层还没有房间。点"新建房间"开始画。' })
+      : createElement('div', { className: 'floor-rooms__list' }, ...rows),
+    createElement('div', { className: 'inspector-actions' }, addRoom));
+}
+
 function floorSelectorBar({ store, building, floor }) {
   const floors = building.params.floors;
   // Top floor first, ground floor last — reads like a building seen side-on.
@@ -149,9 +175,9 @@ export function createBuildingInspector({ store, confirmDelete = () => true }) {
   function renderFloorBar(project) {
     const focus = project.view.phase === 'room' ? project.view.roomFocus : null;
     const building = focus && project.buildings.find(b => b.id === focus.buildingId);
-    const show = building && building.params.floors > 1;
-    // Rebuilding the floor buttons on every unrelated store change is wasteful;
-    // gate on what the bar actually depends on.
+    // 楼层未选(选层引导态)时,右侧 floorPickPanel 已提供选层入口 —— 顶部常驻选择器
+    // 此时不显示,避免"两个选择楼层"。选定层后才出现,用于切层。
+    const show = building && building.params.floors > 1 && focus.floor != null;
     const nextKey = show ? `${building.id}:${focus.floor}:${building.params.floors}` : '';
     if (nextKey === floorBarKey) return;
     floorBarKey = nextKey;
@@ -170,9 +196,14 @@ export function createBuildingInspector({ store, confirmDelete = () => true }) {
     // 编辑房间但楼层未选(经"添加房间"进入、多层楼)→ 右侧显示"选择楼层"引导,
     // 点某层即开画。这是加房间的一步流程,底部工具在选层前不露出(由 phase+floor 门控)。
     const pickingFloor = view.phase === 'room' && view.roomFocus?.floor == null && !editing;
+    // 编辑房间、已选层、但未选中具体房间/未在画草稿 → 右侧显示"该层房间列表"(而非
+    // 建筑信息)。建筑信息属于"编辑建筑"视图。
+    const floorRooms = view.phase === 'room' && view.roomFocus?.floor != null && !editing
+      && (!selection || selection.kind === 'building');
     const nextKey = editing
       ? `editing:${editing.buildingId}:${editing.roomId}`
       : pickingFloor ? `pickfloor:${view.roomFocus.buildingId}`
+      : floorRooms ? `floorrooms:${view.roomFocus.buildingId}:${view.roomFocus.floor}:${buildingRevision ?? ''}`
       : selection ? `${selection.kind}:${selection.buildingId ?? selection.id}:${selection.id}:${buildingRevision ?? ''}` : 'empty';
     if (nextKey === key) return;
     key = nextKey;
@@ -183,6 +214,10 @@ export function createBuildingInspector({ store, confirmDelete = () => true }) {
     if (pickingFloor) {
       const building = project.buildings.find(item => item.id === view.roomFocus.buildingId);
       if (building) { replaceContent(floorPickPanel({ store, building })); return; }
+    }
+    if (floorRooms) {
+      const building = project.buildings.find(item => item.id === view.roomFocus.buildingId);
+      if (building) { replaceContent(floorRoomsPanel({ store, building, floor: view.roomFocus.floor })); return; }
     }
     if (!selection) {
       replaceContent(createElement('div', { className: 'context-empty' },

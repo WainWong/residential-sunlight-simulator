@@ -14,5 +14,7 @@ test('room creation starts directly without hidden edit modes', async ({ page, i
   await expect(page.getByTestId('room-tools')).toBeVisible();
   await expect(page.getByTestId('room-tool-draw')).toHaveAttribute('aria-pressed', 'true');
   await page.getByTestId('room-cancel').click();
-  await expect(page.getByTestId('building-context')).toBeVisible();
+  // Cancel returns to the floor's room list (still in the room view), not the
+  // building info panel.
+  await expect(page.getByTestId('floor-rooms')).toBeVisible();
 });

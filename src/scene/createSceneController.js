@@ -302,7 +302,7 @@ export function createSceneController(canvas, { onSelect = () => {}, store = nul
     const clearPreview = () => {
       if (previewGroup) {
         previewGroup.userData.dispose();
-        sceneParts.overlays.remove(previewGroup);
+        sceneParts.drafts.remove(previewGroup);
         previewGroup = null;
       }
     };
@@ -313,7 +313,7 @@ export function createSceneController(canvas, { onSelect = () => {}, store = nul
         rects, baseY: target.y, draft: true, invalid: !valid
       });
       applyBuildingTransform(previewGroup, building);
-      sceneParts.overlays.add(previewGroup);
+      sceneParts.drafts.add(previewGroup);
     };
 
     const getBuilding = () => store.getState().buildings.find(b => b.id === buildingId);

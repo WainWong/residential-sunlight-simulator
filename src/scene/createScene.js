@@ -51,5 +51,11 @@ export function createScene() {
   overlays.name = 'overlays';
   scene.add(overlays);
 
-  return { scene, ground, sunlight, aids, buildings, overlays };
+  // 画房间/擦除的实时预览独占一组,与分析光斑叠层(overlays)分开 —— 后者每次
+  // 分析更新会整组 clear(),不能连预览一起清掉。
+  const drafts = new THREE.Group();
+  drafts.name = 'drafts';
+  scene.add(drafts);
+
+  return { scene, ground, sunlight, aids, buildings, overlays, drafts };
 }
