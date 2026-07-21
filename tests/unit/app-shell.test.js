@@ -5,7 +5,7 @@ import { createDefaultProject } from '../../src/domain/project/defaultProject.js
 import { createSimulationController } from '../../src/features/results/createSimulationController.js';
 import { createAppShell } from '../../src/features/shell/AppShell.js';
 import { createAddBuildingCommand, createClearBuildingsCommand } from '../../src/store/projectCommands.js';
-import { createSetTaskPhaseCommand, createAppendRoomRectCommand, createFinishRoomCommand, createSelectEntityCommand, createStartRoomCommand, createEnterRoomViewCommand } from '../../src/store/roomCommands.js';
+import { createSetTaskPhaseCommand, createAppendRoomRectCommand, createFinishRoomCommand, createSelectEntityCommand, createStartRoomCommand, createEnterRoomViewCommand, createViewRoomSunlightCommand, createReturnExteriorCommand } from '../../src/store/roomCommands.js';
 
 function mount() {
   const store = createStore(createDefaultProject());
@@ -21,7 +21,7 @@ function mount() {
 }
 
 describe('room-first AppShell', () => {
-  it('shows the ceiling control only in the room view and toggles view.ceiling', () => {
+  it('shows the ceiling control in the room view and toggles view.ceiling', () => {
     const { store, shell } = mount();
     store.execute(createAddBuildingCommand({ id: 'b1' }));
     const control = shell.querySelector('[data-testid="ceiling-control"]');
@@ -33,6 +33,20 @@ describe('room-first AppShell', () => {
     shell.querySelector('[data-testid="ceiling-ghost"]').click();
     expect(store.getState().view.ceiling).toBe('ghost');
     expect(shell.querySelector('[data-testid="ceiling-ghost"]').getAttribute('aria-pressed')).toBe('true');
+  });
+
+  it('shows the ceiling control in sunlight only while a specific room is viewed', () => {
+    const { store, shell } = mount();
+    store.execute(createAddBuildingCommand({ id: 'b1' }));
+    store.execute(createStartRoomCommand('b1', 1));
+    store.execute(createAppendRoomRectCommand({ x0: -4, z0: -3, x1: 4, z1: 3 }));
+    store.execute(createFinishRoomCommand());
+    const roomId = store.getState().buildings[0].rooms[0].id;
+    const control = shell.querySelector('[data-testid="ceiling-control"]');
+    store.execute(createViewRoomSunlightCommand('b1', roomId));
+    expect(control.hidden).toBe(false); // viewing a room's interior
+    store.execute(createReturnExteriorCommand('b1'));
+    expect(control.hidden).toBe(true); // back to exterior (still sunlight) → no lid target
   });
 
   it('uses the inspector in build and results only in sunlight', () => {

@@ -170,12 +170,15 @@ export function createAppShell({ store, simulationController, onAddBuilding, onC
     renderCeilingControl(project, phase);
   }
 
-  // Ceiling (天花) show/ghost/hide control — only in 编辑房间 (the interior
-  // Ceiling (天花) show/ghost/hide control — shown in both 编辑房间 and 查看采光;
-  // both drive the same shared, manual view.ceiling (no more camera auto-lift).
+  // Ceiling (天花) show/ghost/hide control — drives the shared manual view.ceiling.
+  // 编辑房间: always has a focused floor (the lid target), so always shown.
+  // 查看采光: only meaningful while a specific room's interior is being viewed
+  // (interiorRoomId set); after returning to the exterior there is no lid target,
+  // so the control is hidden rather than left inert.
   let ceilingKey = null;
   function renderCeilingControl(project, phase) {
-    const show = phase === 'room' || phase === 'sunlight';
+    const show = phase === 'room'
+      || (phase === 'sunlight' && project.view.interiorRoomId != null);
     const nextKey = show ? `${phase}:${project.view.ceiling}` : '';
     if (nextKey === ceilingKey) return;
     ceilingKey = nextKey;
