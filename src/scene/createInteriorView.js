@@ -1,9 +1,7 @@
 import * as THREE from 'three';
 import { bandTopY, totalBuildingHeight } from '../domain/buildings/floorMath.js';
 import { roomInteriorFrame } from '../domain/rooms/roomGeometry.js';
-import { createFadeState } from './occlusionFade.js';
 import { applyCeiling } from './ceilingVisibility.js';
-import { eachEdge, isSegment } from './sceneTags.js';
 
 // 室内视图 (Interior View):进入某个房间内部、观察真实太阳光斑的视图模式。
 // 统一几何下"房间就是建筑本体"(CSG 挖好洞的分段网格),进屋只飞相机;墙体
@@ -11,16 +9,11 @@ import { eachEdge, isSegment } from './sceneTags.js';
 // 隐藏,露出房间内部。此模块独占该功能的完整生命周期与其全部可变状态,使
 // 控制器与 main.js 只需转发"当前看几号房间"。
 //
-// 依赖在构造时一次性注入(照 gizmo 惯例)。射线器为本模块私有 —— 不与拾取/
-// 悬停共用,避免此处修改 raycaster.far 时污染它们。
-export function createInteriorView({ scene, sunlight, cameraRig, buildingsGroup, raycaster = new THREE.Raycaster() }) {
-  const camera = cameraRig.camera;
+// 依赖在构造时一次性注入(照 gizmo 惯例)。
+export function createInteriorView({ scene, sunlight, cameraRig, buildingsGroup }) {
   // 活动会话:null 表示不在室内视图。进入时置为
-  // { buildingId, bandToY, liftY, lid, shadowHalf, center }。
+  // { buildingId, bandToY, ceiling, shadowHalf, center }。
   let interior = null;
-  // 被淡化的段网格:mesh → { state, fade, sharedMaterial, sharedEdgeMaterial }。
-  const fadeMap = new Map();
-  const _occDir = new THREE.Vector3(); // tick 每帧复用,避免分配
 
   // 聚焦阴影相机到室内房间,让该处阴影纹素密集(边缘锐利)。applySunLighting
   // 每次太阳更新会把光重新对准原点,所以每次太阳更新后都要再调一次。
@@ -98,15 +91,6 @@ export function createInteriorView({ scene, sunlight, cameraRig, buildingsGroup,
     // 还原盖子(把 hide/ghost 恢复成完整可见的实心外观)。
     const group = buildingGroupOf(interior.buildingId);
     if (group) applyCeiling(group, interior.bandToY, 'show');
-    for (const [mesh, entry] of fadeMap) {
-      mesh.material.dispose();
-      mesh.material = entry.sharedMaterial;
-      eachEdge(mesh, child => {
-        child.material.dispose();
-        child.material = entry.sharedEdgeMaterial;
-      });
-    }
-    fadeMap.clear();
     const hemi = scene.getObjectByName('ambient-sky');
     if (hemi) hemi.intensity = 1.5;
     cameraRig.setEditControls(null);
@@ -123,61 +107,9 @@ export function createInteriorView({ scene, sunlight, cameraRig, buildingsGroup,
     frameShadowsOnInterior();
   }
 
-  // 每帧:挡在相机与房间之间的外墙淡化(侧墙遮挡,非天花)。盖子由天花档静态
-  // 控制,不再随相机高度变。
-  function tick() {
-    if (!interior) return;
-    // 聚焦建筑的段 mesh(排除顶盖):射线 相机→房间中心,命中且在中心之前者遮挡。
-    const cam = camera.position;
-    _occDir.copy(interior.center).sub(cam);
-    const distToCenter = _occDir.length();
-    _occDir.normalize();
-    raycaster.set(cam, _occDir);
-    raycaster.far = distToCenter;
-
-    const segments = [];
-    for (const child of buildingsGroup.children) {
-      if (child.userData?.entityId !== interior.buildingId) continue;
-      child.traverse(m => {
-        if (isSegment(m) && m.visible) segments.push(m);
-      });
-    }
-    const segmentSet = new Set(segments);
-    const hits = raycaster.intersectObjects(segments, false);
-    const occluders = new Set(hits.map(h => h.object));
-
-    // 已登记但本帧不再存在的 mesh(段重建)从表中移除,不再触碰。
-    for (const mesh of fadeMap.keys()) {
-      if (!segmentSet.has(mesh)) fadeMap.delete(mesh);
-    }
-
-    for (const mesh of segments) {
-      const occluding = occluders.has(mesh);
-      let entry = fadeMap.get(mesh);
-      if (!entry) {
-        if (!occluding) continue; // 未遮挡且未登记:保持共享实心材质,不克隆
-        entry = {
-          state: createFadeState(), fade: 1.0,
-          sharedMaterial: mesh.material, sharedEdgeMaterial: null
-        };
-        mesh.material = mesh.material.clone();
-        mesh.material.transparent = true;
-        eachEdge(mesh, child => {
-          entry.sharedEdgeMaterial = child.material;
-          child.material = child.material.clone();
-          child.material.transparent = true;
-        });
-        fadeMap.set(mesh, entry);
-      }
-      entry.fade = entry.state.update(entry.fade, occluding);
-      mesh.material.opacity = entry.fade;
-      mesh.material.transparent = entry.fade < 1;
-      eachEdge(mesh, child => {
-        child.material.opacity = entry.fade;
-        child.material.transparent = entry.fade < 1;
-      });
-    }
-  }
+  // 盖子(天花)现在完全由 view.ceiling 手动档静态控制;进入取景后每帧无需再做
+  // 任何遮挡/淡化处理。保留空 tick 以兼容动画循环的调用。
+  function tick() {}
 
   return {
     enter,

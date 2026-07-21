@@ -3,7 +3,6 @@ import { worldPointToBuildingLocal } from '../../domain/buildings/buildingCoordi
 import { floorBaseY } from '../../domain/buildings/floorMath.js';
 import { rotateLocalToWorld } from '../../domain/buildings/wallGeometry.js';
 import { deriveWalls } from '../../domain/walls/deriveWalls.js';
-import { isEditPhase } from '../../domain/project/viewSelection.js';
 import { createUpdateOpeningCommand } from '../../store/roomCommands.js';
 import { pointerToNdc } from '../picking.js';
 import {
@@ -91,7 +90,7 @@ export function createOpeningGestures({ canvas, camera, scene, store, setCameraL
   }
 
   function start(event) {
-    if (!isEditPhase(project?.view)) return;
+    if (project?.view?.phase !== 'room') return;
     const handle = resolveOpeningHandle(raycast(event));
     const context = handle && contextFor(handle.openingId, handle.buildingId);
     if (!handle || !context) return;

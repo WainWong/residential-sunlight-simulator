@@ -19,7 +19,7 @@ import { rotateLocalToWorld } from '../domain/buildings/wallGeometry.js';
 import { createRenderer } from './createRenderer.js';
 import { createScene } from './createScene.js';
 import { pointerToNdc, resolvePickedEntity } from './picking.js';
-import { selectedBuildingId, isEditPhase, isDrawingToolActive } from '../domain/project/viewSelection.js';
+import { selectedBuildingId, isDrawingToolActive } from '../domain/project/viewSelection.js';
 import { applySunLighting } from './sunLighting.js';
 import { createSceneSynchronizer } from './syncScene.js';
 import { createAppendRoomRectCommand, createEraseRoomRectCommand } from '../store/roomCommands.js';
@@ -156,7 +156,8 @@ export function createSceneController(canvas, { onSelect = () => {}, store = nul
   }
 
   function hoverAtPointer(event) {
-    if (floorFocus || !isEditPhase(currentProject?.view)) {
+    // 墙面高亮(为开窗/开门做准备)只在"编辑房间"相;编辑建筑相不响应墙。
+    if (floorFocus || currentProject?.view?.phase !== 'room') {
       clearHoverWall();
       return;
     }

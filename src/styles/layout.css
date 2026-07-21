@@ -270,13 +270,12 @@
 .viewport__ceiling {
   position: absolute;
   bottom: 14px;
-  left: 50%;
-  transform: translateX(-50%);
+  right: 14px;
   z-index: 6;
   display: flex;
   align-items: center;
-  gap: 8px;
-  padding: 5px 8px;
+  gap: 6px;
+  padding: 5px 8px 5px 10px;
   border-radius: 999px;
   background: rgb(255 255 255 / 88%);
   box-shadow: 0 1px 6px rgb(15 23 42 / 12%);
@@ -285,9 +284,12 @@
 .viewport__ceiling[hidden] { display: none; }
 
 .viewport__ceiling-label {
-  font-size: 11px;
+  font-size: 10px;
   font-weight: 700;
-  color: var(--ink-600, #475569);
+  letter-spacing: 0.08em;
+  color: var(--ink-500, #94a3b8);
+  text-transform: none;
+  pointer-events: none;
 }
 
 .viewport__ceiling-options { display: inline-flex; gap: 2px; }

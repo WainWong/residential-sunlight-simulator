@@ -9,7 +9,7 @@ export function createCameraRig(canvas, aspect = 1) {
   controls.enableDamping = true;
   controls.dampingFactor = 0.07;
   controls.screenSpacePanning = true;
-  controls.minDistance = 8;
+  controls.minDistance = 1.5;
   controls.maxDistance = 500;
   controls.maxPolarAngle = Math.PI * 0.49;
   controls.target.set(0, 18, 0);

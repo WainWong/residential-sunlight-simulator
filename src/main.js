@@ -68,6 +68,8 @@ export function mountApp(root) {
             const selection = typeof picked === 'string' ? { kind: 'building', id: picked } : picked;
             if (!selection) return;
             const project = store.getState();
+            // 墙面只在"编辑房间"相可选(为开窗/开门);其他相点墙无反应。
+            if (selection.kind === 'wall' && project.view.phase !== 'room') return;
             if (project.view.phase === 'sunlight' && selection.kind === 'building') {
               store.execute(createReturnExteriorCommand(selection.id));
             } else if (project.view.phase === 'sunlight' && selection.kind === 'room') {
