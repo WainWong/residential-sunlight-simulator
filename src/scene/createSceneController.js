@@ -267,11 +267,12 @@ export function createSceneController(canvas, { onSelect = () => {}, store = nul
     if (origin) origin.visible = false;
 
     // Keep the current camera angle when entering; do not snap to top-down.
-    // `target.y` is the draw-plane height and overlay baseY.
     const { target } = floorFocusTarget(building, floor);
-    // 草稿标记(半透明蓝)贴在本层地面(target.y);拾取平面同高,矩形跟手。挖空由
-    // CSG 管线真实完成,标记只是"草稿中"记号。
-    const previewY = target.y;
+    // 草稿预览平面取本层「band 顶」(揭盖后的开口沿):画房间时本层实体墙带
+    // (floorBaseY→bandTopY)仍在渲染,若把预览贴在地面(floorBaseY)会被这圈实体
+    // 从斜俯视角遮住,只能露出一丝(Bug B)。贴在 band 顶则浮在开口沿上,完整可见;
+    // 拾取平面、尺寸标签同取此高度,矩形依旧跟手。挖空由 CSG 管线真实完成。
+    const previewY = bandTopY({ floor, ...building.params });
     cameraParts.focusFloor({
       center: { x: building.position.x, y: target.y, z: building.position.z },
       radius: Math.max(building.params.length, building.params.depth) / 2
