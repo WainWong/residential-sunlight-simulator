@@ -1,6 +1,7 @@
 import { clipRectToFootprint } from '../buildings/footprintClip.js';
 import { floorBaseY } from '../buildings/floorMath.js';
 import { rotateLocalToWorld } from '../buildings/wallGeometry.js';
+import { rectUnionToPolygons } from '../buildings/rectUnion.js';
 
 const EPS = 1e-6;
 
@@ -52,38 +53,18 @@ export function rectsOverlap(a, b) {
     && Math.min(a.z1, b.z1) - Math.max(a.z0, b.z0) > EPS;
 }
 
-function shareEdge(a, b) {
-  const vertical = (Math.abs(a.x1 - b.x0) <= EPS || Math.abs(b.x1 - a.x0) <= EPS)
-    && Math.min(a.z1, b.z1) - Math.max(a.z0, b.z0) > EPS;
-  const horizontal = (Math.abs(a.z1 - b.z0) <= EPS || Math.abs(b.z1 - a.z0) <= EPS)
-    && Math.min(a.x1, b.x1) - Math.max(a.x0, b.x0) > EPS;
-  return vertical || horizontal;
-}
-
+// 连通性判定用真并集:把 rects 并成直角多边形,恰好一个外轮廓 = 连通。
+// 这样重叠、部分共边、L/T 形都能正确判为一块,断开或只靠一个角点相触则为多块。
 function connected(rects) {
   if (rects.length < 2) return true;
-  const seen = new Set([0]);
-  const queue = [0];
-  while (queue.length) {
-    const index = queue.shift();
-    rects.forEach((rect, candidate) => {
-      if (!seen.has(candidate) && shareEdge(rects[index], rect)) {
-        seen.add(candidate);
-        queue.push(candidate);
-      }
-    });
-  }
-  return seen.size === rects.length;
+  return rectUnionToPolygons(rects).length === 1;
 }
 
 export function validateRoomRects(rects, occupiedRects = [], { allowDisconnected = false } = {}) {
   const normalized = normalizeRects(rects);
   if (normalized.length === 0) return { ok: false, reason: 'empty' };
-  for (let i = 0; i < normalized.length; i += 1) {
-    for (let j = i + 1; j < normalized.length; j += 1) {
-      if (rectsOverlap(normalized[i], normalized[j])) return { ok: false, reason: 'overlap' };
-    }
-  }
+  // 同一房间内部 rects 互相重叠是合法的(并集=同一片区域),不再拒绝自重叠;
+  // 只判连通(并集恰好一块)。与别的房间的重叠在下方 occupied 检查里照拒。
   if (!allowDisconnected && !connected(normalized)) return { ok: false, reason: 'disconnected' };
   if (normalized.some(rect => normalizeRects(occupiedRects).some(other => rectsOverlap(rect, other)))) {
     return { ok: false, reason: 'occupied' };

@@ -175,6 +175,18 @@ describe('room commands', () => {
     expect(store.getState().view.roomEditing.rects).toEqual([{ x0: -4, z0: -2, x1: 4, z1: 2 }]);
   });
 
+  it('partially-overlapping strokes (no full shared edge) still finish as one room', () => {
+    // Bug A: two blocks overlapping only at a corner never share a full edge, so
+    // the old edge-based connectivity + self-overlap check rejected finishing.
+    // The union is one connected region, so it must commit as a single room.
+    const store = createStore(projectWithBuilding());
+    store.execute(createStartRoomCommand('b1', 1));
+    expect(store.execute(createAppendRoomRectCommand({ x0: -4, z0: -3, x1: 1, z1: 1 }))).toBe(true);
+    expect(store.execute(createAppendRoomRectCommand({ x0: -1, z0: -1, x1: 4, z1: 3 }))).toBe(true);
+    expect(store.execute(createFinishRoomCommand())).toBe(true);
+    expect(store.getState().buildings[0].rooms).toHaveLength(1);
+  });
+
   it('appending a block overlapping ANOTHER room is rejected', () => {
     const project = projectWithBuilding();
     project.buildings[0].rooms.push({ id: 'other', floor: 1, name: '房间 9', rects: [{ x0: 1, z0: -2, x1: 4, z1: 2 }], objects: [] });

@@ -11,15 +11,19 @@ describe('room geometry', () => {
     expect(validateRoomRects(rects)).toEqual({ ok: true, reason: null });
   });
 
-  it('rejects disconnected rectangles and area overlap', () => {
+  it('rejects rectangles that the union leaves as more than one region', () => {
+    // fully separate → union has two outer loops → disconnected
     expect(validateRoomRects([
       { x0: 0, z0: 0, x1: 1, z1: 1 },
       { x0: 2, z0: 0, x1: 3, z1: 1 }
     ]).reason).toBe('disconnected');
+  });
+
+  it('accepts self-overlapping rectangles of one room (union is one region)', () => {
     expect(validateRoomRects([
       { x0: 0, z0: 0, x1: 2, z1: 2 },
       { x0: 1, z0: 1, x1: 3, z1: 3 }
-    ]).reason).toBe('overlap');
+    ])).toEqual({ ok: true, reason: null });
   });
 
   it('rejects overlap with another room', () => {
