@@ -352,6 +352,7 @@ export function createSceneController(canvas, { onSelect = () => {}, store = nul
       buildingId, floor, baseY: target.y, previewY,
       sig: `${buildingId}:${floor}`,
       buildingRevision: building.revision,
+      draftSig: '',
       ceiling: effectiveCeiling(project.view),
       slab, existing: [], dimLabel, clearPreview, clearDragRect: () => { disposeGroup(dragGroup); dragGroup = null; },
       showDimLabel, renderRoomPreview, renderDragRect, clipDrawable, getBuilding,
@@ -468,13 +469,19 @@ export function createSceneController(canvas, { onSelect = () => {}, store = nul
       if (floorFocus) disposeFloorFocus();
       buildFloorFocus(project);
     } else {
-      // Re-apply the lid visibility when the focused building's meshes were
-      // rebuilt (revision bump resets mesh.visible) or the ceiling mode changed.
+      // 重掀盖:楼体 mesh 被重建时(revision 变、天花档变、或**草稿变触发重建**)
+      // 新 mesh 的 visible 会重置为 true(盖着),必须重新应用掀盖。草稿 append 不
+      // 改 revision,但会触发 mesh 重建,故这里也要跟踪草稿指纹。
       const building = project.buildings.find(item => item.id === focus.buildingId);
       const ceiling = effectiveCeiling(project.view);
-      if (building && (building.revision !== floorFocus.buildingRevision || ceiling !== floorFocus.ceiling)) {
+      const editing = project.view.roomEditing;
+      const draftSig = editing?.buildingId === focus.buildingId && editing.rects?.length
+        ? `${editing.roomId}:${editing.rects.length}:${JSON.stringify(editing.rects)}` : '';
+      if (building && (building.revision !== floorFocus.buildingRevision
+          || ceiling !== floorFocus.ceiling || draftSig !== floorFocus.draftSig)) {
         floorFocus.buildingRevision = building.revision;
         floorFocus.ceiling = ceiling;
+        floorFocus.draftSig = draftSig;
         const bandToY = bandTopY({ floor: focus.floor, ...building.params });
         setFloorFocusVisibility(sceneParts.buildings, focus.buildingId, focus.floor, bandToY, ceiling);
       }
