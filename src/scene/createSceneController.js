@@ -268,11 +268,12 @@ export function createSceneController(canvas, { onSelect = () => {}, store = nul
 
     // Keep the current camera angle when entering; do not snap to top-down.
     const { target } = floorFocusTarget(building, floor);
-    // 草稿预览平面取本层「band 顶」(揭盖后的开口沿):画房间时本层实体墙带
-    // (floorBaseY→bandTopY)仍在渲染,若把预览贴在地面(floorBaseY)会被这圈实体
-    // 从斜俯视角遮住,只能露出一丝(Bug B)。贴在 band 顶则浮在开口沿上,完整可见;
-    // 拾取平面、尺寸标签同取此高度,矩形依旧跟手。挖空由 CSG 管线真实完成。
-    const previewY = bandTopY({ floor, ...building.params });
+    // 草稿渲染成「充满挖空腔的半透明体」:底贴楼板(floorBaseY),高=本层 band。
+    // 体与挖空腔重合、四周实体在体外,从敞口斜俯必然看得见——遮挡从根上消解,
+    // 无需把预览抬到 band 顶。拾取平面、尺寸标签同取楼板层(画在哪层就在哪层),
+    // 矩形跟手。挖空由 CSG 管线真实完成,蓝体只是「草稿中」记号。
+    const previewY = target.y;
+    const draftHeight = bandTopY({ floor, ...building.params }) - target.y;
     cameraParts.focusFloor({
       center: { x: building.position.x, y: target.y, z: building.position.z },
       radius: Math.max(building.params.length, building.params.depth) / 2
@@ -314,13 +315,13 @@ export function createSceneController(canvas, { onSelect = () => {}, store = nul
     let dragGroup = null;
     const disposeGroup = g => { if (g) { g.userData.dispose(); sceneParts.drafts.remove(g); } };
     const makeOverlay = (rects, valid) => {
-      const g = createRoomOverlay({ rects, baseY: previewY, draft: true, invalid: !valid });
+      const g = createRoomOverlay({ rects, baseY: previewY, draft: true, invalid: !valid, wallHeight: draftHeight });
       applyBuildingTransform(g, building);
       sceneParts.drafts.add(g);
       return g;
     };
     const clearPreview = () => { disposeGroup(committedGroup); committedGroup = null; };
-    // 累积块(已落地房间形状)。贴当前层顶面(bandTop),斜俯不被本层墙挡,位置真实。
+    // 累积块(已落地房间形状),渲染成充满本层挖空腔的半透明蓝体。
     const renderRoomPreview = (rects, valid = true) => {
       disposeGroup(committedGroup); committedGroup = null;
       if (!rects?.length) return;

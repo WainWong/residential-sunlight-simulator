@@ -13,12 +13,12 @@ const draftMaterial = new THREE.MeshBasicMaterial({
 const invalidMaterial = new THREE.MeshBasicMaterial({
   color: 0xb43e36, transparent: true, opacity: 0.42, side: THREE.DoubleSide, depthWrite: false
 });
-// Semi-transparent walls rising along the room boundary give the
-// drawn region a sense of the surrounding room without a roof (so the
-// top-down draw view stays clear). Rebuilt with the overlay whenever rects
-// change, so the walls track the shape as the user draws.
+// Semi-transparent walls rising along the room boundary turn the draft into a
+// translucent-blue volume filling the carved cavity (floor plate + these side
+// walls, open top so the top-down draw view stays clear). Rebuilt with the
+// overlay whenever rects change, so the volume tracks the shape as the user draws.
 const wallMaterial = new THREE.MeshBasicMaterial({
-  color: 0x7fa6b2, transparent: true, opacity: 0.16, side: THREE.DoubleSide, depthWrite: false
+  color: 0x7fa6b2, transparent: true, opacity: 0.2, side: THREE.DoubleSide, depthWrite: false
 });
 
 function buildRoomWalls(polygons, baseY, wallHeight) {
