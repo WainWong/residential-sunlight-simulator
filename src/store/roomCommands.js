@@ -2,7 +2,7 @@ import { clipRectToFootprint } from '../domain/buildings/footprintClip.js';
 import { clamp } from '../domain/buildings/types/shared.js';
 import { reprojectBuildingOpenings } from '../domain/openings/openingGeometry.js';
 import { applyRectEdit } from '../domain/rooms/rectEdit.js';
-import { nextRoomName, normalizeRects, validateRoomRects } from '../domain/rooms/roomGeometry.js';
+import { nextRoomName, normalizeRects, rectsOverlap, validateRoomRects } from '../domain/rooms/roomGeometry.js';
 
 const fallbackId = prefix => `${prefix}-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 7)}`;
 const newId = prefix => globalThis.crypto?.randomUUID?.() ?? fallbackId(prefix);
@@ -189,11 +189,10 @@ export function createAppendRoomRectCommand(rect) {
       const occupied = (building.rooms ?? [])
         .filter(room => room.floor === editing.floor && room.id !== editing.roomId)
         .flatMap(room => room.rects ?? []);
-      const rects = [...editing.rects, normalized];
-      // 绘制过程允许暂时不连通(见 CONTEXT 画房间预览的 (ii)),连通性留到"完成房间"
-      // (createFinishRoomCommand)统一校验;这里只挡重叠/越界/占用他室。
-      const validity = validateRoomRects(rects, occupied, { allowDisconnected: true });
-      if (!validity.ok) return null;
+      // 本房间自己的块取并集合并(重叠也能加、自动并成更大区域);只挡越界与压到别的
+      // 房间。绘制期允许暂时不连通,连通性留到"完成房间"统一校验。
+      const rects = applyRectEdit(editing.rects, normalized, 'draw');
+      if (rects.some(r => occupied.some(o => rectsOverlap(r, o)))) return null;
       return {
         ...state,
         view: { ...state.view, roomEditing: { ...editing, rects } }

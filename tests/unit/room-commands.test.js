@@ -166,6 +166,23 @@ describe('room commands', () => {
     expect(store.getState().buildings[0].rooms).toHaveLength(1);
   });
 
+  it('appending an overlapping block merges into one rect (union), not rejected', () => {
+    const store = createStore(projectWithBuilding());
+    store.execute(createStartRoomCommand('b1', 1));
+    expect(store.execute(createAppendRoomRectCommand({ x0: -4, z0: -2, x1: 0, z1: 2 }))).toBe(true);
+    // overlaps the first block — should union into a single wider rect, not be rejected
+    expect(store.execute(createAppendRoomRectCommand({ x0: -2, z0: -2, x1: 4, z1: 2 }))).toBe(true);
+    expect(store.getState().view.roomEditing.rects).toEqual([{ x0: -4, z0: -2, x1: 4, z1: 2 }]);
+  });
+
+  it('appending a block overlapping ANOTHER room is rejected', () => {
+    const project = projectWithBuilding();
+    project.buildings[0].rooms.push({ id: 'other', floor: 1, name: '房间 9', rects: [{ x0: 1, z0: -2, x1: 4, z1: 2 }], objects: [] });
+    const store = createStore(project);
+    store.execute(createStartRoomCommand('b1', 1));
+    expect(store.execute(createAppendRoomRectCommand({ x0: 0, z0: -1, x1: 3, z1: 1 }))).toBe(false);
+  });
+
   it('cancels without writing a room and supports entity selection', () => {
     const store = createStore(projectWithBuilding());
     store.execute(createStartRoomCommand('b1', 1));

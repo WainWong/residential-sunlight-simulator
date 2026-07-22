@@ -30,6 +30,25 @@ describe('selection highlight', () => {
     expect(rebuild).toHaveBeenCalledTimes(2);
     expect(rebuild.mock.calls[1][1]).toEqual({ preview: false, highlighted: true });
   });
+
+  it('carves the draft: signature tracks draft rects and rebuild gets an augmented room', () => {
+    const rebuild = vi.fn((b, opts) => ({ id: b.id, rooms: b.rooms, opts, dispose: vi.fn() }));
+    const sync = createSceneSynchronizer({ rebuild, attach: vi.fn(), detach: vi.fn() });
+    const draft = { buildingId: 'building-a', roomId: 'draft-1', floor: 1, rects: [{ x0: 0, z0: 0, x1: 4, z1: 4 }] };
+    sync.update([barBuilding], { draft });
+    // draft room appended for the carve
+    expect(rebuild.mock.calls[0][0].rooms).toEqual([{ id: 'draft-1', floor: 1, rects: draft.rects, objects: [] }]);
+    // same draft → no rebuild
+    sync.update([barBuilding], { draft });
+    expect(rebuild).toHaveBeenCalledTimes(1);
+    // draft rects change → rebuild
+    sync.update([barBuilding], { draft: { ...draft, rects: [{ x0: 0, z0: 0, x1: 6, z1: 4 }] } });
+    expect(rebuild).toHaveBeenCalledTimes(2);
+    // draft cleared → rebuild back to canonical (no draft room)
+    sync.update([barBuilding], { draft: null });
+    expect(rebuild).toHaveBeenCalledTimes(3);
+    expect(rebuild.mock.calls[2][0].rooms ?? []).toEqual([]);
+  });
 });
 
 const barBuilding = {

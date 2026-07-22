@@ -269,8 +269,9 @@ export function createSceneController(canvas, { onSelect = () => {}, store = nul
     // Keep the current camera angle when entering; do not snap to top-down.
     // `target.y` is the draw-plane height and overlay baseY.
     const { target } = floorFocusTarget(building, floor);
-    // 预览贴在本层顶面(bandTop);拾取平面仍在本层地面(target.y),XZ 坐标即房间坐标。
-    const previewY = bandTopY({ floor, ...building.params });
+    // 草稿标记(半透明蓝)贴在本层地面(target.y);拾取平面同高,矩形跟手。挖空由
+    // CSG 管线真实完成,标记只是"草稿中"记号。
+    const previewY = target.y;
     cameraParts.focusFloor({
       center: { x: building.position.x, y: target.y, z: building.position.z },
       radius: Math.max(building.params.length, building.params.depth) / 2
@@ -533,7 +534,13 @@ export function createSceneController(canvas, { onSelect = () => {}, store = nul
     updateProject(project) {
       currentProject = project;
       const highlightBuildingId = selectedBuildingId(project.view);
-      synchronizer.update(project.buildings, { highlightBuildingId });
+      // 草稿=未提交的房间,和已完成房间走同一条 CSG 管线:把它交给同步器,楼体
+      // 签名纳入草稿指纹,草稿 rects 一变(松手/append)就把该块真的挖空。
+      const editing = project.view.roomEditing;
+      const draft = editing?.rects?.length
+        ? { buildingId: editing.buildingId, roomId: editing.roomId, floor: editing.floor, rects: editing.rects }
+        : null;
+      synchronizer.update(project.buildings, { highlightBuildingId, draft });
       buildingGestures.updateProject(project);
       openingGestures.updateProject(project);
       syncSelectedWall(project);
