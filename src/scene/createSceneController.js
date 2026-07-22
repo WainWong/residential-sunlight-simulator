@@ -273,7 +273,7 @@ export function createSceneController(canvas, { onSelect = () => {}, store = nul
     // 无需把预览抬到 band 顶。拾取平面、尺寸标签同取楼板层(画在哪层就在哪层),
     // 矩形跟手。挖空由 CSG 管线真实完成,蓝体只是「草稿中」记号。
     const previewY = target.y;
-    const draftHeight = bandTopY({ floor, ...building.params }) - target.y;
+    const draftHeight = bandToY - target.y;
     cameraParts.focusFloor({
       center: { x: building.position.x, y: target.y, z: building.position.z },
       radius: Math.max(building.params.length, building.params.depth) / 2
